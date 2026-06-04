@@ -1,0 +1,276 @@
+
+
+h2 {
+    display: block;
+    font-size: 13px;
+    margin-block-start: 0.83em;
+    margin-block-end: 0.83em;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    font-weight: bold;
+    unicode-bidi: isolate;
+  
+}
+
+/* Menu no topo */
+nav {
+    width: 100%; /* O menu ocupa toda a largura da tela */
+    background-color: #333;
+    position: fixed; /* Fixa o menu no topo */
+    /*top: 0;
+    left: 0;
+    z-index: 1000; /* Garante que o menu fique acima do conteúdo */
+    /*box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Sombra para efeito visual */
+    /*padding: 14px 0; /* Espaçamento interno para o menu */
+}
+
+/* Lista de itens no menu */
+ nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    display: flex; /* Exibe os itens horizontalmente */
+    /* justify-content: center; /* Centraliza os itens */
+ }
+
+/* Itens do menu */
+nav ul li {
+    margin: 0 20px; /* Espaçamento entre os itens */
+}
+
+/* Links no menu */
+nav ul li a {
+    display: block;
+    padding: 10px 16px;
+    color: white;
+    text-decoration: none;
+    text-align: center;
+    font-size: 13px; /* Tamanho da fonte */
+}
+
+/* Efeito de hover nos links */
+nav ul li a:hover {
+    background-color: #575757; /* Cor de fundo ao passar o mouse */
+}
+
+/* Evitar que o conteúdo fique escondido atrás do menu */
+/* body {
+    padding-top: 60px; /* Deixe um espaço suficiente para o menu */
+/* }
+
+
+
+/* Resetando margens e configurações iniciais */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+/* O conteúdo ocupa o espaço restante da página */
+/*#content {
+    flex: 1; /* Faz com que o conteúdo ocupe o máximo de espaço disponível */
+    /*padding: 20px;*/
+    /*min-height: 100%;
+
+/*}
+
+/* O formulário com largura de 50% */
+form {
+    margin: 0 auto;
+    padding:0px;
+    border: 0px solid #fff;
+    border-radius: 0px;
+    background-color: #fff;
+}
+
+/* Estilo dos campos do formulário */
+input[type="text"], input[type="number"], input[type="file"], select, textarea {
+    width: 100%;
+    padding: 5px;
+    margin: px 0 1px 0;
+    border: 1px solid #D3D3D3;
+    border-radius: 0px;
+
+}
+
+/* Estilo para o botão de submit */
+input[type="submit"] {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+/* Link para voltar */
+/*a {
+    display: inline-block;
+    margin: 5px 0;
+    padding: 8px 16px;
+    background-color: #d11507;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+a:hover {
+    background-color: #0056b3;
+}
+
+/* Footer fixo no fundo da página */
+footer {
+  background-color: #2c2c2c;
+  color: #fff;
+  text-align: center;
+  padding: 10px;
+  position: relative; /* ou remover position completamente */
+  bottom: 0;
+  width: 100%;
+}
+
+
+/* Estilo para as tabelas */
+.table-container {
+    max-width: 50%; /* A largura da tabela será de 50% da tela */
+    margin: 40px auto; /* Alinhamento centralizado com margem em cima e embaixo */
+    padding: 20px;
+    background-color: #f9f9f9; /* Cor de fundo */
+    border-radius: 8px; /* Bordas arredondadas */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Sombra suave ao redor */
+}
+
+/* Estilo para o cabeçalho da tabela */
+.table-container table {
+    width: 100%; /* Largura da tabela */
+    border-collapse: collapse; /* Remove o espaço entre as células */
+}
+
+.table-container th, .table-container td {
+    padding: 12px; /* Espaçamento interno das células */
+    text-align: left; /* Alinhar texto à esquerda */
+    border-bottom: 1px solid #ddd; /* Linha divisória fina */
+    background-color: #f9f9f9;
+}
+
+/* Cor de fundo das células do cabeçalho */
+.table-container th {
+    background-color: #9E9E9E;
+    color: white; /* Cor do texto */
+    font-weight: normal; /* Negrito no cabeçalho */
+}
+
+/* Estilo para o rodapé da tabela */
+.table-container tr:last-child td {
+    border-bottom: none; /* Remove a borda da última linha */
+}
+
+/* Estilo de hover nas linhas */
+.table-container tr:hover {
+    background-color: #f1f1f1; /* Muda a cor de fundo ao passar o mouse */
+}
+
+.table-container_table {
+ background-color: #575757;
+}
+
+.table {
+  width: 100%;
+  table-layout: auto; /* ou fixed, ver nota abaixo */
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+
+.top-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: right;
+    padding: 0px 30px;
+    background-color: #9E9E9E;
+    border-bottom: 1px solid #ddd;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-name {
+    font-weight: normal;
+    font-size: 14px;
+    color: #fff;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.logout-btn {
+    padding: 4px 8px;
+    background-color: #dc3545;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.7em;
+    transition: background 0.3s;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.logout-btn:hover {
+    background-color: #c82333;
+}
+
+
+.sidebar ul ul {
+    padding-left: 0px;
+}
+
+.sidebar ul ul li a {
+   
+    padding-left: 0px;
+}
+
+
+
+
+.submenu {
+    list-style: none;
+    padding-left: 0px;
+    margin: 0px 0;
+}
+
+.submenu li {
+    padding: 0px 0 0px 00px;
+}
+
+.submenu li a {
+    color: #ccc;
+    font-size: 0.9rem;
+    text-decoration: none;
+    display: block;
+}
+
+.submenu li a:hover {
+    color: #fff;
+}
+
+.sidebar.collapsed .collapse.show {
+    display: none !important;
+}
