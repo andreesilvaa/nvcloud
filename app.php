@@ -1038,7 +1038,7 @@ if ($page === 'alertas') {
                 if ($value !== '' && !mb_check_encoding($value, 'UTF-8')) {
                   $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
                 }
-                
+
                 return $value;
             };
 
@@ -1066,12 +1066,7 @@ if ($page === 'alertas') {
 
               if (!mb_check_encoding($value, 'UTF-8')) {
                 $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
-              } else {
-                $converted = @mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
-                if (is_string($converted) && $converted !== '' && substr_count($converted, '�') < substr_count($value, '�')) {
-                  $value = $converted;
-                }
-              }
+              } 
 
               return $value;
             };
@@ -2292,6 +2287,17 @@ select{
   }
 }
 
+.conta-principal-badge{
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  background:#eef2f7;
+  color:#4b5563;
+  white-space:nowrap;
+}
+
 </style>
 </head>
 
@@ -3366,24 +3372,34 @@ select{
                 }
 
                 $rowId = 'cliente-parent-' . $i; ?>
-            <tr class="cliente-row-parent">
-              <td>
-                <?php if ($temFilhos): ?>
-                  <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars($rowId) ?>">+</button>
-                <?php else: ?>
-                  <span style="display:inline-block; width:32px;"></span>
-                <?php endif; ?>
-                  <strong><?= htmlspecialchars($cliente['account_name']) ?></strong>
-              </td>
-              <td>
-                <span class="tipo-badge <?= $typeClass ?>">
-                  <?= htmlspecialchars($cliente['type'] !== '' ? $cliente['type'] : 'Sem tipo') ?>
-                </span>
-              </td>
-              <td><?= htmlspecialchars($cliente['parent_account'] !== '' ? $cliente['parent_account'] : '-') ?></td>
-              <td><?= htmlspecialchars($cliente['last_activity'] !== '' ? $cliente['last_activity'] : '-') ?></td>
-              <td><?= htmlspecialchars($cliente['last_modified_date'] !== '' ? $cliente['last_modified_date'] : '-') ?></td>
-            </tr>
+         <tr class="cliente-row-parent">
+          <td>
+            <?php if ($temFilhos): ?>
+              <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars($rowId) ?>">+</button>
+            <?php else: ?>
+              <span style="display:inline-block; width:32px;"></span>
+            <?php endif; ?>
+              <strong><?= htmlspecialchars($cliente['account_name']) ?></strong>
+          </td>
+          <td>
+              <span class="tipo-badge <?= $typeClass ?>">
+            <?= htmlspecialchars($cliente['type'] !== '' ? $cliente['type'] : 'Sem tipo') ?>
+              </span>
+          </td>
+          <td>
+            <?php if ($cliente['parent_account'] !== ''): ?>
+            <?= htmlspecialchars($cliente['parent_account']) ?>
+            <?php else: ?>
+              <span class="conta-principal-badge">Conta Principal</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?= htmlspecialchars($cliente['last_activity'] !== '' ? $cliente['last_activity'] : '-') ?>
+          </td>
+          <td>
+            <?= htmlspecialchars($cliente['last_modified_date'] !== '' ? $cliente['last_modified_date'] : '-') ?>
+          </td>
+        </tr>
 
             <?php if ($temFilhos): ?>
               <?php foreach ($filhos as $filho): ?>
