@@ -57,7 +57,7 @@ if ($page === 'nova_peca' && $editId > 0) {
 
 $pageTitles = [
   'dashboard' => 'Dashboard',
-  'alertas' => 'Alertas',
+  'alertas' => 'Clientes',
   'inventario' => 'Inventário',
   'nova_peca' => 'Nova Peça',
   'historico' => 'Histórico da Peça',
@@ -1000,6 +1000,161 @@ if ($page === 'envios') {
       $catalogoInventarioReal[$row['categoria']][] = $row['produto'];
     }
   }
+}
+
+$clientes = [];
+$clientesStats = [
+    'total' => 0,
+    'customers' => 0,
+    'prospects' => 0,
+    'partners' => 0,
+    'com_parent' => 0,
+    'grupos_parent' => 0
+];
+$clientesFiltros = [
+    'q' => trim($_GET['q'] ?? ''),
+    'type' => trim($_GET['type'] ?? ''),
+    'hierarquia' => trim($_GET['hierarquia'] ?? '')
+];
+$clientesTipos = [];
+$clientesPais = [];
+$clientesRoots = [];
+$clientesChildrenMap = [];
+
+if ($page === 'alertas') {
+    $csvPath = __DIR__ . '/report1780499256737.csv';
+
+    if (is_file($csvPath) && is_readable($csvPath)) {
+        $handle = fopen($csvPath, 'r');
+
+        if ($handle !== false) {
+            $header = fgetcsv($handle, 0, ';');
+
+            $normalizeHeader = static function ($value) {
+                $value = (string)$value;
+                $value = trim($value);
+                $value = preg_replace('/^\xEF\xBB\xBF/', '', $value);
+                return $value;
+            };
+
+            $headerMap = [];
+            if (is_array($header)) {
+                foreach ($header as $i => $col) {
+                    $headerMap[$normalizeHeader($col)] = $i;
+                }
+            }
+
+            $idxLastActivity = $headerMap['Last Activity'] ?? null;
+            $idxAccountName = $headerMap['Account Name'] ?? null;
+            $idxType = $headerMap['Type'] ?? null;
+            $idxLastModified = $headerMap['Last Modified Date'] ?? null;
+            $idxParent = $headerMap['Parent Account'] ?? null;
+
+            while (($row = fgetcsv($handle, 0, ';')) !== false) {
+                $accountName = trim((string)($row[$idxAccountName] ?? ''));
+                $type = trim((string)($row[$idxType] ?? ''));
+                $parent = trim((string)($row[$idxParent] ?? ''));
+                $lastActivity = trim((string)($row[$idxLastActivity] ?? ''));
+                $lastModified = trim((string)($row[$idxLastModified] ?? ''));
+
+                if ($accountName === '') {
+                    continue;
+                }
+
+                $cliente = [
+                    'account_name' => $accountName,
+                    'type' => $type,
+                    'parent_account' => $parent,
+                    'last_activity' => $lastActivity,
+                    'last_modified_date' => $lastModified,
+                    'is_child' => $parent !== '',
+                ];
+
+                $clientes[] = $cliente;
+
+                $clientesStats['total']++;
+
+                if (strcasecmp($type, 'Customer') === 0) {
+                    $clientesStats['customers']++;
+                } elseif (strcasecmp($type, 'Prospect') === 0) {
+                    $clientesStats['prospects']++;
+                } elseif (stripos($type, 'Partner') !== false) {
+                    $clientesStats['partners']++;
+                }
+
+                if ($parent !== '') {
+                    $clientesStats['com_parent']++;
+                    if (!isset($clientesChildrenMap[$parent])) {
+                        $clientesChildrenMap[$parent] = [];
+                    }
+                    $clientesChildrenMap[$parent][] = $cliente;
+                }
+
+                if ($type !== '' && !in_array($type, $clientesTipos, true)) {
+                    $clientesTipos[] = $type;
+                }
+            }
+
+            fclose($handle);
+        }
+    }
+
+    sort($clientesTipos, SORT_NATURAL | SORT_FLAG_CASE);
+
+    foreach ($clientesChildrenMap as $parentName => $children) {
+        $clientesStats['grupos_parent']++;
+    }
+
+    $clientesIndex = [];
+    foreach ($clientes as $cliente) {
+        $clientesIndex[$cliente['account_name']] = $cliente;
+    }
+
+    foreach ($clientes as $cliente) {
+        $nome = $cliente['account_name'];
+        $temFilhos = isset($clientesChildrenMap[$nome]) && count($clientesChildrenMap[$nome]) > 0;
+
+        $matchTexto = true;
+        if ($clientesFiltros['q'] !== '') {
+            $q = mb_strtolower($clientesFiltros['q']);
+            $haystack = mb_strtolower(
+                $cliente['account_name'] . ' ' .
+                $cliente['type'] . ' ' .
+                $cliente['parent_account']
+            );
+            $matchTexto = mb_strpos($haystack, $q) !== false;
+        }
+
+        $matchType = $clientesFiltros['type'] === '' || $cliente['type'] === $clientesFiltros['type'];
+
+        $matchHierarquia = true;
+        if ($clientesFiltros['hierarquia'] === 'com_parent') {
+            $matchHierarquia = $cliente['parent_account'] !== '';
+        } elseif ($clientesFiltros['hierarquia'] === 'so_pais') {
+            $matchHierarquia = $temFilhos;
+        } elseif ($clientesFiltros['hierarquia'] === 'so_sem_parent') {
+            $matchHierarquia = $cliente['parent_account'] === '';
+        }
+
+        if (!$matchTexto || !$matchType || !$matchHierarquia) {
+            continue;
+        }
+
+        if ($cliente['parent_account'] === '') {
+            $clientesRoots[] = $cliente;
+        }
+    }
+
+    usort($clientesRoots, static function ($a, $b) {
+        return strcasecmp($a['account_name'], $b['account_name']);
+    });
+
+    foreach ($clientesChildrenMap as $parentName => &$children) {
+        usort($children, static function ($a, $b) {
+            return strcasecmp($a['account_name'], $b['account_name']);
+        });
+    }
+    unset($children);
 }
 
 
@@ -1977,6 +2132,137 @@ select{
   }
 }
 
+.clientes-kpis{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0,1fr));
+  gap:18px;
+  margin-bottom:20px;
+}
+
+.cliente-kpi{
+  background:#fff;
+  border-radius:14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+  padding:18px;
+}
+
+.cliente-kpi .label{
+  font-size:13px;
+  color:#6b7280;
+  margin-bottom:8px;
+}
+
+.cliente-kpi .valor{
+  font-size:28px;
+  font-weight:700;
+  color:#1f2937;
+}
+
+.clientes-filtros{
+  display:grid;
+  grid-template-columns:1.4fr 1fr 1fr auto;
+  gap:18px;
+  align-items:end;
+  margin-bottom:20px;
+}
+
+.clientes-table{
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+}
+
+.clientes-table th,
+.clientes-table td{
+  border:1px solid #e5e7eb;
+  padding:12px;
+  text-align:left;
+  vertical-align:middle;
+}
+
+.clientes-table th{
+  background:#f6f7f9;
+}
+
+.cliente-row-parent{
+  background:#ffffff;
+}
+
+.cliente-row-child{
+  background:#fbfcfe;
+}
+
+.cliente-child-name{
+  padding-left:34px;
+  position:relative;
+}
+
+.cliente-child-name::before{
+  content:"└";
+  position:absolute;
+  left:14px;
+  color:#9ca3af;
+}
+
+.cliente-toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  border:none;
+  border-radius:6px;
+  background:#eef2f7;
+  color:#374151;
+  cursor:pointer;
+  margin-right:8px;
+  font-size:14px;
+}
+
+.cliente-toggle:hover{
+  background:#e5e7eb;
+}
+
+.cliente-toggle.is-open{
+  background:#cba35c;
+  color:#000;
+}
+
+.tipo-badge{
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.tipo-customer{ background:#d1fae5; color:#065f46; }
+.tipo-prospect{ background:#fef3c7; color:#92400e; }
+.tipo-partner{ background:#dbeafe; color:#1d4ed8; }
+.tipo-other{ background:#e5e7eb; color:#374151; }
+
+.clientes-empty{
+  color:#6b7280;
+  text-align:center;
+  padding:22px !important;
+}
+
+@media (max-width: 1200px) {
+  .clientes-kpis{
+    grid-template-columns:repeat(2, minmax(0,1fr));
+  }
+  .cliente-filtros{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media (max_width: 768px){
+  .clientes-kpis,
+  .clientes-filtro{
+    grid-template-columns:1fr;
+  }
+}
 
 </style>
 </head>
@@ -1998,7 +2284,7 @@ select{
   </a>
 
   <a class="<?=active('alertas',$page)?>" href="app.php?page=alertas">
-    <i class="bi bi-exclamation-octagon"></i><span>Alertas</span>
+    <i class="bi bi-exclamation-octagon"></i><span>Clientes</span>
   </a>
 
   <a class="<?=active('inventario',$page)?>" href="app.php?page=inventario">
@@ -2949,34 +3235,158 @@ select{
     </div>
 </section>
 
-<?php elseif ($page === 'alertas'): ?>
-  <div class="panel"><table class="table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Produto</th>
-        <th>Categoria</th>
-        <th>Parceiro</th>
-        <th>Estado</th>
-        <th>Alerta</th>
-      </tr>
-    </thead>
 
-  <tbody>
-    <?php foreach($pdo->query("SELECT * FROM pecas WHERE estado IN ('Abater','Desconhecido','Devolução','Spares') 
-                              OR parceiro='Fornecedor(Reparação)' ORDER BY id DESC LIMIT 20") as $a): ?>
-      <tr>
-        <td><?=$a['id']?>
-        </td>
-        <td><?=$a['produto']?></td>
-        <td><?=$a['categoria']?></td>
-        <td><?=$a['parceiro']?></td>
-        <td><?=$a['estado']?></td>
-        <td><span class="badge" style="background:#dc3545">Verificar</span></td>
-      </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
+
+<?php elseif ($page === 'alertas') : ?>
+<div class="clientes-kpis">
+    <div class="cliente-kpi">
+        <div class="label">Total de Accounts</div>
+        <div class="valor"><?= (int)$clientesStats['total'] ?></div>
+    </div>
+    <div class="cliente-kpi">
+        <div class="label">Customers</div>
+        <div class="valor"><?= (int)$clientesStats['customers'] ?></div>
+    </div>
+    <div class="cliente-kpi">
+        <div class="label">Prospects</div>
+        <div class="valor"><?= (int)$clientesStats['prospects'] ?></div>
+    </div>
+    <div class="cliente-kpi">
+        <div class="label">Partners</div>
+        <div class="valor"><?= (int)$clientesStats['partners'] ?></div>
+    </div>
+    <div class="cliente-kpi">
+        <div class="label">Accounts com Parent</div>
+        <div class="valor"><?= (int)$clientesStats['com_parent'] ?></div>
+    </div>
+</div>
+
+  <div class="panel" style="margin-bottom:20px;">
+    <form method="get">
+      <input type="hidden" name="page" value="alertas">
+
+      <div class="clientes-filtros">
+        <div>
+          <label>Pesquisar</label>
+          <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
+        </div>
+
+        <div>
+          <label>Tipo</label>
+          <select name="type">
+            <option value="">-- Todos --</option>
+            <?php foreach ($clientesTipos as $tipo): ?>
+              <option value="<?= htmlspecialchars($tipo) ?>"
+                <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
+                <?= htmlspecialchars($tipo) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div>
+          <label>Hierarquia</label>
+          <select name="hierarquia">
+            <option value="">-- Todas --</option>
+            <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
+            <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
+            <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="submit" class="btn btn-blue">Filtrar</button>
+          <a href="app.php?page=alertas" class="btn btn-grey">Limpar</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="planel">
+    <h4 style="margin-bottom:16px;">Lista de Clientes</h4>
+
+    <div style="overflow-x:auto;">
+      <table class="clientes-table">
+        <thead>
+          <tr>
+            <th style="width:34%;">Conta</th>
+            <th style="width:16%;">Tipo</th>
+            <th style="width:24%;">Conta-Mãe</th>
+            <th style="width:13%;">Última Atividade</th>
+            <th style="width:13%;">Última Modificação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($clientesRoots)): ?>
+            <tr>
+              <td colspan="5" class="clientes-empty">Nenhum Cliente encontrado.</td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($clientesRoots as $i => $cliente): ?>
+              <?php
+                $nomeConta = $cliente['accont_name'];
+                $filhos = $clientesChildrenMap[$nomeConta] ?? [];
+                $temFilhos = count($filhos) > 0;
+
+                $typeClass = 'tipo-other';
+                if (strcasecmp($cliente['type'], 'Customer') === 0) {
+                  $typeClass = 'tipo-customer';
+                } elseif (strcasecmp($cliente['type'], 'Prospect') ===0) {
+                  $typeClass = 'tipo-prospect';
+                } elseif (stripos($cliente['type'], 'Partner') !== false) {
+                  $typeClass = 'tipo-partner';
+                }
+
+                $rowId = 'cliente-parent-' . $i; ?>
+            <tr class="cliente-row-parent">
+              <td>
+                <?php if ($temFilhos): ?>
+                  <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars($rowId) ?>">+</button>
+                <?php else: ?>
+                  <span style="display:inline-block; width:32px;"></span>
+                <?php endif; ?>
+                  <strong><?= htmlspecialchars($cliente['account_name']) ?></strong>
+              </td>
+              <td>
+                <span class="tipo-badge <?= $typeClass ?>">
+                  <?= htmlspecialchars($cliente['type'] !== '' ? $cliente['type'] : 'Sem tipo') ?>
+                </span>
+              </td>
+              <td><?= htmlspecialchars($cliente['parent_account'] !== '' ? $cliente['parent_account'] : '-') ?></td>
+              <td><?= htmlspecialchars($cliente['last_activity'] !== '' ? $cliente['last_activity'] : '-') ?></td>
+              <td><?= htmlspecialchars($cliente['last_modified_date'] !== '' ? $cliente['last_modified_date'] : '-') ?></td>
+            </tr>
+
+            <?php if ($temFilhos): ?>
+              <?php foreach ($filhos as $filho): ?>
+                <?php $childTypeClass = 'tipo-other';
+                      if (strcasecmp($filho['type'], 'Customer') === 0) {
+                        $childTypeClass = 'tipo-customer';
+                      } elseif (strcasecmp($filho['type'], 'Prospect') === 0) {
+                        $childTypeClass = 'tipo-prospect';
+                      } elseif (stripos($filho['type'], 'Partner') !== false) {
+                        $childTypeClass = 'tipo-partner';
+                      }
+                ?>
+                <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars($rowId) ?>" style="display:none;">
+                  <td class="cliente-child-name"><?= htmlspecialchars($filho['account_name']) ?></td>
+                  <td>
+                    <span class="tipo-badge <?= $childTypeClass ?>"> <?= htmlspecialchars($filho['type'] !== '' ? $filho['type'] : 'Sem tipo') ?> </span>
+                  </td>
+                  <td>
+                    <?= htmlspecialchars($filho['parent_account'] !== '' ? $filho['parent_account'] : '-') ?></td>
+                  <td>
+                    <?= htmlspecialchars($filho['last_activity'] !== '' ? $filho['last_activity'] : '-') ?></td>
+                  <td>
+                    <?= htmlspecialchars($filho['last_modified_date'] !== '' ? $filho['last_modified_date'] : '-') ?></td>
+                </tr>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <?php else: ?>
@@ -3673,6 +4083,29 @@ document.addEventListener('DOMContentLoaded', function () {
             criarNovaLinhaEnvio();
         });
     }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const toggles = document.querySelectorAll('.cliente-toggle');
+
+    toggles.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const target = btn.getAttribute('data-target');
+            if (!target) return;
+
+            const rows = document.querySelectorAll('.' + CSS.escape(target));
+            const isOpen = btn.classList.contains('is-open');
+
+            rows.forEach(function (row) {
+                row.style.display = isOpen ? 'none' : 'table-row';
+            });
+
+            btn.classList.toggle('is-open', !isOpen);
+            btn.textContent = isOpen ? '+' : '−';
+        });
+    });
 });
 </script>
 
