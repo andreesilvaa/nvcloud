@@ -1,2 +1,28 @@
 {
+    "dbcode.connections": [
+        {
+            "connectionId": "hVAE5VIDCPnRAILl2RJVa",
+            "name": "stocks_db",
+            "driver": "mysql",
+            "connectionType": "host",
+            "host": "127.0.0.1",
+            "port": 3306,
+            "ssl": false,
+            "authMethod": "password",
+            "username": "root",
+            "savePassword": "secretStorage",
+            "readOnly": false,
+            "postConnectionSqlType": "inline",
+            "connectionTimeout": 30,
+            "pinnedConnectionTimeout": "0",
+            "driverOptions": {
+                "retrievePublickey": true,
+                "disableMultiStatements": false,
+                "permitLocalInfile": false
+            },
+            "introspection": {
+                "progressive": false
+            }
+        }
+    ]
 }
