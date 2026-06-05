@@ -3418,7 +3418,12 @@ select{
                     <span class="tipo-badge <?= $childTypeClass ?>"> <?= htmlspecialchars($filho['type'] !== '' ? $filho['type'] : 'Sem tipo') ?> </span>
                   </td>
                   <td>
-                    <?= htmlspecialchars($filho['parent_account'] !== '' ? $filho['parent_account'] : '-') ?></td>
+                    <?php if ($filho['parent_account'] !== ''): ?>
+                      <?= htmlspecialchars($filho['parent_account']) ?>
+                    <?php else: ?>
+                      <span class="conta-principal-badge">Conta Principal</span>
+                    <?php endif; ?>
+                  </td>
                   <td>
                     <?= htmlspecialchars($filho['last_activity'] !== '' ? $filho['last_activity'] : '-') ?></td>
                   <td>
