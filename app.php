@@ -1034,6 +1034,11 @@ if ($page === 'alertas') {
                 $value = (string)$value;
                 $value = trim($value);
                 $value = preg_replace('/^\xEF\xBB\xBF/', '', $value);
+
+                if ($value !== '' && !mb_check_encoding($value, 'UTF-8')) {
+                  $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                }
+                
                 return $value;
             };
 
@@ -1050,12 +1055,35 @@ if ($page === 'alertas') {
             $idxLastModified = $headerMap['Last Modified Date'] ?? null;
             $idxParent = $headerMap['Parent Account'] ?? null;
 
+
+
+            $normalizeCsvValue = static function ($value) {
+              $value = trim((string)$value);
+
+              if ($value === '') {
+                return '';
+              }
+
+              if (!mb_check_encoding($value, 'UTF-8')) {
+                $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+              } else {
+                $converted = @mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                if (is_string($converted) && $converted !== '' && substr_count($converted, '�') < substr_count($value, '�')) {
+                  $value = $converted;
+                }
+              }
+
+              return $value;
+            };
+
+
+
             while (($row = fgetcsv($handle, 0, ';')) !== false) {
-                $accountName = trim((string)($row[$idxAccountName] ?? ''));
-                $type = trim((string)($row[$idxType] ?? ''));
-                $parent = trim((string)($row[$idxParent] ?? ''));
-                $lastActivity = trim((string)($row[$idxLastActivity] ?? ''));
-                $lastModified = trim((string)($row[$idxLastModified] ?? ''));
+                $accountName = $normalizeCsvValue($row[$idxAccountName] ?? '');
+                $type = $normalizeCsvValue($row[$idxType] ?? '');
+                $parent = $normalizeCsvValue($row[$idxParent] ?? '');
+                $lastActivity = $normalizeCsvValue($row[$idxLastActivity] ?? '');
+                $lastModified = $normalizeCsvValue($row[$idxLastModified] ?? '');
 
                 if ($accountName === '') {
                     continue;
@@ -3240,23 +3268,23 @@ select{
 <?php elseif ($page === 'alertas') : ?>
 <div class="clientes-kpis">
     <div class="cliente-kpi">
-        <div class="label">Total de Accounts</div>
+        <div class="label">Total de Contas</div>
         <div class="valor"><?= (int)$clientesStats['total'] ?></div>
     </div>
     <div class="cliente-kpi">
-        <div class="label">Customers</div>
+        <div class="label">Clientes</div>
         <div class="valor"><?= (int)$clientesStats['customers'] ?></div>
     </div>
     <div class="cliente-kpi">
-        <div class="label">Prospects</div>
+        <div class="label">Perspetivas</div>
         <div class="valor"><?= (int)$clientesStats['prospects'] ?></div>
     </div>
     <div class="cliente-kpi">
-        <div class="label">Partners</div>
+        <div class="label">Parceiros</div>
         <div class="valor"><?= (int)$clientesStats['partners'] ?></div>
     </div>
     <div class="cliente-kpi">
-        <div class="label">Accounts com Parent</div>
+        <div class="label">Contas com Conta-Mãe</div>
         <div class="valor"><?= (int)$clientesStats['com_parent'] ?></div>
     </div>
 </div>
