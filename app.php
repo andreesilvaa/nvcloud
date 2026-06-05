@@ -3324,7 +3324,7 @@ select{
           <?php else: ?>
             <?php foreach ($clientesRoots as $i => $cliente): ?>
               <?php
-                $nomeConta = $cliente['accont_name'];
+                $nomeConta = $cliente['account_name'];
                 $filhos = $clientesChildrenMap[$nomeConta] ?? [];
                 $temFilhos = count($filhos) > 0;
 
