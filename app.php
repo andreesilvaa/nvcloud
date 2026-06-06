@@ -86,6 +86,7 @@ $estados = [
 ];
 
 $estadoEnvio = [
+  'Rascunho',
   'Ativa',
   'Concluida',
   'Cancelada'
@@ -706,7 +707,236 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     exit;
 }
 
+// ============================================================
+// HANDLER: Guardar rascunho do envio (novo ou atualizar existente)
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'guardar_rascunho_envio') {
+    $envioId        = (int)($_POST['envio_id'] ?? 0);
+    $documento      = trim($_POST['documento'] ?? '');
+    $num_documento  = trim($_POST['num_documento'] ?? '');
+    $data_documento = trim($_POST['data_documento'] ?? '');
+    $parceiro       = trim($_POST['parceiro'] ?? '');
 
+    $categoriasEnvio = $_POST['linha_categoria'] ?? [];
+    $produtosEnvio   = $_POST['linha_produto']   ?? [];
+    $quantidades     = $_POST['linha_quantidade'] ?? [];
+    $numSeries       = $_POST['linha_num_serie']  ?? [];
+
+    $redirBase = 'app.php?page=envios' . ($envioId > 0 ? '&ver=' . $envioId : '');
+
+    if ($documento === '' || $num_documento === '' || $data_documento === '' || $parceiro === '') {
+        $_SESSION['mensagem_erro'] = 'Preencher Documento, Nº Documento, Data e Parceiro.';
+        header('Location: ' . $redirBase);
+        exit;
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data_documento)) {
+        $_SESSION['mensagem_erro'] = 'A data tem de estar no formato AAAA-MM-DD.';
+        header('Location: ' . $redirBase);
+        exit;
+    }
+
+    $linhasValidas = [];
+    foreach ($produtosEnvio as $i => $produtoEnvio) {
+        $cat      = trim($categoriasEnvio[$i] ?? '');
+        $prod     = trim($produtoEnvio ?? '');
+        $qtd      = trim($quantidades[$i] ?? '');
+        $numSerie = trim($numSeries[$i] ?? '');
+
+        if ($cat === '' && $prod === '' && $qtd === '' && $numSerie === '') {
+            continue; // linha vazia — ignorar
+        }
+        if ($cat === '' || $prod === '' || $qtd === '') {
+            $_SESSION['mensagem_erro'] = 'Cada linha tem de ter Tipo, Nome da Peça e Quantidade.';
+            header('Location: ' . $redirBase);
+            exit;
+        }
+
+        $linhasValidas[] = [
+            'categoria' => $cat,
+            'produto'   => $prod,
+            'quantidade'=> (float)$qtd,
+            'num_serie' => $numSerie,
+        ];
+    }
+
+    if (count($linhasValidas) === 0) {
+        $_SESSION['mensagem_erro'] = 'O rascunho tem de conter pelo menos uma linha válida.';
+        header('Location: ' . $redirBase);
+        exit;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        if ($envioId > 0) {
+            // Atualizar rascunho existente — verificar que ainda está em Rascunho
+            $stmtCheck = $pdo->prepare("SELECT id, estado FROM envios WHERE id = ?");
+            $stmtCheck->execute([$envioId]);
+            $envioExistente = $stmtCheck->fetch();
+
+            if (!$envioExistente || $envioExistente['estado'] !== 'Rascunho') {
+                $pdo->rollBack();
+                $_SESSION['mensagem_erro'] = 'Rascunho não encontrado ou já confirmado.';
+                header('Location: app.php?page=envios');
+                exit;
+            }
+
+            $pdo->prepare("
+                UPDATE envios
+                SET documento = ?, num_documento = ?, data_documento = ?, parceiro = ?
+                WHERE id = ?
+            ")->execute([$documento, $num_documento, $data_documento, $parceiro, $envioId]);
+
+            // Apagar linhas antigas e reinserir as novas
+            $pdo->prepare("DELETE FROM envios_linhas WHERE envio_id = ?")->execute([$envioId]);
+
+        } else {
+            // Criar novo rascunho
+            $pdo->prepare("
+                INSERT INTO envios (documento, num_documento, data_documento, parceiro, criado_por, created_at, estado)
+                VALUES (?, ?, ?, ?, ?, NOW(), 'Rascunho')
+            ")->execute([
+                $documento,
+                $num_documento,
+                $data_documento,
+                $parceiro,
+                $_SESSION['user_nome'] ?? 'Sistema'
+            ]);
+            $envioId = (int)$pdo->lastInsertId();
+        }
+
+        $stmtLinha = $pdo->prepare("
+            INSERT INTO envios_linhas (envio_id, artigo, designacao, quantidade, num_serie)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        foreach ($linhasValidas as $linha) {
+            $stmtLinha->execute([
+                $envioId,
+                $linha['categoria'],
+                $linha['produto'],
+                $linha['quantidade'],
+                $linha['num_serie'],
+            ]);
+        }
+
+        $pdo->commit();
+        $_SESSION['mensagem_sucesso'] = 'Rascunho guardado com sucesso.';
+        header('Location: app.php?page=envios&ver=' . $envioId);
+        exit;
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['mensagem_erro'] = 'Erro ao guardar o rascunho: ' . $e->getMessage();
+        header('Location: ' . $redirBase);
+        exit;
+    }
+}
+
+
+// ============================================================
+// HANDLER: Confirmar envio final — atualiza inventário
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'confirmar_envio_final') {
+    $envioId = (int)($_POST['envio_id'] ?? 0);
+
+    if ($envioId <= 0) {
+        $_SESSION['mensagem_erro'] = 'ID do envio inválido.';
+        header('Location: app.php?page=envios');
+        exit;
+    }
+
+    $stmtEnvio = $pdo->prepare("SELECT * FROM envios WHERE id = ?");
+    $stmtEnvio->execute([$envioId]);
+    $envio = $stmtEnvio->fetch();
+
+    if (!$envio) {
+        $_SESSION['mensagem_erro'] = 'Envio não encontrado.';
+        header('Location: app.php?page=envios');
+        exit;
+    }
+
+    if ($envio['estado'] !== 'Rascunho') {
+        $_SESSION['mensagem_erro'] = 'Este envio já foi confirmado ou cancelado.';
+        header('Location: app.php?page=envios&ver=' . $envioId);
+        exit;
+    }
+
+    $stmtLinhas = $pdo->prepare("SELECT * FROM envios_linhas WHERE envio_id = ? ORDER BY id ASC");
+    $stmtLinhas->execute([$envioId]);
+    $linhas = $stmtLinhas->fetchAll();
+
+    // Guia Cliente → peça fica com estado 'Cliente'; Guia Fornecedor → 'Parceiro'
+    $novoEstadoPeca  = ($envio['documento'] === 'G. Transp cliente') ? 'Cliente' : 'Parceiro';
+    $novoParceiroPeca = $envio['parceiro'];
+    $utilizador      = $_SESSION['user_nome'] ?? 'Sistema';
+
+    $pdo->beginTransaction();
+    try {
+        $avisos = [];
+
+        foreach ($linhas as $linha) {
+            $sn = trim($linha['num_serie'] ?? '');
+
+            if ($sn === '') {
+                // Linha sem SN — não é possível identificar a peça no inventário
+                $avisos[] = 'Linha "' . htmlspecialchars($linha['designacao'] ?? '?') . '" sem Nº Série — não atualizada no inventário.';
+                continue;
+            }
+
+            $stmtPeca = $pdo->prepare("SELECT id, estado, parceiro FROM pecas WHERE sn = ? LIMIT 1");
+            $stmtPeca->execute([$sn]);
+            $peca = $stmtPeca->fetch();
+
+            if (!$peca) {
+                $avisos[] = 'SN "' . htmlspecialchars($sn) . '" não encontrado no inventário — linha ignorada.';
+                continue;
+            }
+
+            $estadoAntigo   = $peca['estado'];
+            $parceiroAntigo = $peca['parceiro'];
+
+            $pdo->prepare("UPDATE pecas SET estado = ?, parceiro = ? WHERE id = ?")->execute([
+                $novoEstadoPeca,
+                $novoParceiroPeca,
+                $peca['id']
+            ]);
+
+            $stmtHist = $pdo->prepare("
+                INSERT INTO historico (peca_id, campo, antes, depois, utilizador, data_alteracao)
+                VALUES (?, ?, ?, ?, ?, NOW())
+            ");
+
+            if ($estadoAntigo !== $novoEstadoPeca) {
+                $stmtHist->execute([$peca['id'], 'estado', $estadoAntigo, $novoEstadoPeca, $utilizador]);
+            }
+            if ($parceiroAntigo !== $novoParceiroPeca) {
+                $stmtHist->execute([$peca['id'], 'parceiro', $parceiroAntigo, $novoParceiroPeca, $utilizador]);
+            }
+            // Registo de rastreabilidade — liga o histórico da peça ao envio
+            $stmtHist->execute([$peca['id'], 'envio', '', 'Envio #' . $envioId . ' confirmado', $utilizador]);
+        }
+
+        // Marcar o envio como Ativa (confirmado)
+        $pdo->prepare("UPDATE envios SET estado = 'Ativa' WHERE id = ?")->execute([$envioId]);
+
+        $pdo->commit();
+
+        if (!empty($avisos)) {
+            $_SESSION['mensagem_erro'] = 'Envio confirmado com avisos: ' . implode(' | ', $avisos);
+        } else {
+            $_SESSION['mensagem_sucesso'] = 'Envio confirmado. Inventário atualizado com sucesso.';
+        }
+
+        header('Location: app.php?page=envios');
+        exit;
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['mensagem_erro'] = 'Erro ao confirmar o envio: ' . $e->getMessage();
+        header('Location: app.php?page=envios&ver=' . $envioId);
+        exit;
+    }
+}
 
 
 function countQuery(\PDO $pdo, string $sql): int {
@@ -955,7 +1185,7 @@ $qrTermo = trim($_GET['qr_code'] ?? '');
 
 $envios = [];
 $envioLinhas = [];
-$envioVerId = isset($_GET['ver']) ? (int)$_GET['ver'] : 0;
+$envioVerId = isset($_GET['ver']) ? (int)$_GET['ver'] : (isset($_GET['draft']) ? (int)$_GET['draft'] : 0);
 $envioAtual = null;
 $parceirosInventario = [];
 $categoriasInventarioReal = [];
@@ -963,7 +1193,7 @@ $catalogoInventarioReal = [];
 
 if ($page === 'envios') {
   $stmt = $pdo->query("
-    SELECT id, documento, num_documento, data_documento, parceiro, criado_por, created_at
+    SELECT id, documento, num_documento, data_documento, parceiro, criado_por, created_at, estado
     FROM envios
     ORDER BY created_at DESC
   ");
@@ -1002,6 +1232,9 @@ if ($page === 'envios') {
   }
 }
 
+
+
+
 $clientes = [];
 $clientesStats = [
     'total' => 0,
@@ -1024,6 +1257,15 @@ $clientesChildrenMap = [];
 if ($page === 'alertas') {
     $csvPath = __DIR__ . '/report1780499256737.csv';
 
+    $clientesStats['debug'] = [
+        'csv_path' => $csvPath,
+        'csv_exists' => is_file($csvPath),
+        'csv_readable' => is_readable($csvPath),
+        'headers' => [],
+        'detected_columns' => [],
+        'csv_error' => '',
+    ];
+
     if (is_file($csvPath) && is_readable($csvPath)) {
         $handle = fopen($csvPath, 'r');
 
@@ -1036,70 +1278,107 @@ if ($page === 'alertas') {
                 $value = preg_replace('/^\xEF\xBB\xBF/', '', $value);
 
                 if ($value !== '' && !mb_check_encoding($value, 'UTF-8')) {
-                  $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                    $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
                 }
 
+                $value = trim($value, "\"' \t\n\r\0\x0B");
+                return $value;
+            };
+
+            $normalizeCsvValue = static function ($value) {
+                $value = trim((string)$value);
+
+                if ($value === '') {
+                    return '';
+                }
+
+                if (!mb_check_encoding($value, 'UTF-8')) {
+                    $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                }
+
+                $value = trim($value, "\"' \t\n\r\0\x0B");
                 return $value;
             };
 
             $headerMap = [];
+
             if (is_array($header)) {
                 foreach ($header as $i => $col) {
-                    $headerMap[$normalizeHeader($col)] = $i;
+                    $normalized = $normalizeHeader($col);
+                    $headerMap[$normalized] = $i;
+                    $clientesStats['debug']['headers'][] = $normalized;
                 }
             }
 
-            $idxLastActivity = $headerMap['Last Activity'] ?? null;
-            $idxAccountName = $headerMap['Account Name'] ?? null;
-            $idxLastModified = $headerMap['Last Modified Date'] ?? null;
-
-            $idxType =
-                $headerMap['Type'] ??
-                $headerMap['Account Type'] ??
-                $headerMap['Tipo'] ??
-                null;
-
-            $idxParent =
-                $headerMap['Parent Account'] ??
-                $headerMap['Parent'] ??
-                $headerMap['Conta Principal'] ??
-                null;
-            
-            // Validar colunas críticas
-            $csvError = '';
-            if ($idxAccountName === null) {
-                $csvError .= "Coluna 'Account Name' não encontrada no CSV.\n";
-            }
-            if ($idxType === null) {
-                $csvError .= "Coluna 'Type' (ou variantes) não encontrada no CSV.\n";
-            }
-            if ($idxParent === null) {
-                $csvError .= "Coluna 'Parent Account' (ou variantes) não encontrada no CSV.\n";
-            }
-
-
-            $normalizeCsvValue = static function ($value) {
-              $value = trim((string)$value);
-
-              if ($value === '') {
-                return '';
-              }
-
-              if (!mb_check_encoding($value, 'UTF-8')) {
-                $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
-              } 
-
-              return $value;
+            $findColumn = static function (array $headerMap, array $variants) {
+                foreach ($variants as $variant) {
+                    if (array_key_exists($variant, $headerMap)) {
+                        return $headerMap[$variant];
+                    }
+                }
+                return null;
             };
 
-            // Se todas as colunas críticas existem, processar dados
-            if ($idxAccountName !== null && $idxType !== null && $idxParent !== null) {
+            $idxLastActivity = $findColumn($headerMap, [
+                'Last Activity'
+            ]);
+
+            $idxAccountName = $findColumn($headerMap, [
+                'Account Name',
+                'Nome da Conta',
+                'Conta'
+            ]);
+
+            $idxLastModified = $findColumn($headerMap, [
+                'Last Modified Date',
+                'Last Modified',
+                'Data da Última Modificação',
+                'Última Modificação'
+            ]);
+
+            $idxType = $findColumn($headerMap, [
+                'Type',
+                'Account Type',
+                'Tipo'
+            ]);
+
+            $idxParent = $findColumn($headerMap, [
+                'Parent Account',
+                'Parent',
+                'Conta Principal',
+                'Conta-Mãe',
+                'Conta Mae'
+            ]);
+
+            $clientesStats['debug']['detected_columns'] = [
+                'Last Activity' => $idxLastActivity,
+                'Account Name' => $idxAccountName,
+                'Last Modified Date' => $idxLastModified,
+                'Type' => $idxType,
+                'Parent Account' => $idxParent,
+            ];
+
+            $csvError = [];
+
+            if ($idxAccountName === null) {
+                $csvError[] = "Coluna 'Account Name' não encontrada no CSV.";
+            }
+
+            if ($idxParent === null) {
+                $csvError[] = "Coluna 'Parent Account' (ou variantes) não encontrada no CSV.";
+            }
+
+            if ($idxType === null) {
+                $csvError[] = "Coluna 'Type' (ou variantes) não encontrada no CSV. A importação vai continuar, mas os tipos ficarão vazios.";
+            }
+
+            if ($idxAccountName !== null && $idxParent !== null) {
                 while (($row = fgetcsv($handle, 0, ';')) !== false) {
                     $accountName = $normalizeCsvValue($row[$idxAccountName] ?? '');
-                    $type = $normalizeCsvValue($row[$idxType] ?? '');
+                    $type = $idxType !== null ? $normalizeCsvValue($row[$idxType] ?? '') : '';
                     $parent = $normalizeCsvValue($row[$idxParent] ?? '');
-                    $lastActivity = $normalizeCsvValue($row[$idxLastActivity] ?? '');
-                    $lastModified = $normalizeCsvValue($row[$idxLastModified] ?? '');
+                    $lastActivity = $idxLastActivity !== null ? $normalizeCsvValue($row[$idxLastActivity] ?? '') : '';
+                    $lastModified = $idxLastModified !== null ? $normalizeCsvValue($row[$idxLastModified] ?? '') : '';
 
                     if ($accountName === '') {
                         continue;
@@ -1127,9 +1406,11 @@ if ($page === 'alertas') {
 
                     if ($parent !== '') {
                         $clientesStats['com_parent']++;
+
                         if (!isset($clientesChildrenMap[$parent])) {
                             $clientesChildrenMap[$parent] = [];
                         }
+
                         $clientesChildrenMap[$parent][] = $cliente;
                     }
 
@@ -1137,12 +1418,21 @@ if ($page === 'alertas') {
                         $clientesTipos[] = $type;
                     }
                 }
-            } elseif ($csvError !== '') {
-                $clientesStats['csv_error'] = $csvError;
+            }
+
+            if (!empty($csvError)) {
+                $clientesStats['csv_error'] = implode("\n", $csvError);
+                $clientesStats['debug']['csv_error'] = implode("\n", $csvError);
             }
 
             fclose($handle);
+        } else {
+            $clientesStats['csv_error'] = 'Não foi possível abrir o CSV.';
+            $clientesStats['debug']['csv_error'] = 'Não foi possível abrir o CSV.';
         }
+    } else {
+        $clientesStats['csv_error'] = 'CSV não encontrado ou sem permissões de leitura.';
+        $clientesStats['debug']['csv_error'] = 'CSV não encontrado ou sem permissões de leitura.';
     }
 
     sort($clientesTipos, SORT_NATURAL | SORT_FLAG_CASE);
@@ -1152,6 +1442,7 @@ if ($page === 'alertas') {
     }
 
     $clientesIndex = [];
+
     foreach ($clientes as $cliente) {
         $clientesIndex[$cliente['account_name']] = $cliente;
     }
@@ -1164,9 +1455,7 @@ if ($page === 'alertas') {
         if ($clientesFiltros['q'] !== '') {
             $q = mb_strtolower($clientesFiltros['q']);
             $haystack = mb_strtolower(
-                $cliente['account_name'] . ' ' .
-                $cliente['type'] . ' ' .
-                $cliente['parent_account']
+                $cliente['account_name'] . ' ' . $cliente['type'] . ' ' . $cliente['parent_account']
             );
             $matchTexto = mb_strpos($haystack, $q) !== false;
         }
