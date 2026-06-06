@@ -1051,10 +1051,31 @@ if ($page === 'alertas') {
 
             $idxLastActivity = $headerMap['Last Activity'] ?? null;
             $idxAccountName = $headerMap['Account Name'] ?? null;
-            $idxType = $headerMap['Type'] ?? null;
             $idxLastModified = $headerMap['Last Modified Date'] ?? null;
-            $idxParent = $headerMap['Parent Account'] ?? null;
 
+            $idxType =
+                $headerMap['Type'] ??
+                $headerMap['Account Type'] ??
+                $headerMap['Tipo'] ??
+                null;
+
+            $idxParent =
+                $headerMap['Parent Account'] ??
+                $headerMap['Parent'] ??
+                $headerMap['Conta Principal'] ??
+                null;
+            
+            // Validar colunas críticas
+            $csvError = '';
+            if ($idxAccountName === null) {
+                $csvError .= "Coluna 'Account Name' não encontrada no CSV.\n";
+            }
+            if ($idxType === null) {
+                $csvError .= "Coluna 'Type' (ou variantes) não encontrada no CSV.\n";
+            }
+            if ($idxParent === null) {
+                $csvError .= "Coluna 'Parent Account' (ou variantes) não encontrada no CSV.\n";
+            }
 
 
             $normalizeCsvValue = static function ($value) {
@@ -1071,51 +1092,53 @@ if ($page === 'alertas') {
               return $value;
             };
 
+            // Se todas as colunas críticas existem, processar dados
+            if ($idxAccountName !== null && $idxType !== null && $idxParent !== null) {
+                while (($row = fgetcsv($handle, 0, ';')) !== false) {
+                    $accountName = $normalizeCsvValue($row[$idxAccountName] ?? '');
+                    $type = $normalizeCsvValue($row[$idxType] ?? '');
+                    $parent = $normalizeCsvValue($row[$idxParent] ?? '');
+                    $lastActivity = $normalizeCsvValue($row[$idxLastActivity] ?? '');
+                    $lastModified = $normalizeCsvValue($row[$idxLastModified] ?? '');
 
-
-            while (($row = fgetcsv($handle, 0, ';')) !== false) {
-                $accountName = $normalizeCsvValue($row[$idxAccountName] ?? '');
-                $type = $normalizeCsvValue($row[$idxType] ?? '');
-                $parent = $normalizeCsvValue($row[$idxParent] ?? '');
-                $lastActivity = $normalizeCsvValue($row[$idxLastActivity] ?? '');
-                $lastModified = $normalizeCsvValue($row[$idxLastModified] ?? '');
-
-                if ($accountName === '') {
-                    continue;
-                }
-
-                $cliente = [
-                    'account_name' => $accountName,
-                    'type' => $type,
-                    'parent_account' => $parent,
-                    'last_activity' => $lastActivity,
-                    'last_modified_date' => $lastModified,
-                    'is_child' => $parent !== '',
-                ];
-
-                $clientes[] = $cliente;
-
-                $clientesStats['total']++;
-
-                if (strcasecmp($type, 'Customer') === 0) {
-                    $clientesStats['customers']++;
-                } elseif (strcasecmp($type, 'Prospect') === 0) {
-                    $clientesStats['prospects']++;
-                } elseif (stripos($type, 'Partner') !== false) {
-                    $clientesStats['partners']++;
-                }
-
-                if ($parent !== '') {
-                    $clientesStats['com_parent']++;
-                    if (!isset($clientesChildrenMap[$parent])) {
-                        $clientesChildrenMap[$parent] = [];
+                    if ($accountName === '') {
+                        continue;
                     }
-                    $clientesChildrenMap[$parent][] = $cliente;
-                }
 
-                if ($type !== '' && !in_array($type, $clientesTipos, true)) {
-                    $clientesTipos[] = $type;
+                    $cliente = [
+                        'account_name' => $accountName,
+                        'type' => $type,
+                        'parent_account' => $parent,
+                        'last_activity' => $lastActivity,
+                        'last_modified_date' => $lastModified,
+                        'is_child' => $parent !== '',
+                    ];
+
+                    $clientes[] = $cliente;
+                    $clientesStats['total']++;
+
+                    if (strcasecmp($type, 'Customer') === 0) {
+                        $clientesStats['customers']++;
+                    } elseif (strcasecmp($type, 'Prospect') === 0) {
+                        $clientesStats['prospects']++;
+                    } elseif (stripos($type, 'Partner') !== false) {
+                        $clientesStats['partners']++;
+                    }
+
+                    if ($parent !== '') {
+                        $clientesStats['com_parent']++;
+                        if (!isset($clientesChildrenMap[$parent])) {
+                            $clientesChildrenMap[$parent] = [];
+                        }
+                        $clientesChildrenMap[$parent][] = $cliente;
+                    }
+
+                    if ($type !== '' && !in_array($type, $clientesTipos, true)) {
+                        $clientesTipos[] = $type;
+                    }
                 }
+            } elseif ($csvError !== '') {
+                $clientesStats['csv_error'] = $csvError;
             }
 
             fclose($handle);
@@ -2280,9 +2303,9 @@ select{
   }
 }
 
-@media (max_width: 768px){
+@media (max-width: 768px){
   .clientes-kpis,
-  .clientes-filtro{
+  .clientes-filtros{
     grid-template-columns:1fr;
   }
 }
@@ -3272,6 +3295,14 @@ select{
 
 
 <?php elseif ($page === 'alertas') : ?>
+
+<?php if (!empty($clientesStats['csv_error'])): ?>
+<div class="alerta-erro" style="margin-bottom: 20px;">
+    <strong>Erro ao carregar dados do CSV:</strong><br>
+    <?= nl2br(htmlspecialchars($clientesStats['csv_error'])) ?>
+</div>
+<?php endif; ?>
+
 <div class="clientes-kpis">
     <div class="cliente-kpi">
         <div class="label">Total de Contas</div>
@@ -3336,7 +3367,7 @@ select{
     </form>
   </div>
 
-  <div class="planel">
+  <div class="panel">
     <h4 style="margin-bottom:16px;">Lista de Clientes</h4>
 
     <div style="overflow-x:auto;">
