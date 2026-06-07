@@ -708,6 +708,200 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
 }
 
 // ============================================================
+// Extrai o texto bruto de um PDF usando pdftotext
+// Requer poppler-utils instalado no servidor (Laragon inclui)
+// ============================================================
+function extrairTextoPdfNova(string $caminhoPdf): string
+{
+    $arg   = escapeshellarg($caminhoPdf);
+    $texto = shell_exec("pdftotext -layout {$arg} -");
+
+    if ($texto === null || trim($texto) === '') {
+        throw new Exception(
+            'Não foi possível extrair texto do PDF. ' .
+            'Verifica se o pdftotext (poppler-utils) está instalado.'
+        );
+    }
+
+    return $texto;
+}
+
+
+// ============================================================
+// Analisa o texto extraído e devolve os dados estruturados
+// para preencher o formulário de envio
+// ============================================================
+function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceirosInventario): array
+{
+    // ── Auxiliar: normaliza texto para comparações (remove acentos, minúsculas)
+    $norm = static function (string $s): string {
+        $mapa = [
+            'á'=>'a','à'=>'a','ã'=>'a','â'=>'a',
+            'é'=>'e','è'=>'e','ê'=>'e',
+            'í'=>'i','ì'=>'i','î'=>'i',
+            'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o',
+            'ú'=>'u','ù'=>'u','û'=>'u',
+            'ç'=>'c','ñ'=>'n',
+            'Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a',
+            'É'=>'e','È'=>'e','Ê'=>'e',
+            'Í'=>'i','Ì'=>'i','Î'=>'i',
+            'Ó'=>'o','Ò'=>'o','Õ'=>'o','Ô'=>'o',
+            'Ú'=>'u','Ù'=>'u','Û'=>'u',
+            'Ç'=>'c','Ñ'=>'n',
+        ];
+        return strtolower(strtr($s, $mapa));
+    };
+
+    // O PDF tem 3 vias (Original, Duplicado, Triplicado) separadas por \f
+    // Só a primeira página é necessária
+    $paginas = preg_split('/\f/', $texto);
+    $pagina  = $paginas[0] ?? $texto;
+    $linhas  = array_values(array_filter(
+        array_map('trim', explode("\n", $pagina)),
+        static fn($l) => $l !== ''
+    ));
+
+
+    // ── 1. Tipo de documento ──────────────────────────────────────────────────
+    // PDF: "G. Transp (said fornec)"  →  sistema: "G. Transp fornec"
+    // PDF: "G. Transp (said cliente)" →  sistema: "G. Transp cliente"
+    $documento = '';
+    foreach ($linhas as $linha) {
+        if (preg_match('/G\.\s*Transp.*said\s+fornec/i', $linha)) {
+            $documento = 'G. Transp fornec';
+            break;
+        }
+        if (preg_match('/G\.\s*Transp.*said\s+cliente/i', $linha)) {
+            $documento = 'G. Transp cliente';
+            break;
+        }
+    }
+
+
+    // ── 2. Nº Documento e Data ────────────────────────────────────────────────
+    // Linha no PDF: "123 2026-05-12"
+    $numDocumento  = '';
+    $dataDocumento = '';
+    foreach ($linhas as $linha) {
+        if (preg_match('/^(\d+)\s+(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
+            $numDocumento  = $m[1];
+            $dataDocumento = $m[2];
+            break;
+        }
+    }
+
+
+    // ── 3. Parceiro ───────────────────────────────────────────────────────────
+    // Compara cada linha do PDF com os parceiros conhecidos do inventário.
+    // Ex: "CRONOTÉCNICA - ELECTRÓNICA, UNIPESSOAL LDA"  →  "Cronotécnica"
+    $parceiro = '';
+    foreach ($linhas as $linha) {
+        $linhaNorm = $norm($linha);
+        foreach ($parceirosInventario as $p) {
+            $pNorm = $norm($p);
+            if (strlen($pNorm) < 4) continue; // evita falsos positivos em nomes curtos
+
+            if (str_contains($linhaNorm, $pNorm) || str_contains($pNorm, $linhaNorm)) {
+                $parceiro = $p;
+                break 2;
+            }
+        }
+    }
+
+    // Fallback: linha a seguir a "Exmo(s) Senhor(es)" se nada correspondeu
+    if ($parceiro === '') {
+        foreach ($linhas as $i => $linha) {
+            if (stripos($linha, 'Exmo') !== false && stripos($linha, 'Senhor') !== false) {
+                $parceiro = $linhas[$i + 1] ?? '';
+                break;
+            }
+        }
+    }
+
+
+    // ── 4. Catálogo da BD para mapear designação → categoria + produto ────────
+    $stmtCat    = $pdo->query(
+        "SELECT DISTINCT categoria, produto FROM pecas
+         WHERE categoria <> '' AND produto <> ''
+         ORDER BY categoria, produto"
+    );
+    $catalogoDb = [];
+    foreach ($stmtCat->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $catalogoDb[$row['categoria']][] = $row['produto'];
+    }
+
+    // Mapeia a designação do PDF para [categoria, produto] do catálogo.
+    // Estratégia: o nome do produto (normalizado) tem de estar CONTIDO
+    // na designação do PDF (também normalizada). Ganha o match mais longo.
+    // Ex: "CABECOTE PROXIMA CGD" contém "proxima cgd" → categoria "Cabeçote Proxima"
+    $mapearProduto = static function (string $desPdf) use ($catalogoDb, $norm): array {
+        $desNorm = $norm($desPdf);
+        $melhor  = ['categoria' => '', 'produto' => $desPdf];
+        $score   = 0;
+
+        foreach ($catalogoDb as $categoria => $produtos) {
+            foreach ($produtos as $produto) {
+                $pNorm = $norm($produto);
+                if ($pNorm === '') continue;
+
+                if ($desNorm === $pNorm) {
+                    // Match exato — retorna imediatamente
+                    return ['categoria' => $categoria, 'produto' => $produto];
+                }
+
+                if (str_contains($desNorm, $pNorm) && strlen($pNorm) > $score) {
+                    $score  = strlen($pNorm);
+                    $melhor = ['categoria' => $categoria, 'produto' => $produto];
+                }
+            }
+        }
+
+        return $melhor;
+    };
+
+
+    // ── 5. Linhas de artigos ──────────────────────────────────────────────────
+    // Formato: "ASSISTENCIA BOX D039 / ISD039X23A50415 1,00"
+    //           ^artigo       ^designação  ^SN           ^qtd
+    $linhaCategoria  = [];
+    $linhaProduto    = [];
+    $linhaQuantidade = [];
+    $linhaNumSerie   = [];
+
+    foreach ($linhas as $linha) {
+        if (!preg_match(
+            '/^ASSISTENCIA\s+(.+?)\s*\/\s*([A-Z0-9]+)\s+([\d]+[,.][\d]+)\s*$/i',
+            $linha, $m
+        )) {
+            continue;
+        }
+
+        $designacao = trim($m[1]);                          // ex: "BOX D039"
+        $sn         = strtoupper(trim($m[2]));              // ex: "ISD039X23A50415"
+        $qtd        = (float) str_replace(',', '.', $m[3]); // ex: 1.0
+
+        $match = $mapearProduto($designacao);
+
+        $linhaCategoria[]  = $match['categoria'];
+        $linhaProduto[]    = $match['produto'];
+        $linhaQuantidade[] = $qtd;
+        $linhaNumSerie[]   = $sn;
+    }
+
+
+    return [
+        'documento'        => $documento,
+        'num_documento'    => $numDocumento,
+        'data_documento'   => $dataDocumento,
+        'parceiro'         => $parceiro,
+        'linha_categoria'  => $linhaCategoria,
+        'linha_produto'    => $linhaProduto,
+        'linha_quantidade' => $linhaQuantidade,
+        'linha_num_serie'  => $linhaNumSerie,
+    ];
+}
+
+// ============================================================
 // HANDLER: Guardar rascunho do envio (novo ou atualizar existente)
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'guardar_rascunho_envio') {
