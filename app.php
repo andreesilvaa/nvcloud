@@ -713,14 +713,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
 // ============================================================
 function extrairTextoPdfNova(string $caminhoPdf): string
 {
-    $pdftotext = 'C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftotext.exe';
-    $exe   = escapeshellarg($pdftotext);
-    $arg   = escapeshellarg($caminhoPdf);
-    $texto = shell_exec("pdftotext -layout {$arg} -");
+    // Caminho com barras normais — mais fiável no Windows/PHP
+    $pdftotext = 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe';
 
-    if ($texto === null || trim($texto) === '') {
+    // Constrói o comando com aspas manuais (evita problemas do escapeshellarg no Windows)
+    $cmd = '"' . $pdftotext . '" -layout "' . $caminhoPdf . '" -';
+
+    $descSpec = [
+        0 => ['pipe', 'r'], // stdin
+        1 => ['pipe', 'w'], // stdout (texto extraído)
+        2 => ['pipe', 'w'], // stderr (erros do pdftotext)
+    ];
+
+    $process = proc_open($cmd, $descSpec, $pipes);
+
+    if (!is_resource($process)) {
+        throw new Exception('Não foi possível iniciar o pdftotext. Verifica o caminho.');
+    }
+
+    fclose($pipes[0]);
+    $texto = stream_get_contents($pipes[1]);
+    $erros = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $codigo = proc_close($process);
+
+    if ($codigo !== 0 || trim($texto) === '') {
         throw new Exception(
-            'Não foi possível extrair texto do PDF. '
+            'Erro ao extrair texto do PDF' .
+            ($erros !== '' ? ': ' . trim($erros) : '. Verifica se o ficheiro não está corrompido.')
         );
     }
 
