@@ -548,9 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
         exit;
     }
 
-    $nomeOriginal = $ficheiro['name'] ?? '';
-    $extensao = strtolower(pathinfo($nomeOriginal, PATHINFO_EXTENSION));
-
+    $extensao = strtolower(pathinfo($ficheiro['name'] ?? '', PATHINFO_EXTENSION));
     if ($extensao !== 'pdf') {
         $_SESSION['mensagem_erro'] = 'O ficheiro tem de ser um PDF válido.';
         header('Location: app.php?page=envios');
@@ -563,7 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
     }
 
     $nomeTemporario = 'guia_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
-    $caminhoPdf = $uploadDir . $nomeTemporario;
+    $caminhoPdf     = $uploadDir . $nomeTemporario;
 
     if (!move_uploaded_file($ficheiro['tmp_name'], $caminhoPdf)) {
         $_SESSION['mensagem_erro'] = 'Não foi possível guardar o PDF.';
@@ -575,21 +573,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
         $textoExtraido = extrairTextoPdfNova($caminhoPdf);
         $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario);
 
-        $_SESSION['form_envio'] = [
-            'documento' => $dados['documento'] ?? '',
-            'num_documento' => $dados['num_documento'] ?? '',
-            'data_documento' => $dados['data_documento'] ?? '',
-            'parceiro' => $dados['parceiro'] ?? '',
-            'linha_categoria' => $dados['linha_categoria'] ?? [],
-            'linha_produto' => $dados['linha_produto'] ?? [],
-            'linha_quantidade' => $dados['linha_quantidade'] ?? [],
-            'linha_num_serie' => $dados['linha_num_serie'] ?? [],
-        ];
+        // Cria o rascunho diretamente na BD com os dados extraídos do PDF
+        $pdo->beginTransaction();
 
-        $_SESSION['mensagem_sucesso'] = 'Guia lida com sucesso.';
-        header('Location: app.php?page=envios');
+        $pdo->prepare("
+          INSERT INTO envios (documento, num_documento, data_documento, parceiro, criado_por, created_at, estado)
+          VALUES (?, ?, ?, ?, ?, NOW(), 'Rascunho')
+        ")->execute([
+          $dados['documento']      ?? '',
+          $dados['num_documento']  ?? '',
+          ($dados['data_documento'] !== '' ? $dados['data_documento'] : null),
+          $dados['parceiro']       ?? '',
+          $_SESSION['user_nome']   ?? 'Sistema',
+        ]);
+
+        $envioId = (int)$pdo->lastInsertId();
+
+        $stmtLinha = $pdo->prepare("
+            INSERT INTO envios_linhas (envio_id, artigo, designacao, quantidade, num_serie)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+        $categorias  = $dados['linha_categoria']  ?? [];
+        $produtos    = $dados['linha_produto']    ?? [];
+        $quantidades = $dados['linha_quantidade'] ?? [];
+        $numSeries   = $dados['linha_num_serie']  ?? [];
+
+        foreach ($categorias as $i => $cat) {
+            $stmtLinha->execute([
+                $envioId,
+                $cat,
+                $produtos[$i]    ?? '',
+                $quantidades[$i] ?? 1,
+                $numSeries[$i]   ?? '',
+            ]);
+        }
+
+        $pdo->commit();
+
+        $_SESSION['mensagem_sucesso'] = 'Guia lida com sucesso. Revê os dados e confirma o envio.';
+        // Redireciona para o rascunho criado — o formulário pré-preenche automaticamente
+        header('Location: app.php?page=envios&ver=' . $envioId);
         exit;
+
     } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $_SESSION['mensagem_erro'] = 'Erro ao ler a guia: ' . $e->getMessage();
         header('Location: app.php?page=envios');
         exit;
@@ -802,16 +832,33 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
 
 
     // ── 2. Nº Documento e Data ────────────────────────────────────────────────
-    // Linha no PDF: "123 2026-05-12"
-    $numDocumento  = '';
-    $dataDocumento = '';
-    foreach ($linhas as $linha) {
-        if (preg_match('/^(\d+)\s+(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
-            $numDocumento  = $m[1];
-            $dataDocumento = $m[2];
-            break;
-        }
+// Com -layout o pdftotext pode separar o número e a data em linhas diferentes.
+// Estratégia: procurar a data (YYYY-MM-DD) em qualquer linha, e o número
+// na mesma linha ou na linha imediatamente anterior.
+$numDocumento  = '';
+$dataDocumento = '';
+
+foreach ($linhas as $i => $linha) {
+    // Tenta linha com número e data juntos: "123 2026-05-12"
+    if (preg_match('/^(\d+)\s+(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
+        $numDocumento  = $m[1];
+        $dataDocumento = $m[2];
+        break;
     }
+    // Data sozinha na linha
+    if (preg_match('/(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
+        $dataDocumento = $m[1];
+        // Procura o número na mesma linha antes da data
+        if (preg_match('/^(\d+)\s+' . preg_quote($m[1], '/') . '/', $linha, $mn)) {
+            $numDocumento = $mn[1];
+        }
+        // Ou na linha anterior
+        if ($numDocumento === '' && isset($linhas[$i - 1]) && preg_match('/^(\d+)$/', trim($linhas[$i - 1]), $mn)) {
+            $numDocumento = $mn[1];
+        }
+        break;
+    }
+}
 
 
 // ── 3. Parceiro ───────────────────────────────────────────────────────────
