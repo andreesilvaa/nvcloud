@@ -713,13 +713,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
 // ============================================================
 function extrairTextoPdfNova(string $caminhoPdf): string
 {
+    $pdftotext = 'C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftotext.exe';
+    $exe   = escapeshellarg($pdftotext);
     $arg   = escapeshellarg($caminhoPdf);
     $texto = shell_exec("pdftotext -layout {$arg} -");
 
     if ($texto === null || trim($texto) === '') {
         throw new Exception(
-            'Não foi possível extrair texto do PDF. ' .
-            'Verifica se o pdftotext (poppler-utils) está instalado.'
+            'Não foi possível extrair texto do PDF. '
         );
     }
 
@@ -791,15 +792,22 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
     }
 
 
-    // ── 3. Parceiro ───────────────────────────────────────────────────────────
-    // Compara cada linha do PDF com os parceiros conhecidos do inventário.
-    // Ex: "CRONOTÉCNICA - ELECTRÓNICA, UNIPESSOAL LDA"  →  "Cronotécnica"
+// ── 3. Parceiro ───────────────────────────────────────────────────────────
+// Regra 1: Guia de Cliente → parceiro é sempre "Field Service"
+// Regra 2: Guia de Fornecedor → correspondência automática com os parceiros
+//          registados na página Inventário ($parceirosInventario)
+if ($documento === 'G. Transp cliente') {
+
+    $parceiro = 'Field Service';
+
+} else {
+
     $parceiro = '';
     foreach ($linhas as $linha) {
         $linhaNorm = $norm($linha);
         foreach ($parceirosInventario as $p) {
             $pNorm = $norm($p);
-            if (strlen($pNorm) < 4) continue; // evita falsos positivos em nomes curtos
+            if (strlen($pNorm) < 4) continue;
 
             if (str_contains($linhaNorm, $pNorm) || str_contains($pNorm, $linhaNorm)) {
                 $parceiro = $p;
@@ -808,7 +816,7 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
         }
     }
 
-    // Fallback: linha a seguir a "Exmo(s) Senhor(es)" se nada correspondeu
+    // Fallback: linha a seguir a "Exmo(s) Senhor(es)" se nenhum parceiro correspondeu
     if ($parceiro === '') {
         foreach ($linhas as $i => $linha) {
             if (stripos($linha, 'Exmo') !== false && stripos($linha, 'Senhor') !== false) {
@@ -817,6 +825,8 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
             }
         }
     }
+
+}
 
 
     // ── 4. Catálogo da BD para mapear designação → categoria + produto ────────
