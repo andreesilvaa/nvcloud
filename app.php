@@ -69,7 +69,6 @@ $pageTitles = [
   'auditoria' => 'Auditoria'
   ];
 
-  $vista = $get['lista'] ?? '0';
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
   if ($page === 'envios') {
     $topbarTitle = $vista === '1' ? 'Lista de Envios' : 'Novo Envio';
