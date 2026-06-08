@@ -1,5 +1,9 @@
 {
+    "name": "newvision/nvcloud",
+    "description": "Sistema de inventário NVCloud",
     "require": {
-        "smalot/pdfparser": "^2.12"
+        "smalot/pdfparser": "^2.12",
+        "php": ">=8.0",
+        "ext-pdo": "*"
     }
 }
