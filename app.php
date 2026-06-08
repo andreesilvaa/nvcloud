@@ -69,7 +69,11 @@ $pageTitles = [
   'auditoria' => 'Auditoria'
   ];
 
+  $vista = $get['lista'] ?? '0';
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
+  if ($page === 'envios') {
+    $topbarTitle = $vista === '1' ? 'Lista de Envios' : 'Novo Envio';
+  }
 
 $estados = [
     'Abater',
@@ -1858,6 +1862,7 @@ body{
   color: #fff;
   padding-top: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   transition: width .25s ease;
   }
 
@@ -1959,9 +1964,10 @@ body{
 }
 
 .sidebar-submenu .submenu-link::before{
-  content:"-";
-  margin-right:12px;
-  color:#d9dde2;
+  content: "•";
+  margin-right: 10px;
+  color: #cba35c;
+  font-size: 10px;
 }
 
 .sidebar-submenu .submenu-link:hover{
@@ -1970,6 +1976,23 @@ body{
 
 .sidebar-group.open .sidebar-submenu{
   display:block;
+}
+
+.sidebar-arrow{
+  margin-left: auto;
+  font-size:12px;
+  transition: transform .25s ease;
+  color: #adb5bd;
+}
+
+.sidebar-group.open .sidebar-arrow{
+  transform: rotate(180deg);
+}
+
+/* Link ativo dentro do submenu */
+.sidebar-submenu .submenu-link.active-link{
+  color: #cba35c;
+  font-weight: 600;
 }
 
 .topbar {
@@ -2941,9 +2964,25 @@ select{
     <i class="bi bi-headset"></i><span>Pat's</span>
   </a>
 
-  <a class="<?=active('envios',$page)?>" href="app.php?page=envios">
-    <i class="bi bi-truck"></i><span>Envios</span>
-  </a>
+  <div class="sidebar-group <?= $page === 'envios' ? 'open' : '' ?>" id="enviosGroup">
+    <button class="sidebar-parent" type="button" id="enviosToggle">
+      <span class="sidebar-parent-left">
+        <i class="bi bi-truck"></i>
+        <span>Envios</span>
+      </span>
+        <i class="bi bi-chevron-down sidebar-arrow"></i>
+    </button>
+    <div class="sidebar-submenu">
+      <a class="submenu-link <?= ($page === 'envios' && $vista !== '1') ? 'active-link' : '' ?>"
+        href="app.php?page=envios">
+        <span>Novo Envio</span>
+      </a>
+      <a class="submenu-link <?= ($page === 'envios' && $vista === '1') ? 'active-link' : '' ?>"
+        href="app.php?page=envios&lista=1">
+        <span>Lista de Envios</span>
+      </a>
+    </div>
+  </div>
 
   <a class="<?=active('qrs',$page)?>" href="app.php?page=qrs">
     <i class="bi bi-qr-code"></i><span>QR's</span>
@@ -2959,6 +2998,7 @@ select{
       <i class="bi bi-gear"></i>
       <span>Configurações</span>
     </span>
+    <i class="bi bi-chevron-down sidebar-arrow"></i>
   </button>
 
   <div class="sidebar-submenu">
@@ -3387,30 +3427,19 @@ select{
 
 <?php elseif ($page === 'envios'): ?>
 
-<?php if (!empty($_SESSION['mensagem_erro'])): ?>
-    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
-    <?php unset($_SESSION['mensagem_erro']); ?>
-<?php endif; ?>
-
-<?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-    <?php unset($_SESSION['mensagem_sucesso']); ?>
-<?php endif; ?>
-
-<div class="panel" style="margin-bottom:20px;">
+<?php if ($vista !== '1'): ?>
+  <!-- ── Vista: Novo Envio ── -->
+   <div class="panel" style="margin-bottom:20px;">
     <h4 style="margin-bottom:14px;">Leitura de Guia de Transporte</h4>
-
     <form method="post" enctype="multipart/form-data" autocomplete="off">
-    <input type="hidden" name="form_type" value="importar_guia_envio">
+      <input type="hidden" name="form_type" value="importar_guia_envio">
+      <label>Guia PDF</label>
+      <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required>
+      <button type="submit" class="btn btn-blue">Ler Guia</button>
+    </form>
+  </div>
 
-    <label>Guia PDF</label>
-    <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required>
-
-    <button type="submit" class="btn btn-blue">Ler Guia</button>
-  </form>
-</div>
-
-<div class="envios-layout">
+  <div class="panel envio-form-panel" style="margin-top:0;">
     <div class="panel envio-form-panel">
         <h4 style="margin-bottom:16px;">
             <?= $envioAtual ? 'Rascunho / Validação do Envio' : 'Novo Envio' ?>
@@ -3558,7 +3587,11 @@ select{
           </form>
         <?php endif; ?>
     </div>
+    <?php else: ?>
+      <!-- ── Vista: Lista de Envios ── -->
+      <div class="panel" style="margin-top:0;">
 
+      
     <div class="panel envio-lista-panel">
         <h4 style="margin-bottom:18px;">Lista de Envios</h4>
 
@@ -3604,6 +3637,7 @@ select{
         </table>
     </div>
 </div>
+<?php endif; ?>
 
 
 
@@ -4275,6 +4309,16 @@ document.addEventListener('DOMContentLoaded', function () {
     configToggle.addEventListener('click', function () {
       if (!sidebar.classList.contains('collapsed')) {
         configGroup.classList.toggle('open');
+      }
+    });
+  }
+  const enviosToggle = document.getElementById('enviosToggle');
+  const enviosGroup = document.getElementById('enviosGroup');
+
+  if (enviosToggle && enviosGroup && sidebar) {
+    enviosToggle.addEventListener('click', function () {
+      if (!sidebar.classList.contains('collapsed')) {
+        enviosGroup.classList.toggle('open');
       }
     });
   }
