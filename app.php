@@ -571,7 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
 
     try {
         $textoExtraido = extrairTextoPdfNova($caminhoPdf);
-        $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario);
+        $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario, $catalogoProdutos);
 
         // Cria o rascunho diretamente na BD com os dados extraídos do PDF
         $pdo->beginTransaction();
@@ -784,25 +784,26 @@ function extrairTextoPdfNova(string $caminhoPdf): string
 // Analisa o texto extraído e devolve os dados estruturados
 // para preencher o formulário de envio
 // ============================================================
-function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceirosInventario): array
+function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceirosInventario, array $catalogoProdutos = []): array
 {
-    // ── Auxiliar: normaliza texto para comparações (remove acentos, minúsculas)
+  // ── Auxiliar: normaliza texto para comparações (remove acentos, minúsculas)
     $norm = static function (string $s): string {
-        $mapa = [
-            'á'=>'a','à'=>'a','ã'=>'a','â'=>'a',
-            'é'=>'e','è'=>'e','ê'=>'e',
-            'í'=>'i','ì'=>'i','î'=>'i',
-            'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o',
-            'ú'=>'u','ù'=>'u','û'=>'u',
-            'ç'=>'c','ñ'=>'n',
-            'Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a',
-            'É'=>'e','È'=>'e','Ê'=>'e',
-            'Í'=>'i','Ì'=>'i','Î'=>'i',
-            'Ó'=>'o','Ò'=>'o','Õ'=>'o','Ô'=>'o',
-            'Ú'=>'u','Ù'=>'u','Û'=>'u',
-            'Ç'=>'c','Ñ'=>'n',
-        ];
-        return strtolower(strtr($s, $mapa));
+    $mapa = [
+        'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+        'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o','ö'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+        'ç'=>'c','ñ'=>'n',
+        'Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a','Ä'=>'a',
+        'É'=>'e','È'=>'e','Ê'=>'e','Ë'=>'e',
+        'Í'=>'i','Ì'=>'i','Î'=>'i','Ï'=>'i',
+        'Ó'=>'o','Ò'=>'o','Õ'=>'o','Ô'=>'o','Ö'=>'o',
+        'Ú'=>'u','Ù'=>'u','Û'=>'u','Ü'=>'u',
+        'Ç'=>'c','Ñ'=>'n',
+    ];
+    // mb_strtolower garante suporte correto a UTF-8
+      return mb_strtolower(strtr($s, $mapa), 'UTF-8');
     };
 
     // O PDF tem 3 vias (Original, Duplicado, Triplicado) separadas por \f
@@ -831,31 +832,20 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
     }
 
 
-    // ── 2. Nº Documento e Data ────────────────────────────────────────────────
-// Com -layout o pdftotext pode separar o número e a data em linhas diferentes.
-// Estratégia: procurar a data (YYYY-MM-DD) em qualquer linha, e o número
-// na mesma linha ou na linha imediatamente anterior.
+// ── 2. Nº Documento e Data ────────────────────────────────────────────────
+// Método primário: linha ATCUD — ex: "ATCUD:J6NJKWCK-123"
+// O número do documento é sempre o último segmento após o último "-"
 $numDocumento  = '';
 $dataDocumento = '';
 
-foreach ($linhas as $i => $linha) {
-    // Tenta linha com número e data juntos: "123 2026-05-12"
-    if (preg_match('/^(\d+)\s+(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
-        $numDocumento  = $m[1];
-        $dataDocumento = $m[2];
-        break;
+foreach ($linhas as $linha) {
+    if ($numDocumento === '' && preg_match('/ATCUD:[A-Z0-9]+-(\d+)/i', $linha, $m)) {
+        $numDocumento = $m[1];
     }
-    // Data sozinha na linha
-    if (preg_match('/(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
+    if ($dataDocumento === '' && preg_match('/(\d{4}-\d{2}-\d{2})/', $linha, $m)) {
         $dataDocumento = $m[1];
-        // Procura o número na mesma linha antes da data
-        if (preg_match('/^(\d+)\s+' . preg_quote($m[1], '/') . '/', $linha, $mn)) {
-            $numDocumento = $mn[1];
-        }
-        // Ou na linha anterior
-        if ($numDocumento === '' && isset($linhas[$i - 1]) && preg_match('/^(\d+)$/', trim($linhas[$i - 1]), $mn)) {
-            $numDocumento = $mn[1];
-        }
+    }
+    if ($numDocumento !== '' && $dataDocumento !== '') {
         break;
     }
 }
@@ -898,16 +888,12 @@ if ($documento === 'G. Transp cliente') {
 }
 
 
-    // ── 4. Catálogo da BD para mapear designação → categoria + produto ────────
-    $stmtCat    = $pdo->query(
-        "SELECT DISTINCT categoria, produto FROM pecas
-         WHERE categoria <> '' AND produto <> ''
-         ORDER BY categoria, produto"
-    );
-    $catalogoDb = [];
-    foreach ($stmtCat->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $catalogoDb[$row['categoria']][] = $row['produto'];
-    }
+// ── 4. Catálogo para mapeamento designação PDF → categoria + produto ───────
+// Usa o $catalogoProdutos passado como parâmetro (array estático do sistema)
+// Formato: ['Box Android' => ['Box D039', 'Box ETE3399', ...], ...]
+    $catalogoDb = $catalogoProdutos;
+    
+
 
     // Mapeia a designação do PDF para [categoria, produto] do catálogo.
     // Estratégia: o nome do produto (normalizado) tem de estar CONTIDO
@@ -1206,6 +1192,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'co
     } catch (Exception $e) {
         $pdo->rollBack();
         $_SESSION['mensagem_erro'] = 'Erro ao confirmar o envio: ' . $e->getMessage();
+        header('Location: app.php?page=envios&ver=' . $envioId);
+        exit;
+    }
+}
+
+
+// ============================================================
+// HANDLER: Apagar rascunho de envio
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'apagar_envio') {
+    $envioId = (int)($_POST['envio_id'] ?? 0);
+
+    if ($envioId <= 0) {
+        $_SESSION['mensagem_erro'] = 'ID do envio inválido.';
+        header('Location: app.php?page=envios');
+        exit;
+    }
+
+    $stmtCheck = $pdo->prepare("SELECT id, estado FROM envios WHERE id = ?");
+    $stmtCheck->execute([$envioId]);
+    $envio = $stmtCheck->fetch();
+
+    if (!$envio || $envio['estado'] !== 'Rascunho') {
+        $_SESSION['mensagem_erro'] = 'Só é possível apagar guias em estado Rascunho.';
+        header('Location: app.php?page=envios');
+        exit;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM envios_linhas WHERE envio_id = ?")->execute([$envioId]);
+        $pdo->prepare("DELETE FROM envios WHERE id = ?")->execute([$envioId]);
+        $pdo->commit();
+
+        $_SESSION['mensagem_sucesso'] = 'Guia apagada com sucesso.';
+        header('Location: app.php?page=envios');
+        exit;
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['mensagem_erro'] = 'Erro ao apagar a guia: ' . $e->getMessage();
         header('Location: app.php?page=envios&ver=' . $envioId);
         exit;
     }
@@ -3520,6 +3547,15 @@ select{
             <div class="small-note">
                 Ainda não existe nenhum rascunho aberto. Faz primeiro a leitura da guia para abrir a página de validação.
             </div>
+        <?php endif; ?>
+
+        <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
+          <form method="post" style="display:inline;"
+              onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
+            <input type="hidden" name="form_type" value="apagar_envio">
+            <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
+            <button type="submit" class="btn btn-red">Apagar Guia</button>
+          </form>
         <?php endif; ?>
     </div>
 
