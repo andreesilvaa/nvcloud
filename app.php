@@ -2265,10 +2265,6 @@ body{
 }
 
 /* Link ativo dentro do submenu */
-.sidebar-submenu .submenu-link.active-link{
-  color: #cba35c;
-  font-weight: 600;
-}
 
 .topbar {
   position: fixed;
@@ -2285,10 +2281,6 @@ body{
   transition: left .25s ease;
   }
 
-.topbar.collapsed{
-  left: var(--sidebar-collapsed-width);
-  }
-
 .topbar-title{
   color: #000;
   font-size: 24px;
@@ -2303,16 +2295,6 @@ body{
   padding: 80px 44px 28px 28px;
   box-sizing: border-box;
   transition: all .25s ease;
-  }
-
-.main.collapsed{
-  width: calc(100% - var(--sidebar-collapsed-width));
-  margin-left: var(--sidebar-collapsed-width);
-  padding: 80px 44px 28px 28px;
-  }
-
-.sidebar.collapsed{
-  width: var(--sidebar-collapsed-width);
   }
 
 .sidebar.collapsed .brand{
@@ -2456,11 +2438,6 @@ body{
   }
 
 
-.pat-grid{
-          grid-template-columns:repeat(2,90px) !important;
-          max-width:164px !important;
-        }
-
 .panel-grid .panel,
 .panel-grid-2 .panel{
   width:100%;
@@ -2601,17 +2578,7 @@ select{
         font-size:13px;
         display:inline-block;
       }
-.s-Disponível{background:#28a745}
-.s-PAT{background:#6f42c1}
-.s-Laboratório{background:#2470dc}
-.s-Parceiro{background:#8c564b}
-.s-Abater{background:#dc3545}
-.s-Cliente{background:#20c997}
-.s-Desconhecido{background:#ffc107;color:#222}
-.s-Devolução{background:#17a2b8}
-.s-Fornecedor\(Reparação\){background:#fd7e14}
-.s-OT{background:#495057}
-.s-Spares{background:#47372A}
+
 .actions{
          white-space:nowrap;
        }
@@ -2628,13 +2595,7 @@ select{
 .small-note{color:#6b7280;margin-top:6px}
 
 @media (max-width: 1200px){
-      .card-grid,
-      .panel-grid, 
-      .filters,
-      .filters2,
-      .form-grid
-    {grid-template-columns:1fr 1fr;}
-      } 
+}
 
 @media (max-width: 1366px){
   .kpi-row{gap:24px;}
@@ -2994,44 +2955,6 @@ select{
   margin-top:8px;
   }
 
-.envios-layout{
-  display:grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap:24px;
-  align-items:start;
-  margin-top:20px;
-  }
-
-.envio-form-panel,
-.envio-lista-panel{
-  width:100%;
-  min-width:0;
-  box-sizing:border-box;
-    overflow: hidden;
-  }
-
-.envios-form-panel,
-.envios-lista-panel{
-    margin-bottom:18px;
-}
-
-.envios-toolbar{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:12px;
-    flex-wrap:wrap;
-    margin-bottom:18px;
-}
-
-.envios-table-wrap{
-    width:100%;
-    overflow-x:auto;
-    border:1px solid #e5e7eb;
-    border-radius:12px;
-    background:#fff;
-}
-
 .envios-table{
   width:100%;
     min-width:760px;
@@ -3072,27 +2995,6 @@ select{
   padding:18px !important;
   }
 
-.envio-linhas-box{
-    margin-top:22px;
-    padding-top:22px;
-    border-top:1px solid #eceff3;
-}
-
-.envio-linhas-wrap{
-    width:100%;
-    overflow-x:auto;
-    border:1px solid #e5e7eb;
-    border-radius:12px;
-    background:#fff;
-}
-
-.envio-linhas-table{
-    width:100%;
-    min-width:680px;
-    border-collapse:separate;
-    border-spacing:0;
-}
-
 .envio-linhas-table th,
 .envio-linhas-table td{
     padding:12px 14px;
@@ -3107,12 +3009,6 @@ select{
 
 .envio-linhas-table tbody tr:last-child td{
     border-bottom:none;
-}
-
-.linhas-envio-stack{
-    display:flex;
-    flex-direction:column;
-    gap:12px;
 }
 
 .linha-envio-grid{
@@ -3130,52 +3026,7 @@ select{
     min-width:0;
 }
 
-.linha-envio-acoes{
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-}
-
-.btn-icon-remover{
-    width:46px;
-    height:46px;
-    border:none;
-    border-radius:10px;
-    background:#dc3545;
-    color:#fff;
-    cursor:pointer;
-    font-size:18px;
-}
-
-.btn-icon-remover:hover{
-    background:#bb2d3b;
-}
-
-.envio-acoes{
-    margin-top:16px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-}
-
-.envio-estado{
-    padding:7px 10px;
-    border-radius:999px;
-    font-size:13px;
-    font-weight:700;
-    display:inline-block;
-    color:#fff;
-}
-
-.envio-estado.rascunho{ background:#6c757d; }
-.envio-estado.ativa{ background:#3d82c4; }
-.envio-estado.concluida{ background:#59b94f; }
-.envio-estado.cancelada{ background:#dc3545; }
-
 @media (max-width: 1180px){
-    .envios-layout{
-        grid-template-columns:1fr;
-    }
 }
 
 @media (max-width: 900px){
@@ -3183,9 +3034,6 @@ select{
         grid-template-columns:1fr 1fr;
     }
 
-    .linha-envio-acoes{
-        justify-content:flex-start;
-    }
 }
 
 @media (max-width: 640px){
@@ -3193,19 +3041,6 @@ select{
         grid-template-columns:1fr;
     }
 
-    .envios-table,
-    .envio-linhas-table{
-        min-width:640px;
-    }
-
-    .btn,
-    .btn-icon-remover{
-        width:100%;
-    }
-
-    .envio-acoes{
-        flex-direction:column;
-    }
 }
 
 
@@ -3301,11 +3136,6 @@ select{
   background:#e5e7eb;
 }
 
-.cliente-toggle.is-open{
-  background:#cba35c;
-  color:#000;
-}
-
 .tipo-badge{
   display:inline-block;
   padding:6px 10px;
@@ -3314,11 +3144,6 @@ select{
   font-weight:600;
   white-space:nowrap;
 }
-
-.tipo-customer{ background:#d1fae5; color:#065f46; }
-.tipo-prospect{ background:#fef3c7; color:#92400e; }
-.tipo-partner{ background:#dbeafe; color:#1d4ed8; }
-.tipo-other{ background:#e5e7eb; color:#374151; }
 
 .clientes-empty{
   color:#6b7280;
@@ -3329,9 +3154,6 @@ select{
 @media (max-width: 1200px) {
   .clientes-kpis{
     grid-template-columns:repeat(2, minmax(0,1fr));
-  }
-  .cliente-filtros{
-    grid-template-columns:1fr 1fr;
   }
 }
 
@@ -3624,23 +3446,29 @@ select{
   <form method="get">
     <input type="hidden" name="page" value="inventario">
       <div class="filters">
-        <div><label>Tipo:</label><select name="categoria">
-          <option value="">-- Todos --</option>
-            <?php foreach($categorias as $cat): ?>
-            <option value="<?=$cat?>" <?= $filters['categoria']===$cat?'selected':'' ?>><?=$cat?></option><?php endforeach; ?></select>
+        <div><label>Tipo:</label><label>
+                <select name="categoria">
+                  <option value="">-- Todos --</option>
+                    <?php foreach($categorias as $cat): ?>
+                    <option value="<?=$cat?>" <?= $filters['categoria']===$cat?'selected':'' ?>><?=$cat?></option><?php endforeach; ?></select>
+            </label>
         </div>
 
-      <div><label>Estado:</label><select name="estado">
-        <option value="">-- Todos --</option>
-          <?php foreach($estados as $estado): ?>
-          <option value="<?=$estado?>" <?= $filters['estado']===$estado?'selected':'' ?>><?=$estado?></option><?php endforeach; ?></select>
+      <div><label>Estado:</label><label>
+              <select name="estado">
+                <option value="">-- Todos --</option>
+                  <?php foreach($estados as $estado): ?>
+                  <option value="<?=$estado?>" <?= $filters['estado']===$estado?'selected':'' ?>><?=$estado?></option><?php endforeach; ?></select>
+          </label>
       </div>
 
-      <div><label>Parceiro:</label><select name="parceiro">
-        <option value="">-- Todos --</option>
-          <?php foreach($parceiros as $parceiro): ?>
-          <option value="<?=$parceiro?>" <?= $filters['parceiro']===$parceiro?'selected':'' ?>><?=$parceiro?></option>
-          <?php endforeach; ?></select>
+      <div><label>Parceiro:</label><label>
+              <select name="parceiro">
+                <option value="">-- Todos --</option>
+                  <?php foreach($parceiros as $parceiro): ?>
+                  <option value="<?=$parceiro?>" <?= $filters['parceiro']===$parceiro?'selected':'' ?>><?=$parceiro?></option>
+                  <?php endforeach; ?></select>
+          </label>
       </div>
 
       <div><button class="btn btn-blue" type="submit"><i class="bi bi-search"></i> Filtrar</button></div>
@@ -3648,23 +3476,27 @@ select{
 
     <div class="filters2">
       <div><label>SN (N.º de série):</label>
-            <input type="text" name="sn" value="<?=htmlspecialchars($filters['sn'])?>" placeholder="ex.: ABC12345">
+          <label>
+              <input type="text" name="sn" value="<?=htmlspecialchars($filters['sn'])?>" placeholder="ex.: ABC12345">
+          </label>
       </div>
 
 <div>
   <label>Nome da peça:</label>
-  <select name="produto">
-    <option value="">-- Todos --</option>
-    <?php foreach ($catalogoProdutos as $categoriaCatalogo => $produtos): ?>
-      <optgroup label="<?= htmlspecialchars($categoriaCatalogo) ?>">
-        <?php foreach ($produtos as $produto): ?>
-          <option value="<?= htmlspecialchars($produto) ?>" <?= $filters['produto'] === $produto ? 'selected' : '' ?>>
-            <?= htmlspecialchars($produto) ?>
-          </option>
-        <?php endforeach; ?>
-      </optgroup>
-    <?php endforeach; ?>
-  </select>
+    <label>
+        <select name="produto">
+          <option value="">-- Todos --</option>
+          <?php foreach ($catalogoProdutos as $categoriaCatalogo => $produtos): ?>
+            <optgroup label="<?= htmlspecialchars($categoriaCatalogo) ?>">
+              <?php foreach ($produtos as $produto): ?>
+                <option value="<?= htmlspecialchars($produto) ?>" <?= $filters['produto'] === $produto ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($produto) ?>
+                </option>
+              <?php endforeach; ?>
+            </optgroup>
+          <?php endforeach; ?>
+        </select>
+    </label>
 </div>
 
 
@@ -3740,7 +3572,7 @@ select{
     <div class="form-grid">
       <div>
         <label>Categoria:*</label>
-        <select name="categoria" id="categoria" required>
+          <label for="categoria"></label><select name="categoria" id="categoria" required>
           <option value="">-- Selecione a categoria --</option>
           <?php foreach ($categorias as $cat): ?>
             <option value="<?= htmlspecialchars($cat) ?>" <?= ($valorCategoria === $cat) ? 'selected' : '' ?>>
@@ -3752,44 +3584,48 @@ select{
 
       <div>
         <label>Nome do Produto:*</label>
-        <select name="produto" id="produto" required>
+          <label for="produto"></label><select name="produto" id="produto" required>
           <option value="">-- Selecione o produto --</option>
         </select>
       </div>
 
       <div>
         <label>Parceiro:*</label>
-        <select name="parceiro" required>
-          <option value="">-- Selecione o parceiro --</option>
-          <?php foreach ($parceiros as $parceiro): ?>
-            <option value="<?= htmlspecialchars($parceiro) ?>" <?= ($valorParceiro === $parceiro) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($parceiro) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
+          <label>
+              <select name="parceiro" required>
+                <option value="">-- Selecione o parceiro --</option>
+                <?php foreach ($parceiros as $parceiro): ?>
+                  <option value="<?= htmlspecialchars($parceiro) ?>" <?= ($valorParceiro === $parceiro) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($parceiro) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+          </label>
       </div>
 
       <div>
         <label>Estado:*</label>
-        <select name="estado" required>
-          <option value="">-- Selecione o estado --</option>
-          <?php foreach ($estados as $estado): ?>
-            <option value="<?= htmlspecialchars($estado) ?>" <?= ($valorEstado === $estado) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($estado) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
+          <label>
+              <select name="estado" required>
+                <option value="">-- Selecione o estado --</option>
+                <?php foreach ($estados as $estado): ?>
+                  <option value="<?= htmlspecialchars($estado) ?>" <?= ($valorEstado === $estado) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($estado) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+          </label>
       </div>
 
       <div>
         <label>Número de Série (S_Number):*</label>
-          <input type="text" name="sn" id="sn" value="<?= htmlspecialchars($valorSn) ?>" required>
+          <label for="sn"></label><input type="text" name="sn" id="sn" value="<?= htmlspecialchars($valorSn) ?>" required>
       </div>
       
       <div>
         <label>Código de Barras:*</label>
         <div class="barcode-copy-wrap">
-          <input type="text" name="cod_barras" id="cod_barras" value="<?= htmlspecialchars($valorCodBarras) ?>" required>
+            <label for="cod_barras"></label><input type="text" name="cod_barras" id="cod_barras" value="<?= htmlspecialchars($valorCodBarras) ?>" required>
           <button type="button" class="btn btn-grey btn-copy-sn" id="copiarSnBtn">Copiar SN</button>
         </div>
         <div class="small-note" id="copySnFeedback" style="display:none;">SN copiado para o Código de Barras.</div>
@@ -3892,37 +3728,45 @@ select{
             <div class="form-grid">
                 <div>
                     <label>Documento</label>
-                    <option name="documento" id="documento_envio" required>
-                        <option value=""--Selecione --</option>
+                    <select name="documento" id="documento_envio" required>
+                        <option value="">-- Selecione --</option>
                         <option value="G. Transp Fornec" <?= $isFornecedor ? 'selected' : '' ?>>G. Transp Fornec</option>
                         <option value="G.Transp Cliente" <?= $isCliente ? 'selected' : '' ?>>G. Transp Cliente</option>
                     </select>
                 </div>
                 <div>
                     <label>Nº Documento</label>
-                    <input type="rext" name="data_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
+                    <label>
+                        <input type="text" name="data_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
+                    </label>
                 </div>
                 <div>
                     <label>Data</label>
-                    <input type="date" name="data_documento" value="<?= htmlspecialchars($envioAtual['data_documento'] ?? '') ?>" required>
+                    <label>
+                        <input type="date" name="data_documento" value="<?= htmlspecialchars($envioAtual['data_documento'] ?? '') ?>" required>
+                    </label>
                 </div>
                 <div>
                     <label>Parceiro</label>
                     <?php if ($isCliente): ?>
-                    <select name="parceiro" required>
-                        <option value="Field Service" selected>Field Service</option>
-                    </select>
-                    <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
+                        <label>
+                            <select name="parceiro" required>
+                                <option value="Field Service" selected>Field Service</option>
+                            </select>
+                        </label>
+                        <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
                     <?php else: ?>
-                    <select name="parceiro" required>
-                        <option value="">-- Selecione --</option>
-                        <?php foreach ($parceirosInventario as $p): ?>
-                        <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($p) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                <?php endif; ?>
+                        <label>
+                            <select name="parceiro" required>
+                                <option value="">-- Selecione --</option>
+                                <?php foreach ($parceirosInventario as $p): ?>
+                                <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($p) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -3930,35 +3774,51 @@ select{
             <div id="linhasEnvioWrap">
                 <?php if (empty($envioLinhas)): ?>
                 <div class="linha-envio-grid">
-                    <select name="linha_categoria[]" class="linha-categoria" required>
-                        <option value="">-- Tipo --</option>
-                        <?php foreach ($categoriasInventarioReal as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="linha_produto[]" class="linha-produto" data-selected="" required>
-                        <option value="">-- Nome da Peça --</option>
-                    </select>
-                    <input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required>
-                    <input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série">
+                    <label>
+                        <select name="linha_categoria[]" class="linha-categoria" required>
+                            <option value="">-- Tipo --</option>
+                            <?php foreach ($categoriasInventarioReal as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label>
+                        <select name="linha_produto[]" class="linha-produto" data-selected="" required>
+                            <option value="">-- Nome da Peça --</option>
+                        </select>
+                    </label>
+                    <label>
+                        <input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required>
+                    </label>
+                    <label>
+                        <input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série">
+                    </label>
                     <div class="sn-avisos"></div>
                 </div>
                 <?php else: ?>
                   <?php foreach ($envioLinhas as $i => $linha): ?>
                     <div class="linha-envio-grid" data-linha-index="<?= (int)$i ?>">
-                        <select name="linha_categoria[]" class="linha-categoria" required>
-                            <option value="">-- Tipo --</option>
-                            <?php foreach ($categoriasInventarioReal as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($cat) ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
-                            <option value="">-- Nome da Peça --</option>
-                        </select>
-                        <input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
-                        <input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série">
+                        <label>
+                            <select name="linha_categoria[]" class="linha-categoria" required>
+                                <option value="">-- Tipo --</option>
+                                <?php foreach ($categoriasInventarioReal as $cat): ?>
+                                <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($cat) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>
+                            <select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
+                                <option value="">-- Nome da Peça --</option>
+                            </select>
+                        </label>
+                        <label>
+                            <input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
+                        </label>
+                        <label>
+                            <input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série">
+                        </label>
                         <div class="sn-avisos">
                             <?php if (!empty($linha['observacoes'])): ?>
                             <div class="small-note" style="color:#b26a00;"><?= htmlspecialchars($linha['observacoes']) ?></div>
@@ -3982,7 +3842,7 @@ select{
                     <button type="submit" class="btn btn-green">✓ Confirmar e Guardar Envio</button>
                 </form>
 
-            <?php if (($envioAtual['estado'] ?? '') ?? '') === 'Rascunho'): ?>
+            <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
                 <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
                     <input type="hidden" name="form_type" value="apagar_envio">
                     <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
@@ -4155,25 +4015,31 @@ select{
 
         <div style="margin-bottom:14px;">
           <label>Nome</label>
-          <input type="text" name="nome" required autocomplete="off" value="<?= htmlspecialchars($contaEdit['nome'] ?? '') ?>">
+            <label>
+                <input type="text" name="nome" required autocomplete="off" value="<?= htmlspecialchars($contaEdit['nome'] ?? '') ?>">
+            </label>
         </div>
 
         <div style="margin-bottom:14px;">
           <label>Email</label>
-          <input 
-            type="email"
-            name="email" 
-            required 
-            autocomplete="off"
-            pattern=".+@newvision\.pt"
-            value="<?= htmlspecialchars($contaEdit['email'] ?? '') ?>"
-          >
+            <label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  autocomplete="off"
+                  pattern=".+@newvision\.pt"
+                  value="<?= htmlspecialchars($contaEdit['email'] ?? '') ?>"
+                >
+            </label>
         </div>
 
         <div style="margin-bottom:14px;">
           <label>Password<?= $contaEdit ? ' (deixar em branco para manter a atual)' : '' ?> 
             </label>
-          <input type="password" name="password" <?= $contaEdit ? '' : 'required' ?> autocomplete="new-password">
+            <label>
+                <input type="password" name="password" <?= $contaEdit ? '' : 'required' ?> autocomplete="new-password">
+            </label>
         </div>
 
         <div style="margin-bottom:18px;">
@@ -4382,30 +4248,36 @@ select{
       <div class="clientes-filtros">
         <div>
           <label>Pesquisar</label>
-          <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
+            <label>
+                <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
+            </label>
         </div>
 
         <div>
           <label>Tipo</label>
-          <select name="type">
-            <option value="">-- Todos --</option>
-            <?php foreach ($clientesTipos as $tipo): ?>
-              <option value="<?= htmlspecialchars($tipo) ?>"
-                <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
-                <?= htmlspecialchars($tipo) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+            <label>
+                <select name="type">
+                  <option value="">-- Todos --</option>
+                  <?php foreach ($clientesTipos as $tipo): ?>
+                    <option value="<?= htmlspecialchars($tipo) ?>"
+                      <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($tipo) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+            </label>
         </div>
 
         <div>
           <label>Hierarquia</label>
-          <select name="hierarquia">
-            <option value="">-- Todas --</option>
-            <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
-            <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
-            <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
-          </select>
+            <label>
+                <select name="hierarquia">
+                  <option value="">-- Todas --</option>
+                  <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
+                  <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
+                  <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
+                </select>
+            </label>
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -4564,27 +4436,39 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
      <div class="form-grid">
        <div>
          <label>Nº PAT</label>
-         <input type="text" name="numero_pat" value="<?= htmlspecialchars($patDetalhe['numero_pat']) ?>" required>
+           <label>
+               <input type="text" name="numero_pat" value="<?= htmlspecialchars($patDetalhe['numero_pat']) ?>" required>
+           </label>
        </div>
        <div>
          <label>Revisão</label>
-         <input type="number" name="revisao" min="1" value="<?= (int)$patDetalhe['revisao'] ?>">
+           <label>
+               <input type="number" name="revisao" min="1" value="<?= (int)$patDetalhe['revisao'] ?>">
+           </label>
        </div>
        <div>
          <label>Entidade</label>
-         <input type="text" name="entidade" value="<?= htmlspecialchars($patDetalhe['entidade']) ?>">
+           <label>
+               <input type="text" name="entidade" value="<?= htmlspecialchars($patDetalhe['entidade']) ?>">
+           </label>
        </div>
        <div>
          <label>Local</label>
-         <input type="text" name="local_cliente" value="<?= htmlspecialchars($patDetalhe['local_cliente']) ?>">
+           <label>
+               <input type="text" name="local_cliente" value="<?= htmlspecialchars($patDetalhe['local_cliente']) ?>">
+           </label>
        </div>
        <div>
          <label>Contacto</label>
-         <input type="text" name="contacto" value="<?= htmlspecialchars($patDetalhe['contacto']) ?>">
+           <label>
+               <input type="text" name="contacto" value="<?= htmlspecialchars($patDetalhe['contacto']) ?>">
+           </label>
        </div>
        <div>
          <label>Morada</label>
-         <input type="text" name="morada" value="<?= htmlspecialchars($patDetalhe['morada']) ?>">
+           <label>
+               <input type="text" name="morada" value="<?= htmlspecialchars($patDetalhe['morada']) ?>">
+           </label>
        </div>
      </div>
   </div>
@@ -4595,13 +4479,17 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     <div class="form-grid">
       <div>
         <label>Data de Receção</label>
-        <input type="datetime-local" name="data_recepcao"
-          value="<?= $patDetalhe['data_recepcao'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_recepcao'])) : '' ?>">
+          <label>
+              <input type="datetime-local" name="data_recepcao"
+                value="<?= $patDetalhe['data_recepcao'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_recepcao'])) : '' ?>">
+          </label>
       </div>
       <div>
         <label>Data Limite</label>
-        <input type="datetime-local" name="data_limite"
-          value="<?= $patDetalhe['data_limite'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_limite'])) : '' ?>">
+          <label>
+              <input type="datetime-local" name="data_limite"
+                value="<?= $patDetalhe['data_limite'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_limite'])) : '' ?>">
+          </label>
       </div>
       <div style="display:flex; gap:20px; align-items:center; padding-top:22px;">
         <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
@@ -4611,7 +4499,9 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
       </div>
       <div style="grid-column:1/-1;">
         <label>Descrição do Pedido</label>
-        <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['descricao']) ?></textarea>
+          <label>
+              <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['descricao']) ?></textarea>
+          </label>
       </div>
     </div>
   </div>
@@ -4622,27 +4512,35 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     <div class="form-grid">
       <div>
         <label>Técnico Responsável</label>
-        <input type="text" name="tecnico" value="<?= htmlspecialchars($patDetalhe['tecnico']) ?>">
+          <label>
+              <input type="text" name="tecnico" value="<?= htmlspecialchars($patDetalhe['tecnico']) ?>">
+          </label>
       </div>
       <div>
         <label>Prioridade</label>
-        <select name="prioridade">
-            <option value="Normal"  <?= $patDetalhe['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
-            <option value="Urgente" <?= $patDetalhe['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
-        </select>
+          <label>
+              <select name="prioridade">
+                  <option value="Normal"  <?= $patDetalhe['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+                  <option value="Urgente" <?= $patDetalhe['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+              </select>
+          </label>
       </div>
       <div>
         <label>Estado</label>
-        <select name="estado">
-          <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
-            <option value="<?= $est ?>" <?= $patDetalhe['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
-          <?php endforeach; ?>
-        </select>
+          <label>
+              <select name="estado">
+                <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+                  <option value="<?= $est ?>" <?= $patDetalhe['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+                <?php endforeach; ?>
+              </select>
+          </label>
       </div>
       <div style="grid-column:1/-1;">
         <label>Comentários / Instruções</label>
-        <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['comentarios']) ?></textarea>
-    </div>
+          <label>
+              <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['comentarios']) ?></textarea>
+          </label>
+      </div>
   </div>
   </div>
 
@@ -4663,9 +4561,15 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         $modulosParaRender = !empty($patModulos) ? $patModulos : [['solucao_equipamento'=>'','modelo'=>'','num_serie'=>'']];
         foreach ($modulosParaRender as $mod): ?>
           <tr>
-              <td><input type="text" name="mod_solucao[]" value="<?= htmlspecialchars($mod['solucao_equipamento']) ?>" style="width:100%;"></td>
-              <td><input type="text" name="mod_modelo[]"  value="<?= htmlspecialchars($mod['modelo']) ?>" style="width:100%;"></td>
-              <td><input type="text" name="mod_serie[]"   value="<?= htmlspecialchars($mod['num_serie']) ?>" style="width:100%;"></td>
+              <td><label>
+                      <input type="text" name="mod_solucao[]" value="<?= htmlspecialchars($mod['solucao_equipamento']) ?>" style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="text" name="mod_modelo[]"  value="<?= htmlspecialchars($mod['modelo']) ?>" style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="text" name="mod_serie[]"   value="<?= htmlspecialchars($mod['num_serie']) ?>" style="width:100%;">
+                  </label></td>
               <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
           </tr>
         <?php endforeach; ?>
@@ -4680,17 +4584,23 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     <div class="form-grid">
       <div>
         <label>Data / Hora Início</label>
-        <input type="datetime-local" name="data_inicio"
-           value="<?= $patDetalhe['data_inicio'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_inicio'])) : '' ?>">
+          <label>
+              <input type="datetime-local" name="data_inicio"
+                 value="<?= $patDetalhe['data_inicio'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_inicio'])) : '' ?>">
+          </label>
       </div>
       <div>
         <label>Data / Hora Fim</label>
-        <input type="datetime-local" name="data_fim"
-          value="<?= $patDetalhe['data_fim'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_fim'])) : '' ?>">
+          <label>
+              <input type="datetime-local" name="data_fim"
+                value="<?= $patDetalhe['data_fim'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_fim'])) : '' ?>">
+          </label>
       </div>
       <div style="grid-column:1/-1;">
         <label>Técnicos Presentes</label>
-        <input type="text" name="tecnicos_presentes" value="<?= htmlspecialchars($patDetalhe['tecnicos_presentes']) ?>"
+          <label>
+              <input type="text" name="tecnicos_presentes" value="<?= htmlspecialchars($patDetalhe['tecnicos_presentes']) ?>"
+          </label>
       </div>
     </div>
   </div>
@@ -4715,11 +4625,21 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
           $compParaRender = !empty($patComp) ? $pat : [['removido'=>'','sn_removido'=>'','colocado'=>'','sn_colocado'=>'','quantidade'=>1]];
           foreach ($compParaRender as $comp): ?>
             <tr>
-              <td><input type="text" name="comp_removido[]"  value="<?= htmlspecialchars($comp['removido']) ?>"   style="width:100%;"></td>
-              <td><input type="text" name="comp_sn_rem[]"    value="<?= htmlspecialchars($comp['sn_removido']) ?>" style="width:100%;"></td>
-              <td><input type="text" name="comp_colocado[]"  value="<?= htmlspecialchars($comp['colocado']) ?>"   style="width:100%;"></td>
-              <td><input type="text" name="comp_sn_col[]"    value="<?= htmlspecialchars($comp['sn_colocado']) ?>" style="width:100%;"></td>
-              <td><input type="number" name="comp_qtd[]"     value="<?= (int)$comp['quantidade'] ?>" min="1" style="width:100%;"></td>
+              <td><label>
+                      <input type="text" name="comp_removido[]"  value="<?= htmlspecialchars($comp['removido']) ?>"   style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="text" name="comp_sn_rem[]"    value="<?= htmlspecialchars($comp['sn_removido']) ?>" style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="text" name="comp_colocado[]"  value="<?= htmlspecialchars($comp['colocado']) ?>"   style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="text" name="comp_sn_col[]"    value="<?= htmlspecialchars($comp['sn_colocado']) ?>" style="width:100%;">
+                  </label></td>
+              <td><label>
+                      <input type="number" name="comp_qtd[]"     value="<?= (int)$comp['quantidade'] ?>" min="1" style="width:100%;">
+                  </label></td>
               <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
             </tr>
           <?php endforeach; ?>
@@ -4732,7 +4652,9 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
   <!-- Observações -->
   <div class="panel" style="margin-bottom:18px;">
     <h4 style="margin-bottom:14px;">Observações</h4>
-    <textarea name="observacoes" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['observacoes']) ?></textarea>
+      <label>
+          <textarea name="observacoes" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['observacoes']) ?></textarea>
+      </label>
   </div>
 
   <!-- Ações -->
@@ -4764,27 +4686,39 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <div class="form-grid">
                 <div>
                     <label>Nº PAT <span style="color:red;">*</span></label>
-                    <input type="text" name="numero_pat" placeholder="Ex: PAT-00102514" required>
+                    <label>
+                        <input type="text" name="numero_pat" placeholder="Ex: PAT-00102514" required>
+                    </label>
                 </div>
                 <div>
                     <label>Revisão</label>
-                    <input type="number" name="revisao" min="1" value="1">
+                    <label>
+                        <input type="number" name="revisao" min="1" value="1">
+                    </label>
                 </div>
                 <div>
                     <label>Entidade</label>
-                    <input type="text" name="entidade" placeholder="Ex: UNILABS">
+                    <label>
+                        <input type="text" name="entidade" placeholder="Ex: UNILABS">
+                    </label>
                 </div>
                 <div>
                     <label>Local</label>
-                    <input type="text" name="local_cliente">
+                    <label>
+                        <input type="text" name="local_cliente">
+                    </label>
                 </div>
                 <div>
                     <label>Contacto</label>
-                    <input type="text" name="contacto">
+                    <label>
+                        <input type="text" name="contacto">
+                    </label>
                 </div>
                 <div>
                     <label>Morada</label>
-                    <input type="text" name="morada">
+                    <label>
+                        <input type="text" name="morada">
+                    </label>
                 </div>
             </div>
         </div>
@@ -4794,11 +4728,15 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <div class="form-grid">
                 <div>
                     <label>Data de Receção</label>
-                    <input type="datetime-local" name="data_recepcao">
+                    <label>
+                        <input type="datetime-local" name="data_recepcao">
+                    </label>
                 </div>
                 <div>
                     <label>Data Limite</label>
-                    <input type="datetime-local" name="data_limite">
+                    <label>
+                        <input type="datetime-local" name="data_limite">
+                    </label>
                 </div>
                 <div style="display:flex; gap:20px; align-items:center; padding-top:22px;">
                     <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
@@ -4810,7 +4748,9 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 </div>
                 <div style="grid-column:1/-1;">
                     <label>Descrição</label>
-                    <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"></textarea>
+                    <label>
+                        <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"></textarea>
+                    </label>
                 </div>
             </div>
         </div>
@@ -4820,27 +4760,35 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <div class="form-grid">
                 <div>
                     <label>Técnico Responsável</label>
-                    <input type="text" name="tecnico">
+                    <label>
+                        <input type="text" name="tecnico">
+                    </label>
                 </div>
                 <div>
                     <label>Prioridade</label>
-                    <select name="prioridade">
-                        <option value="Normal">Normal</option>
-                        <option value="Urgente">Urgente</option>
-                    </select>
+                    <label>
+                        <select name="prioridade">
+                            <option value="Normal">Normal</option>
+                            <option value="Urgente">Urgente</option>
+                        </select>
+                    </label>
                 </div>
                 <div>
                     <label>Estado</label>
-                    <select name="estado">
-                        <option value="Aberto">Aberto</option>
-                        <option value="Em Curso">Em Curso</option>
-                        <option value="Concluído">Concluído</option>
-                        <option value="Cancelado">Cancelado</option>
-                    </select>
+                    <label>
+                        <select name="estado">
+                            <option value="Aberto">Aberto</option>
+                            <option value="Em Curso">Em Curso</option>
+                            <option value="Concluído">Concluído</option>
+                            <option value="Cancelado">Cancelado</option>
+                        </select>
+                    </label>
                 </div>
                 <div style="grid-column:1/-1;">
                     <label>Comentários / Instruções</label>
-                    <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"></textarea>
+                    <label>
+                        <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"></textarea>
+                    </label>
                 </div>
             </div>
         </div>
@@ -4853,9 +4801,15 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 </thead>
                 <tbody>
                 <tr>
-                    <td><input type="text" name="mod_solucao[]" style="width:100%;"></td>
-                    <td><input type="text" name="mod_modelo[]"  style="width:100%;"></td>
-                    <td><input type="text" name="mod_serie[]"   style="width:100%;"></td>
+                    <td><label>
+                            <input type="text" name="mod_solucao[]" style="width:100%;">
+                        </label></td>
+                    <td><label>
+                            <input type="text" name="mod_modelo[]"  style="width:100%;">
+                        </label></td>
+                    <td><label>
+                            <input type="text" name="mod_serie[]"   style="width:100%;">
+                        </label></td>
                     <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
                 </tr>
                 </tbody>
@@ -4876,11 +4830,21 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                     </thead>
                     <tbody>
                     <tr>
-                        <td><input type="text" name="comp_removido[]"  style="width:100%;"></td>
-                        <td><input type="text" name="comp_sn_rem[]"    style="width:100%;"></td>
-                        <td><input type="text" name="comp_colocado[]"  style="width:100%;"></td>
-                        <td><input type="text" name="comp_sn_col[]"    style="width:100%;"></td>
-                        <td><input type="number" name="comp_qtd[]" value="1" min="1" style="width:100%;"></td>
+                        <td><label>
+                                <input type="text" name="comp_removido[]"  style="width:100%;">
+                            </label></td>
+                        <td><label>
+                                <input type="text" name="comp_sn_rem[]"    style="width:100%;">
+                            </label></td>
+                        <td><label>
+                                <input type="text" name="comp_colocado[]"  style="width:100%;">
+                            </label></td>
+                        <td><label>
+                                <input type="text" name="comp_sn_col[]"    style="width:100%;">
+                            </label></td>
+                        <td><label>
+                                <input type="number" name="comp_qtd[]" value="1" min="1" style="width:100%;">
+                            </label></td>
                         <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
                     </tr>
                     </tbody>
@@ -4930,24 +4894,30 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <div class="clientes-filtros">
                 <div>
                     <label>Pesquisar</label>
-                    <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Nº PAT, entidade ou técnico">
+                    <label>
+                        <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Nº PAT, entidade ou técnico">
+                    </label>
                 </div>
                 <div>
                     <label>Estado</label>
-                    <select name="estado">
-                        <option value="">-- Todos --</option>
-                        <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
-                        <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label>
+                        <select name="estado">
+                            <option value="">-- Todos --</option>
+                            <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+                            <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
                 </div>
                 <div>
                     <label>Prioridade</label>
-                    <select name="prioridade">
-                        <option value="">-- Todas --</option>
-                        <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
-                        <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
-                    </select>
+                    <label>
+                        <select name="prioridade">
+                            <option value="">-- Todas --</option>
+                            <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+                            <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+                        </select>
+                    </label>
                 </div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="submit" class="btn btn-blue">Filtrar</button>
@@ -4984,12 +4954,12 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 <?php else: ?>
           <?php foreach ($patsList as $pat): ?>
             <?php
-                $estCor = match($pat['estado']) {
-                'Aberto'    => ['bg'=>'#dbeafe','color'=>'#1d4ed8'],
-                'Em Curso'  => ['bg'=>'#fef3c7','color'=>'#92400e'],
-                'Concluído' => ['bg'=>'#dcfce7','color'=>'#15803d'],
-                default     => ['bg'=>'#f3f4f6','color'=>'#374151'],
-                };
+                $estCores = [
+                    'Aberto'    => ['bg'=>'#dbeafe','color'=>'#1d4ed8'],
+                    'Em Curso'  => ['bg'=>'#fef3c7','color'=>'#92400e'],
+                    'Concluído' => ['bg'=>'#dcfce7','color'=>'#15803d'],
+                ];
+                $estCor = $estCores[$pat['estado']] ?? ['bg'=>'#f3f4f6','color'=>'#374151'];
                 ?>
                 <tr>
                     <td><strong><?= htmlspecialchars($pat['numero_pat']) ?>/<?= (int)$pat['revisao'] ?></strong></td>
