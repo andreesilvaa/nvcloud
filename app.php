@@ -119,7 +119,12 @@ $pageTitles = [
   'qrs' => "QR's",
   'encomendas' => 'Encomendas',
   'contas' =>'Contas',
-  'auditoria' => 'Auditoria'
+  'auditoria' => 'Auditoria',
+  'categorias' => 'Categorias',
+  'estados' => 'Estados',
+  'parceiros' => 'Parceiros',
+  'fabricantes' => 'Fabricantes',
+  'produtos' => 'Produtos'
   ];
 
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
@@ -2076,6 +2081,250 @@ function active(string $p, string $page): string {
     return $p === $page ? 'active-link' : '';
 }
 
+// ============================================================
+// TABELAS DE GESTÃO
+// (categorias, estados, parceiros, fabricantes, produtos)
+// ============================================================
+
+// ---- Handlers POST: guardar / eliminar ----
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $ft = $_POST['form_type'] ?? '';
+
+    // ----- CATEGORIAS -----
+    if ($ft === 'guardar_categoria') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nome = trim($_POST['nome'] ?? '');
+        if ($nome === '') {
+            flashError('O nome da categoria é obrigatório.');
+            redirectTo('app.php?page=categorias&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE categorias SET nome = ? WHERE id = ?");
+            $stmt->execute([$nome, $id]);
+            flashSuccess('Categoria atualizada com sucesso.');
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO categorias (nome) VALUES (?)");
+            $stmt->execute([$nome]);
+            flashSuccess('Categoria criada com sucesso.');
+        }
+        redirectTo('app.php?page=categorias');
+    }
+    if ($ft === 'eliminar_categoria') {
+        $stmt = $pdo->prepare("DELETE FROM categorias WHERE id = ?");
+        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        flashSuccess('Categoria eliminada com sucesso.');
+        redirectTo('app.php?page=categorias');
+    }
+
+    // ----- ESTADOS -----
+    if ($ft === 'guardar_estado') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nome = trim($_POST['nome'] ?? '');
+        $descricao = trim($_POST['descricao'] ?? '');
+        if ($nome === '') {
+            flashError('O nome do estado é obrigatório.');
+            redirectTo('app.php?page=estados&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE estados SET nome = ?, descricao = ? WHERE id = ?");
+            $stmt->execute([$nome, ($descricao !== '' ? $descricao : null), $id]);
+            flashSuccess('Estado atualizado com sucesso.');
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO estados (nome, descricao) VALUES (?, ?)");
+            $stmt->execute([$nome, ($descricao !== '' ? $descricao : null)]);
+            flashSuccess('Estado criado com sucesso.');
+        }
+        redirectTo('app.php?page=estados');
+    }
+    if ($ft === 'eliminar_estado') {
+        $stmt = $pdo->prepare("DELETE FROM estados WHERE id = ?");
+        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        flashSuccess('Estado eliminado com sucesso.');
+        redirectTo('app.php?page=estados');
+    }
+
+    // ----- FABRICANTES -----
+    if ($ft === 'guardar_fabricante') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nome = trim($_POST['nome'] ?? '');
+        if ($nome === '') {
+            flashError('O nome do fabricante é obrigatório.');
+            redirectTo('app.php?page=fabricantes&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE fabricantes SET nome = ? WHERE id = ?");
+            $stmt->execute([$nome, $id]);
+            flashSuccess('Fabricante atualizado com sucesso.');
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO fabricantes (nome) VALUES (?)");
+            $stmt->execute([$nome]);
+            flashSuccess('Fabricante criado com sucesso.');
+        }
+        redirectTo('app.php?page=fabricantes');
+    }
+    if ($ft === 'eliminar_fabricante') {
+        $stmt = $pdo->prepare("DELETE FROM fabricantes WHERE id = ?");
+        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        flashSuccess('Fabricante eliminado com sucesso.');
+        redirectTo('app.php?page=fabricantes');
+    }
+
+    // ----- PRODUTOS -----
+    if ($ft === 'guardar_produto') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nome = trim($_POST['nome'] ?? '');
+        $catId = (int)($_POST['categoria_id'] ?? 0) ?: null;
+        $fabId = (int)($_POST['fabricante_id'] ?? 0) ?: null;
+        if ($nome === '') {
+            flashError('O nome do produto é obrigatório.');
+            redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE produtos SET nome = ?, categoria_id = ?, fabricante_id = ? WHERE id = ?");
+            $stmt->execute([$nome, $catId, $fabId, $id]);
+            flashSuccess('Produto atualizado com sucesso.');
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO produtos (nome, categoria_id, fabricante_id) VALUES (?, ?, ?)");
+            $stmt->execute([$nome, $catId, $fabId]);
+            flashSuccess('Produto criado com sucesso.');
+        }
+        redirectTo('app.php?page=produtos');
+    }
+    if ($ft === 'eliminar_produto') {
+        $stmt = $pdo->prepare("DELETE FROM produtos WHERE id = ?");
+        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        flashSuccess('Produto eliminado com sucesso.');
+        redirectTo('app.php?page=produtos');
+    }
+
+    // ----- PARCEIROS -----
+    if ($ft === 'guardar_parceiro') {
+        $id = (int)($_POST['id'] ?? 0);
+        $empresa = trim($_POST['empresa'] ?? '');
+        $campos = [
+            'morada'            => trim($_POST['morada'] ?? ''),
+            'contato1_nome'     => trim($_POST['contato1_nome'] ?? ''),
+            'contato1_email'    => trim($_POST['contato1_email'] ?? ''),
+            'contato1_telefone' => trim($_POST['contato1_telefone'] ?? ''),
+            'contato2_nome'     => trim($_POST['contato2_nome'] ?? ''),
+            'contato2_email'    => trim($_POST['contato2_email'] ?? ''),
+            'contato2_telefone' => trim($_POST['contato2_telefone'] ?? ''),
+        ];
+        if ($empresa === '') {
+            flashError('O nome da empresa é obrigatório.');
+            redirectTo('app.php?page=parceiros&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        $vals = array_map(fn($v) => ($v !== '' ? $v : null), array_values($campos));
+        if ($id > 0) {
+            $stmt = $pdo->prepare("UPDATE parceiros SET empresa = ?, morada = ?, contato1_nome = ?, contato1_email = ?, contato1_telefone = ?, contato2_nome = ?, contato2_email = ?, contato2_telefone = ? WHERE id = ?");
+            $stmt->execute(array_merge([$empresa], $vals, [$id]));
+            flashSuccess('Parceiro atualizado com sucesso.');
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO parceiros (empresa, morada, contato1_nome, contato1_email, contato1_telefone, contato2_nome, contato2_email, contato2_telefone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute(array_merge([$empresa], $vals));
+            flashSuccess('Parceiro criado com sucesso.');
+        }
+        redirectTo('app.php?page=parceiros');
+    }
+    if ($ft === 'eliminar_parceiro') {
+        $stmt = $pdo->prepare("DELETE FROM parceiros WHERE id = ?");
+        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        flashSuccess('Parceiro eliminado com sucesso.');
+        redirectTo('app.php?page=parceiros');
+    }
+}
+
+// ---- Leitura de dados (lista + paginação + edição) ----
+$tabPerPage  = 10;
+$tabPag      = max(1, (int)($_GET['p'] ?? 1));
+$tabOffset   = ($tabPag - 1) * $tabPerPage;
+$tabListas   = [];
+$tabPaginas  = 1;
+$tabEdit     = null;
+$parceiroVer = null;
+$listaCategorias  = [];
+$listaFabricantes = [];
+
+function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, array &$paginas): array
+{
+    $total = (int)$pdo->query("SELECT COUNT(*) FROM ($sqlBase) t")->fetchColumn();
+    $paginas = (int)ceil($total / $perPage);
+    if ($paginas < 1) $paginas = 1;
+    $stmt = $pdo->prepare("$sqlBase LIMIT ? OFFSET ?");
+    $stmt->bindValue(1, $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+if ($page === 'categorias') {
+    $tabListas = carregarTabela($pdo, "SELECT * FROM categorias ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    if (($_GET['edit'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM categorias WHERE id = ?");
+        $stmt->execute([(int)$_GET['edit']]);
+        $tabEdit = $stmt->fetch() ?: null;
+    }
+}
+if ($page === 'estados') {
+    $tabListas = carregarTabela($pdo, "SELECT * FROM estados ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    if (($_GET['edit'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM estados WHERE id = ?");
+        $stmt->execute([(int)$_GET['edit']]);
+        $tabEdit = $stmt->fetch() ?: null;
+    }
+}
+if ($page === 'fabricantes') {
+    $tabListas = carregarTabela($pdo, "SELECT * FROM fabricantes ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    if (($_GET['edit'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM fabricantes WHERE id = ?");
+        $stmt->execute([(int)$_GET['edit']]);
+        $tabEdit = $stmt->fetch() ?: null;
+    }
+}
+if ($page === 'produtos') {
+    $tabListas = carregarTabela(
+        $pdo,
+        "SELECT p.*, c.nome AS categoria_nome, f.nome AS fabricante_nome
+           FROM produtos p
+           LEFT JOIN categorias c ON c.id = p.categoria_id
+           LEFT JOIN fabricantes f ON f.id = p.fabricante_id
+          ORDER BY p.nome ASC",
+        $tabPerPage, $tabOffset, $tabPaginas
+    );
+    $listaCategorias  = $pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
+    $listaFabricantes = $pdo->query("SELECT id, nome FROM fabricantes ORDER BY nome ASC")->fetchAll();
+    if (($_GET['edit'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
+        $stmt->execute([(int)$_GET['edit']]);
+        $tabEdit = $stmt->fetch() ?: null;
+    }
+}
+if ($page === 'parceiros') {
+    $tabListas = carregarTabela($pdo, "SELECT * FROM parceiros ORDER BY empresa ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    if (($_GET['edit'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM parceiros WHERE id = ?");
+        $stmt->execute([(int)$_GET['edit']]);
+        $tabEdit = $stmt->fetch() ?: null;
+    }
+    if (($_GET['ver'] ?? '') !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM parceiros WHERE id = ?");
+        $stmt->execute([(int)$_GET['ver']]);
+        $parceiroVer = $stmt->fetch() ?: null;
+    }
+}
+
+// Pager numerado reutilizável (estilo das capturas)
+function paginacaoTabela(string $pageName, int $totalPaginas, int $atual): void
+{
+    if ($totalPaginas <= 1) return;
+    echo '<div style="display:flex;gap:6px;margin-top:18px;">';
+    for ($i = 1; $i <= $totalPaginas; $i++) {
+        $cls = $i === $atual ? 'btn btn-blue' : 'btn btn-grey';
+        echo '<a class="' . $cls . '" href="app.php?page=' . $pageName . '&p=' . $i . '">' . $i . '</a>';
+    }
+    echo '</div>';
+}
+
 ?>
 
 
@@ -3250,6 +3499,34 @@ select{
 
     <a class="submenu-link <?=active('auditoria',$page)?>" href="app.php?page=auditoria">
       <span>Auditoria</span>
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
+  <button class="sidebar-parent" type="button" id="tabelasToggle">
+    <span class="sidebar-parent-left">
+      <i class="bi bi-table"></i>
+      <span>Tabelas</span>
+    </span>
+    <i class="bi bi-chevron-down sidebar-arrow"></i>
+  </button>
+
+  <div class="sidebar-submenu">
+    <a class="submenu-link <?=active('categorias',$page)?>" href="app.php?page=categorias">
+      <span>Categorias</span>
+    </a>
+    <a class="submenu-link <?=active('estados',$page)?>" href="app.php?page=estados">
+      <span>Estados</span>
+    </a>
+    <a class="submenu-link <?=active('parceiros',$page)?>" href="app.php?page=parceiros">
+      <span>Parceiros</span>
+    </a>
+    <a class="submenu-link <?=active('fabricantes',$page)?>" href="app.php?page=fabricantes">
+      <span>Fabricantes</span>
+    </a>
+    <a class="submenu-link <?=active('produtos',$page)?>" href="app.php?page=produtos">
+      <span>Produtos</span>
     </a>
   </div>
 </div>
@@ -4997,6 +5274,327 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
          FIM VISTA: LISTA DE PATs
     ════════════════════════════════════════════ -->
 
+<?php elseif ($page === 'categorias'): ?>
+
+  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
+  <?php if (isset($_GET['nova']) || $tabEdit): ?>
+    <h1 class="section-title"><?= $tabEdit ? 'Editar Categoria' : 'Nova Categoria' ?></h1>
+    <div class="panel">
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="guardar_categoria">
+        <?php if ($tabEdit): ?><input type="hidden" name="id" value="<?= (int)$tabEdit['id'] ?>"><?php endif; ?>
+        <div style="margin-bottom:14px;">
+          <label>Categoria</label>
+          <label><input type="text" name="nome" required value="<?= htmlspecialchars($tabEdit['nome'] ?? '') ?>"></label>
+        </div>
+        <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
+        <a class="btn btn-yellow" href="app.php?page=categorias">← Voltar à lista</a>
+      </form>
+    </div>
+  <?php else: ?>
+    <h1 class="section-title">Lista de Categorias</h1>
+    <a class="btn btn-teal" href="app.php?page=categorias&nova=1" style="margin-bottom:18px;display:inline-block;">Nova Categoria</a>
+    <table class="table">
+      <thead><tr><th>ID</th><th>Categoria</th><th>Ações</th></tr></thead>
+      <tbody>
+        <?php foreach ($tabListas as $row): ?>
+          <tr>
+            <td>#<?= (int)$row['id'] ?></td>
+            <td><?= htmlspecialchars($row['nome']) ?></td>
+            <td class="actions">
+              <a class="btn btn-yellow" href="app.php?page=categorias&edit=<?= (int)$row['id'] ?>">Editar</a>
+              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar esta categoria?');">
+                <input type="hidden" name="form_type" value="eliminar_categoria">
+                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                <button type="submit" class="btn btn-red">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$tabListas): ?><tr><td colspan="3">Sem registos.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+    <?php paginacaoTabela('categorias', $tabPaginas, $tabPag); ?>
+  <?php endif; ?>
+
+<?php elseif ($page === 'estados'): ?>
+
+  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
+  <?php if (isset($_GET['nova']) || $tabEdit): ?>
+    <h1 class="section-title"><?= $tabEdit ? 'Editar Estado' : 'Novo Estado' ?></h1>
+    <div class="panel">
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="guardar_estado">
+        <?php if ($tabEdit): ?><input type="hidden" name="id" value="<?= (int)$tabEdit['id'] ?>"><?php endif; ?>
+        <div style="margin-bottom:14px;">
+          <label>Estado</label>
+          <label><input type="text" name="nome" required value="<?= htmlspecialchars($tabEdit['nome'] ?? '') ?>"></label>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label>Descrição</label>
+          <label><input type="text" name="descricao" value="<?= htmlspecialchars($tabEdit['descricao'] ?? '') ?>"></label>
+        </div>
+        <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
+        <a class="btn btn-yellow" href="app.php?page=estados">← Voltar à lista</a>
+      </form>
+    </div>
+  <?php else: ?>
+    <h1 class="section-title">Lista dos Estados</h1>
+    <a class="btn btn-teal" href="app.php?page=estados&nova=1" style="margin-bottom:18px;display:inline-block;">Novo Estado</a>
+    <table class="table">
+      <thead><tr><th>ID</th><th>Estado</th><th>Descrição</th><th>Ações</th></tr></thead>
+      <tbody>
+        <?php foreach ($tabListas as $row): ?>
+          <tr>
+            <td>#<?= (int)$row['id'] ?></td>
+            <td><?= htmlspecialchars($row['nome']) ?></td>
+            <td><?= htmlspecialchars($row['descricao'] ?? '') ?></td>
+            <td class="actions">
+              <a class="btn btn-yellow" href="app.php?page=estados&edit=<?= (int)$row['id'] ?>">Editar</a>
+              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este estado?');">
+                <input type="hidden" name="form_type" value="eliminar_estado">
+                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                <button type="submit" class="btn btn-red">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$tabListas): ?><tr><td colspan="4">Sem registos.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+    <?php paginacaoTabela('estados', $tabPaginas, $tabPag); ?>
+  <?php endif; ?>
+
+<?php elseif ($page === 'fabricantes'): ?>
+
+  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
+  <?php if (isset($_GET['nova']) || $tabEdit): ?>
+    <h1 class="section-title"><?= $tabEdit ? 'Editar Fabricante' : 'Novo Fabricante' ?></h1>
+    <div class="panel">
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="guardar_fabricante">
+        <?php if ($tabEdit): ?><input type="hidden" name="id" value="<?= (int)$tabEdit['id'] ?>"><?php endif; ?>
+        <div style="margin-bottom:14px;">
+          <label>Fabricante</label>
+          <label><input type="text" name="nome" required value="<?= htmlspecialchars($tabEdit['nome'] ?? '') ?>"></label>
+        </div>
+        <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
+        <a class="btn btn-yellow" href="app.php?page=fabricantes">← Voltar à lista</a>
+      </form>
+    </div>
+  <?php else: ?>
+    <h1 class="section-title">Lista de Fabricantes</h1>
+    <a class="btn btn-teal" href="app.php?page=fabricantes&nova=1" style="margin-bottom:18px;display:inline-block;">Novo Fabricante</a>
+    <table class="table">
+      <thead><tr><th>ID</th><th>Fabricante</th><th>Ações</th></tr></thead>
+      <tbody>
+        <?php foreach ($tabListas as $row): ?>
+          <tr>
+            <td>#<?= (int)$row['id'] ?></td>
+            <td><?= htmlspecialchars($row['nome']) ?></td>
+            <td class="actions">
+              <a class="btn btn-yellow" href="app.php?page=fabricantes&edit=<?= (int)$row['id'] ?>">Editar</a>
+              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este fabricante?');">
+                <input type="hidden" name="form_type" value="eliminar_fabricante">
+                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                <button type="submit" class="btn btn-red">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$tabListas): ?><tr><td colspan="3">Sem registos.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+    <?php paginacaoTabela('fabricantes', $tabPaginas, $tabPag); ?>
+  <?php endif; ?>
+
+<?php elseif ($page === 'produtos'): ?>
+
+  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
+  <?php if (isset($_GET['nova']) || $tabEdit): ?>
+    <h1 class="section-title"><?= $tabEdit ? 'Editar Produto' : 'Novo Produto' ?></h1>
+    <div class="panel">
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="guardar_produto">
+        <?php if ($tabEdit): ?><input type="hidden" name="id" value="<?= (int)$tabEdit['id'] ?>"><?php endif; ?>
+        <div style="margin-bottom:14px;">
+          <label>Produto</label>
+          <label><input type="text" name="nome" required value="<?= htmlspecialchars($tabEdit['nome'] ?? '') ?>"></label>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label>Categoria</label>
+          <label><select name="categoria_id">
+            <option value="">— Sem categoria —</option>
+            <?php foreach ($listaCategorias as $c): ?>
+              <option value="<?= (int)$c['id'] ?>" <?= ((int)($tabEdit['categoria_id'] ?? 0) === (int)$c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['nome']) ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label>Fabricante</label>
+          <label><select name="fabricante_id">
+            <option value="">— Sem fabricante —</option>
+            <?php foreach ($listaFabricantes as $f): ?>
+              <option value="<?= (int)$f['id'] ?>" <?= ((int)($tabEdit['fabricante_id'] ?? 0) === (int)$f['id']) ? 'selected' : '' ?>><?= htmlspecialchars($f['nome']) ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        </div>
+        <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
+        <a class="btn btn-yellow" href="app.php?page=produtos">← Voltar à lista</a>
+      </form>
+    </div>
+  <?php else: ?>
+    <h1 class="section-title">Lista de Produtos</h1>
+    <a class="btn btn-teal" href="app.php?page=produtos&nova=1" style="margin-bottom:18px;display:inline-block;">Novo Produto</a>
+    <table class="table">
+      <thead><tr><th>ID</th><th>Produto</th><th>Categoria</th><th>Fabricante</th><th>Ações</th></tr></thead>
+      <tbody>
+        <?php foreach ($tabListas as $row): ?>
+          <tr>
+            <td>#<?= (int)$row['id'] ?></td>
+            <td><?= htmlspecialchars($row['nome']) ?></td>
+            <td><?= htmlspecialchars($row['categoria_nome'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['fabricante_nome'] ?? '') ?></td>
+            <td class="actions">
+              <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int)$row['id'] ?>">Editar</a>
+              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este produto?');">
+                <input type="hidden" name="form_type" value="eliminar_produto">
+                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                <button type="submit" class="btn btn-red">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$tabListas): ?><tr><td colspan="5">Sem registos.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+    <?php paginacaoTabela('produtos', $tabPaginas, $tabPag); ?>
+  <?php endif; ?>
+
+<?php elseif ($page === 'parceiros'): ?>
+
+  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
+  <?php if ($parceiroVer): ?>
+    <h1 class="section-title">Visualizar informação do Parceiro</h1>
+    <div class="panel" style="max-width:520px;">
+      <div style="margin-bottom:14px;"><label><strong>Empresa:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['empresa']) ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Morada:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['morada'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Nome do 1º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato1_nome'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Email do 1º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato1_email'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Telefone do 1º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato1_telefone'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Nome do 2º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato2_nome'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:14px;"><label><strong>Email do 2º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato2_email'] ?? '') ?>" readonly></label></div>
+      <div style="margin-bottom:18px;"><label><strong>Telefone do 2º Contato:</strong></label>
+        <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato2_telefone'] ?? '') ?>" readonly></label></div>
+      <a class="btn btn-yellow" href="app.php?page=parceiros">← Voltar à lista de parceiros</a>
+    </div>
+
+  <?php elseif (isset($_GET['nova']) || $tabEdit): ?>
+    <h1 class="section-title"><?= $tabEdit ? 'Editar Parceiro' : 'Novo Parceiro' ?></h1>
+    <div class="panel" style="max-width:520px;">
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="guardar_parceiro">
+        <?php if ($tabEdit): ?><input type="hidden" name="id" value="<?= (int)$tabEdit['id'] ?>"><?php endif; ?>
+        <div style="margin-bottom:14px;"><label>Empresa</label>
+          <label><input type="text" name="empresa" required value="<?= htmlspecialchars($tabEdit['empresa'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Morada</label>
+          <label><input type="text" name="morada" value="<?= htmlspecialchars($tabEdit['morada'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Nome do 1º Contato</label>
+          <label><input type="text" name="contato1_nome" value="<?= htmlspecialchars($tabEdit['contato1_nome'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Email do 1º Contato</label>
+          <label><input type="email" name="contato1_email" value="<?= htmlspecialchars($tabEdit['contato1_email'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Telefone do 1º Contato</label>
+          <label><input type="text" name="contato1_telefone" value="<?= htmlspecialchars($tabEdit['contato1_telefone'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Nome do 2º Contato</label>
+          <label><input type="text" name="contato2_nome" value="<?= htmlspecialchars($tabEdit['contato2_nome'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:14px;"><label>Email do 2º Contato</label>
+          <label><input type="email" name="contato2_email" value="<?= htmlspecialchars($tabEdit['contato2_email'] ?? '') ?>"></label></div>
+        <div style="margin-bottom:18px;"><label>Telefone do 2º Contato</label>
+          <label><input type="text" name="contato2_telefone" value="<?= htmlspecialchars($tabEdit['contato2_telefone'] ?? '') ?>"></label></div>
+        <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
+        <a class="btn btn-yellow" href="app.php?page=parceiros">← Voltar à lista</a>
+      </form>
+    </div>
+
+  <?php else: ?>
+    <?php $det = isset($_GET['det']); ?>
+    <h1 class="section-title">Lista de Parceiros</h1>
+    <div style="margin-bottom:18px;">
+      <a class="btn btn-teal" href="app.php?page=parceiros&nova=1">Novo Parceiro</a>
+      <a class="btn btn-grey" href="app.php?page=parceiros<?= $det ? '' : '&det=1' ?>"><?= $det ? 'Ocultar detalhes' : 'Mostrar detalhes' ?></a>
+    </div>
+    <table class="table">
+      <thead><tr>
+        <th>ID</th><th>Parceiro</th>
+        <th>1º Contato</th><?php if ($det): ?><th>Email</th><?php endif; ?><th>Telm.</th>
+        <th>2º Contato</th><?php if ($det): ?><th>Email</th><?php endif; ?><th>Telm.</th>
+        <th>Ações</th>
+      </tr></thead>
+      <tbody>
+        <?php foreach ($tabListas as $row): ?>
+          <tr>
+            <td>#<?= (int)$row['id'] ?></td>
+            <td><?= htmlspecialchars($row['empresa']) ?></td>
+            <td><?= htmlspecialchars($row['contato1_nome'] ?? '') ?></td>
+            <?php if ($det): ?><td><?= htmlspecialchars($row['contato1_email'] ?? '') ?></td><?php endif; ?>
+            <td><?= htmlspecialchars($row['contato1_telefone'] ?? '') ?></td>
+            <td><?= htmlspecialchars($row['contato2_nome'] ?? '') ?></td>
+            <?php if ($det): ?><td><?= htmlspecialchars($row['contato2_email'] ?? '') ?></td><?php endif; ?>
+            <td><?= htmlspecialchars($row['contato2_telefone'] ?? '') ?></td>
+            <td class="actions">
+              <a class="btn btn-blue" href="app.php?page=parceiros&ver=<?= (int)$row['id'] ?>">Ver +</a>
+              <a class="btn btn-yellow" href="app.php?page=parceiros&edit=<?= (int)$row['id'] ?>">Editar</a>
+              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este parceiro?');">
+                <input type="hidden" name="form_type" value="eliminar_parceiro">
+                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                <button type="submit" class="btn btn-red">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$tabListas): ?><tr><td colspan="<?= $det ? 9 : 7 ?>">Sem registos.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+    <?php paginacaoTabela('parceiros', $tabPaginas, $tabPag); ?>
+  <?php endif; ?>
+
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>
   <div class="panel">Módulo em preparação.</div>
@@ -5215,6 +5813,17 @@ document.addEventListener('DOMContentLoaded', function () {
     enviosToggle.addEventListener('click', function () {
       if (!sidebar.classList.contains('collapsed')) {
         enviosGroup.classList.toggle('open');
+      }
+    });
+  }
+
+  const tabelasToggle = document.getElementById('tabelasToggle');
+  const tabelasGroup = tabelasToggle ? tabelasToggle.closest('.sidebar-group') : null;
+
+  if (tabelasToggle && tabelasGroup && sidebar) {
+    tabelasToggle.addEventListener('click', function () {
+      if (!sidebar.classList.contains('collapsed')) {
+        tabelasGroup.classList.toggle('open');
       }
     });
   }
