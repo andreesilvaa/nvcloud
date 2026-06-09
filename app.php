@@ -1029,10 +1029,10 @@ if ($documento === 'G. Transp cliente') {
         $sn         = strtoupper(trim($m[2]));              // ex: "ISD039X23A50415"
         $qtd        = (float) str_replace(',', '.', $m[3]); // ex: 1.0
 
-        $match = $mapearProduto($designacao);
+        $mapeamento = $mapearProduto($designacao);
 
-        $linhaCategoria[]  = $match['categoria'];
-        $linhaProduto[]    = $match['produto'];
+        $linhaCategoria[]  = $mapeamento['categoria'];
+        $linhaProduto[]    = $mapeamento['produto'];
         $linhaQuantidade[] = $qtd;
         $linhaNumSerie[]   = $sn;
     }
@@ -1417,12 +1417,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
             INSERT INTO pats_componentes (pat_id, removido, sn_removido, colocado, sn_colocado, quantidade)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
-        foreach ($comRemovidos as $i => $rem) {
+        foreach ($compRemovidos as $i => $rem) {
             $rem = trim($rem);
-            $snr = trim($compSnRem[$i] ?? '');
+            $snr = trim($comSnRem[$i] ?? '');
             $col = trim($compColocados[$i] ?? '');
             $snc = trim($compSnCol[$i] ?? '');
-            $qtd = max(1, (int)($comQtds[$i] ?? 1));
+            $qtd = max(1, (int)($compQtds[$i] ?? 1));
             if ($rem === '' && $col === '') continue;
             $stmtComp->execute([$patId, $rem, $snr, $col, $snc, $qtd]);
         }
@@ -1521,8 +1521,8 @@ if ($page === 'pats') {
 
         if ($patDetalhe) {
             $m = $pdo->prepare("SELECT * FROM pats_modulos WHERE pat_id = ? ORDER BY id");
-            $sm->execute([$patVerId]);
-            $patModulos = $sm->fetchAll();
+            $m->execute([$patVerId]);
+            $patModulos = $m->fetchAll();
 
             $sc = $pdo->prepare("SELECT * FROM pats_componentes WHERE pat_id = ? ORDER BY id");
             $sc->execute([$patVerId]);
@@ -3978,14 +3978,14 @@ select{
             <div style="margin-top:14px; padding-top:14px; border-top:1px solid #e5e7eb; display:flex; gap:10px; flex-wrap:wrap;">
                 <form method="post" style="margin:0;">
                     <input type="hidden" name="form_type" value="confirmar_envio_final">
-                    <input type="hidden" name="envio_id" value="<?= ($int)$envioAtual['id'] ?>">
+                    <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
                     <button type="submit" class="btn btn-green">✓ Confirmar e Guardar Envio</button>
                 </form>
 
             <?php if (($envioAtual['estado'] ?? '') ?? '') === 'Rascunho'): ?>
                 <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
                     <input type="hidden" name="form_type" value="apagar_envio">
-                    <input type="hidden" name="envio_id" value="<?= ($int)$envioAtual['id'] ?>">
+                    <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
                     <button type="submit" class="btn btn-red">Apagar Guia</button>
                 </form>
             <?php endif; ?>
@@ -3994,7 +3994,7 @@ select{
         <?php else: ?>
          <div style="text-align:center; padding:40px 20px; color:#6b7280;">
              <div style="font-size:40px; margin-bottom:12px;">📄</div>
-             <p style="font-size:15px; font-wight:500; margin-bottom:6px;">Nenhum rascunho abertoo</p>
+             <p style="font-size:15px; font-weight:500; margin-bottom:6px;">Nenhum rascunho aberto</p>
              <p style="font-size:13px;">Faz a leitura de uma Guia para começar.</p>
          </div>
         <?php endif; ?>
@@ -4732,7 +4732,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
   <!-- Observações -->
   <div class="panel" style="margin-bottom:18px;">
     <h4 style="margin-bottom:14px;">Observações</h4>
-    <textarea name="observacoes" rows="3" style="width:100%; resize:vertica;"><?= htmlspecialchars($patDetalhe['observacoes']) ?></textarea>
+    <textarea name="observacoes" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['observacoes']) ?></textarea>
   </div>
 
   <!-- Ações -->
