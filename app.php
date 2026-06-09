@@ -1,7 +1,12 @@
 <?php
+
+// ============================================================
+// 1. SESSÃO E AUTENTICAÇÃO
+// ============================================================
+
 session_start();
 
-$session_timeout = 8 * 60 * 60; 
+$session_timeout = 8 * 60 * 60;
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -18,6 +23,44 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 
 $_SESSION['LAST_ACTIVITY'] = time();
 
 
+// ============================================================
+// 2. FUNÇÕES AUXILIARES GERAIS
+// ============================================================
+
+function redirectTo(string $url): void
+{
+    header('Location: ' . $url);
+    exit;
+}
+
+function flashSuccess(string $message): void
+{
+    $_SESSION['mensagem_sucesso'] = $message;
+}
+
+function flashError(string $message): void
+{
+    $_SESSION['mensagem_erro'] = $message;
+}
+
+function pullSessionArray(string $key): array
+{
+    $value = $_SESSION[$key] ?? [];
+    unset($_SESSION[$key]);
+
+    return is_array($value) ? $value : [];
+}
+
+function e($value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+
+// ============================================================
+// 3. BASE DE DADOS
+// ============================================================
+
 $host = 'localhost';
 $db = 'stocks_db';
 $user = 'root';
@@ -27,8 +70,8 @@ $charset = 'utf8mb4';
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
 
 $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
 try {
@@ -37,8 +80,14 @@ try {
     die('Erro de ligação à base de dados: ' . $e->getMessage());
 }
 
+
+// ============================================================
+// 4. ESTADO DA PÁGINA / ROUTING SIMPLES
+// ============================================================
+
 $page = $_GET['page'] ?? 'dashboard';
 $action = $_GET['action'] ?? '';
+$vista = $_GET['lista'] ?? '0';
 
 $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 $pecaEdit = null;
@@ -54,6 +103,10 @@ if ($page === 'nova_peca' && $editId > 0) {
       exit;
     }
 }
+
+// ============================================================
+// 5. DADOS FIXOS DA APLICAÇÃO
+// ============================================================
 
 $pageTitles = [
   'dashboard' => 'Dashboard',
@@ -212,6 +265,10 @@ $catalogoProdutos = [
                         'VGA VE02ALR c/Transformador',],
 ];
 
+// ============================================================
+// 6. VALORES TEMPORÁRIOS DOS FORMULÁRIOS
+// ============================================================
+
 $formNovaPeca = $_SESSION['form_nova_peca'] ?? [];
 unset($_SESSION['form_nova_peca']);
 
@@ -222,6 +279,9 @@ $valorEstado = $formNovaPeca['estado'] ?? ($pecaEdit['estado'] ?? '');
 $valorSn = $_GET['sn'] ?? ($formNovaPeca['sn'] ?? ($pecaEdit['sn'] ?? ''));
 $valorCodBarras = $_GET['cod_barras'] ?? ($formNovaPeca['cod_barras'] ?? ($pecaEdit['cod_barras'] ?? ''));
 
+// ============================================================
+// 7. PROCESSAMENTO POST: CRIAR / EDITAR PEÇA
+// ============================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'nova_peca') {
     $editId = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : 0;
@@ -258,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         if ($sn !== '' && $stmtCheck->fetch()) {
             $_SESSION['mensagem_erro'] = 'Já existe uma peça registada com esse número de série.';
             $_SESSION['form_nova_peca'] = $_POST;
-              header('Location: app.php?page=nova_peca' . ($editId > 0 ? 'edit=' . $editId : ''));
+              header('Location: app.php?page=nova_peca' . ($editId > 0 ? '&edit=' . $editId : ''));
             exit;
         }
     } else {
@@ -362,7 +422,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
   }
 
 
-
+// ============================================================
+// 8. PROCESSAMENTO POST: CRIAR / EDITAR CONTA
+// ============================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'nova_conta') {
     $contaId = isset($_POST['conta_id']) ? (int)$_POST['conta_id'] : 0;
@@ -454,6 +516,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       exit;
     }
 
+// ============================================================
+// 9. PROCESSAMENTO POST: ELIMINAR CONTA
+// ============================================================
+
   if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'eliminar_conta') {
     $deleteContaId = isset($_POST['id']) ? (int)$_POST['id'] : 0;
 
@@ -466,6 +532,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     header('Location: app.php?page=contas');
     exit;
   }
+
+// ============================================================
+// 10. PROCESSAMENTO POST: ELIMINAR PEÇA
+// ============================================================
 
   if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'eliminar_peca') {
     $deleteId = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -515,6 +585,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     exit;
   }
 
+// ============================================================
+// 11. VALORES TEMPORÁRIOS DO FORMULÁRIO DE ENVIO
+// ============================================================
+
     $formEnvio = $_SESSION['form_envio'] ?? [];
     unset($_SESSION['form_envio']);
 
@@ -535,6 +609,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     ORDER BY parceiro ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
 
+
+// ============================================================
+// 12. PROCESSAMENTO POST: IMPORTAR GUIA DE ENVIO
+// ============================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'importar_guia_envio') {
     if (!isset($_FILES['guia_pdf']) || !is_array($_FILES['guia_pdf'])) {
@@ -629,6 +707,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
     }
 }
 
+// ============================================================
+// 13. PROCESSAMENTO POST: NOVO ENVIO
+// ============================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'novo_envio') {
     $documento = trim($_POST['documento'] ?? '');
@@ -1241,6 +1322,136 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'ap
     }
 }
 
+// ══════════════════════════════════════════════
+// HANDLER: Criar / Editar PAT
+// ══════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '', ['criar_pat', 'editar_pat'])) {
+    $isEdicao = ($_POST['form_type'] === 'editar_pat');
+    $editId = (int)($_POST['pat_id'] ?? 0);
+
+    $numeroPat = trim($_POST['numero_pat'] ?? '');
+    $revisao = max(1, (int)($_POST['revisao'] ?? 1));
+    $entidade = trim($_POST['entidade'] ?? '');
+    $local = trim($_POST['local_cliente'] ?? '');
+    $contacto = trim($_POST['contacto'] ?? '');
+    $morada = trim($_POST['morada'] ?? '');
+    $dataRec = trim($_POST['data_recepcao'] ?? '') ?: null;
+    $dataLim = trim($_POST['data_limite'] ?? '') ?: null;
+    $garantia = isset($_POST['garantia']) ? 1 : 0;
+    $contrato = isset($_POST['contrato_manutencao']) ? 1 : 0;
+    $descricao = trim($_POST['descricao'] ?? '');
+    $tecnico = trim($_POST['tecnico'] ?? '');
+    $comentarios = trim($_POST['comentarios'] ?? '');
+    $dataIni = trim($_POST['data_inicio'] ?? '');
+    $dataFim = trim($_POST['data_fim'] ?? '');
+    $tecnicos = trim($_POST['tecnicos_presentes'] ?? '');
+    $observacoes = trim($_POST['observacoes'] ?? '');
+    $prioridade = in_array($_POST['prioridade'] ?? '', ['Normal','Urgente']) ? $_POST['prioridade'] : 'Normal';
+    $estado = in_array($_POST['estado'] ?? '', ['Aberto'.'Em Curso','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
+
+    if ($numeroPat === '') {
+        $_SESSION['mensagem_erro'] = 'O número do PAT é obrigatório.';
+        header('Location: app.php?page=pats' . ($isEdicao ? '&ver=' . $editId : '&acao=novo'));
+        exit;
+    }
+
+    // Módulos e Componentes
+    $modSolucoes = $_POST['mod_solucao'] ?? [];
+    $modModelos = $_POST['mod_modelo'] ?? [];
+    $modSeries = $_POST['mod_serie'] ?? [];
+    $compRemovidos = $_POST['comp_removido'] ?? [];
+    $comSnRem = $_POST['comp_sn_rem'] ?? [];
+    $compColocados = $_POST['comp_colocado'] ?? [];
+    $compSnCol = $_POST['comp_sn_col'] ?? [];
+    $compQtds = $_POST['comp_qtd'] ?? [];
+
+    $pdo->beginTransaction();
+    try {
+        $campos = [
+            $numeroPat, $revisao, $entidade, $local, $contacto, $morada,
+            $dataRec, $dataLim, $garantia, $contrato, $descricao,
+            $tecnico, $comentarios, $dataIni, $dataFim, $tecnicos,
+            $observacoes, $prioridade, $estado,
+        ];
+
+        if (!$isEdicao) {
+            $campos[] = $_SESSION['user_nome'] ?? 'Sistema';
+            $pdo->prepare("
+                INSERT INTO pats
+                 (numero_pat, revisao, entidade, local_cliente, contacto, morada,
+                  data_recepcao, data_limite, garantia, contrato_manutencao, descricao,
+                  tecnico, comentarios, data_inicio, data_fim, tecnicos_presentes,
+                  observacoes, prioridade, estado, criado_por)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ")->execute($campos);
+            $patId = (int)$pdo->lastInsertId();
+        } else {
+            $pdo->prepare("
+               UPDATE pats SET
+                 numero_pat=?, revisao=?, entidade=?, local_cliente=?, contacto=?, morada=?,
+                 data_recepcao=?, data_limite=?, garantia=?, contrato_manutencao=?, descricao=?,
+                 tecnico=?, comentarios=?, data_inicio=?, data_fim=?, tecnicos_presentes=?,
+                 observacoes=?, prioridade=?, estado=?
+               WHERE id=?
+            ")->execute(array_merge($campos, [$editId]));
+            $patId = $editId;
+            $pdo->prepare("DELETE FROM pats_modulos    WHERE pat_id = ?")->execute([$patId]);
+            $pdo->prepare("DELETE FROM pats_componentes WHERE pat_id = ?")->execute([$patId]);
+        }
+
+        // Reinserir módulos
+        $stmtMod = $pdo->prepare("
+            INSERT INTO pats_modulos (pat_id, solucao_equipamento, modelo, num_serie)
+            VALUES (?, ?, ?, ?)
+        ");
+        foreach ($modSolucoes as $i => $sol) {
+            $sol = trim($sol);
+            $mod = trim($modModelos[$i] ?? '');
+            $ser = trim($modSeries[$i] ?? '');
+            if ($sol === '' && $mod === '' && $ser === '') continue;
+            $stmtMod->execute([$patId, $sol, $mod, $ser]);
+        }
+
+        // Reinserir componentes
+        $stmtComp = $pdo->prepare("
+            INSERT INTO pats_componentes (pat_id, removido, sn_removido, colocado, sn_colocado, quantidade)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        foreach ($comRemovidos as $i => $rem) {
+            $rem = trim($rem);
+            $snr = trim($compSnRem[$i] ?? '');
+            $col = trim($compColocados[$i] ?? '');
+            $snc = trim($compSnCol[$i] ?? '');
+            $qtd = max(1, (int)($comQtds[$i] ?? 1));
+            if ($rem === '' && $col === '') continue;
+            $stmtComp->execute([$patId, $rem, $snr, $col, $snc, $qtd]);
+        }
+
+        $pdo->commit();
+        $_SESSION['mensagem_sucesso'] = $isEdicao ? 'PAT atualizado.' : 'PAT criado com sucesso.';
+        header('Location: app.php?page=pats&ver=' . $patId);
+        exit;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['mensagem_erro'] = 'Erro ao guardar o PAT: ' . $e->getMessage();
+        header('Location: app.php?page=pats' . ($isEdicao ? '&ver=' . $editId : '&acao=novo'));
+        exit;
+    }
+}
+
+// ══════════════════════════════════════════════
+// HANDLER: Apagar PAT
+// ══════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'apagar_pat') {
+    $patId = (int)($_POST['pat_id'] ?? 0);
+    if ($patId > 0) {
+        $pdo->prepare("DELETE FROM pats WHERE id = ?")->execute([$patId]);
+    }
+    $_SESSION['mensagem_sucesso'] = 'PAT apagado.';
+    header('Location: app.php?page=pats');
+    exit;
+}
+
 
 function countQuery(\PDO $pdo, string $sql): int {
     return (int)$pdo->query($sql)->fetchColumn();
@@ -1257,6 +1468,68 @@ $ordensCanceladas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='
 $ordensConcluidas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Concluida'");
 
 $ultimoPat = $pdo->query("SELECT data_criacao FROM pats ORDER BY data_criacao DESC LIMIT 1")->fetchColumn() ?: null;
+
+
+// ══════════════════════════════════════════════
+// DADOS — PATs
+// ══════════════════════════════════════════════
+$patsList = [];
+$patDetalhe = null;
+$patModulos = [];
+$patComp = [];
+$patAcao = $_GET['acao'] ?? '';
+$patVerId = isset($_GET['ver']) ? (int)$_GET['ver'] : 0;
+
+if ($page === 'pats') {
+
+    //Filtros Lista
+    $patFiltros = [
+       'q' => trim($_GET['q']  ?? ''),
+       'estado' => trim($_GET['estado'] ?? ''),
+       'prioridade' => trim($_GET['prioridade'] ?? ''),
+    ];
+
+    $patWhere = [];
+    $patParams = [];
+    if ($patFiltros['q'] !== '') {
+        $patWhere[] = '(numero_pat LIKE ? OR entidade LIKE ? OR tecnico LIKE ?)';
+        $patParams[] = '%' . $patFiltros['q'] . '%';
+        $patParams[] = '%' . $patFiltros['q'] . '%';
+        $patParams[] = '%' . $patFiltros['q'] . '%';
+    }
+    if ($patFiltros['estado'] !== '') {
+        $patWhere[] = 'estado = ?';
+        $patParams[] = $patFiltros['estado'];
+    }
+    if ($patFiltros['prioridade'] !== '') {
+        $patWhere[] = 'prioridade = ?';
+        $patParams[] = $patFiltros['prioridade'];
+    }
+
+    $patSql = "SELECT * FROM pats"
+            . ($patWhere ? ' WHERE ' . implode(' AND ', $patWhere) : '')
+            . "ORDER BY created_at DESC";
+    $patStmt = $pdo->prepare($patSql);
+    $patStmt->execute($patParams);
+    $patsList = $patStmt->fetchAll();
+
+    // Detalhe de 1 PAT
+    if ($patVerId > 0) {
+        $s = $pdo->prepare("SELECT * FROM pats WHERE id = ?");
+        $s->execute([$patVerId]);
+        $patDetalhe = $s->fetch();
+
+        if ($patDetalhe) {
+            $m = $pdo->prepare("SELECT * FROM pats_modulos WHERE pat_id = ? ORDER BY id");
+            $sm->execute([$patVerId]);
+            $patModulos = $sm->fetchAll();
+
+            $sc = $pdo->prepare("SELECT * FROM pats_componentes WHERE pat_id = ? ORDER BY id");
+            $sc->execute([$patVerId]);
+            $patComp = $sc->fetchAll();
+        }
+    }
+}
 
 $contas = [];
     if ($page === 'contas') {
@@ -1778,9 +2051,12 @@ if ($page === 'alertas') {
             continue;
         }
 
-        if ($cliente['parent_account'] === '') {
+        // Contas-Filhas também aparecem quando o filtro de hierarquia as pede
+        if ($cliente['parent_account'] === '' || $clientesFiltros['hierarquia'] === 'com_parent') {
             $clientesRoots[] = $cliente;
         }
+
+
     }
 
     usort($clientesRoots, static function ($a, $b) {
@@ -2720,7 +2996,7 @@ select{
 
 .envios-layout{
   display:grid;
-  grid-template-columns: minmax(620px, 1.45fr) minmax(420px, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   gap:24px;
   align-items:start;
   margin-top:20px;
@@ -2731,34 +3007,64 @@ select{
   width:100%;
   min-width:0;
   box-sizing:border-box;
+    overflow: hidden;
   }
+
+.envios-form-panel,
+.envios-lista-panel{
+    margin-bottom:18px;
+}
+
+.envios-toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+}
+
+.envios-table-wrap{
+    width:100%;
+    overflow-x:auto;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    background:#fff;
+}
 
 .envios-table{
   width:100%;
-  border-collapse:collapse;
+    min-width:760px;
+  border-collapse:separate;
+    border-spacing:0;
   background:#fff;
   }
 
 .envios-table th,
 .envios-table td{
-  padding:12px;
+  padding:12px 14px;
   text-align:left;
   vertical-align:middle;
+    border-bottom:1px solid #e5e7eb;
+    white-space:nowrap;
   }
 
 .envios-table th{
   background:#f6f7f9;
   color:#222;
-  border:1px solid #e5e7eb;
-  }
-
-.envios-table td{
-  border:1px solid #e5e7eb;
+    font-weight:700;
+    position:sticky;
+    top:0;
+    z-index:1;
   }
 
 .envios-table tbody tr:hover{
-  background:#f8f9fb;
-  }
+    background:#f8f9fb;
+}
+
+.envios-table tbody tr:last-child td{
+    border-bottom:none;
+}
 
 .envios-vazio{
   text-align:center;
@@ -2766,28 +3072,143 @@ select{
   padding:18px !important;
   }
 
+.envio-linhas-box{
+    margin-top:22px;
+    padding-top:22px;
+    border-top:1px solid #eceff3;
+}
+
+.envio-linhas-wrap{
+    width:100%;
+    overflow-x:auto;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    background:#fff;
+}
+
+.envio-linhas-table{
+    width:100%;
+    min-width:680px;
+    border-collapse:separate;
+    border-spacing:0;
+}
+
+.envio-linhas-table th,
+.envio-linhas-table td{
+    padding:12px 14px;
+    text-align:left;
+    border-bottom:1px solid #e5e7eb;
+    white-space:nowrap;
+}
+
+.envio-linhas-table th{
+    background:#f6f7f9;
+}
+
+.envio-linhas-table tbody tr:last-child td{
+    border-bottom:none;
+}
+
+.linhas-envio-stack{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+
 .linha-envio-grid{
-  display:grid;
-  grid-template-columns:1fr 2fr 120px 1.4fr;
-  gap:10px;
-  margin-bottom:10px;
-  }
-
-@media (max-width: 1100px) {
-  .linha-envio-grid{
-    grid-template-columns:1fr 1fr;
-  }
+    display:grid;
+    grid-template-columns:minmax(0, 1.1fr) minmax(0, 1.6fr) 120px minmax(0, 1.1fr) auto;
+    gap:10px;
+    align-items:end;
+    padding:12px;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    background:#fafbfc;
 }
 
-@media (max-width: 900px) {
-  .envios-layout{
-    grid-template-columns:1fr;
-  }
-
-  .linha-envio-grid{
-    grid-template-columns:1fr;
-  }
+.linha-envio-grid > *{
+    min-width:0;
 }
+
+.linha-envio-acoes{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+}
+
+.btn-icon-remover{
+    width:46px;
+    height:46px;
+    border:none;
+    border-radius:10px;
+    background:#dc3545;
+    color:#fff;
+    cursor:pointer;
+    font-size:18px;
+}
+
+.btn-icon-remover:hover{
+    background:#bb2d3b;
+}
+
+.envio-acoes{
+    margin-top:16px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.envio-estado{
+    padding:7px 10px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:700;
+    display:inline-block;
+    color:#fff;
+}
+
+.envio-estado.rascunho{ background:#6c757d; }
+.envio-estado.ativa{ background:#3d82c4; }
+.envio-estado.concluida{ background:#59b94f; }
+.envio-estado.cancelada{ background:#dc3545; }
+
+@media (max-width: 1180px){
+    .envios-layout{
+        grid-template-columns:1fr;
+    }
+}
+
+@media (max-width: 900px){
+    .linha-envio-grid{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .linha-envio-acoes{
+        justify-content:flex-start;
+    }
+}
+
+@media (max-width: 640px){
+    .linha-envio-grid{
+        grid-template-columns:1fr;
+    }
+
+    .envios-table,
+    .envio-linhas-table{
+        min-width:640px;
+    }
+
+    .btn,
+    .btn-icon-remover{
+        width:100%;
+    }
+
+    .envio-acoes{
+        flex-direction:column;
+    }
+}
+
+
 
 .clientes-kpis{
   display:grid;
@@ -3428,174 +3849,167 @@ select{
 
 <?php if ($vista !== '1'): ?>
   <!-- ── Vista: Novo Envio ── -->
-   <div class="panel" style="margin-bottom:20px;">
-    <h4 style="margin-bottom:14px;">Leitura de Guia de Transporte</h4>
-    <form method="post" enctype="multipart/form-data" autocomplete="off">
-      <input type="hidden" name="form_type" value="importar_guia_envio">
-      <label>Guia PDF</label>
-      <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required>
-      <button type="submit" class="btn btn-blue">Ler Guia</button>
-    </form>
-  </div>
+    <div class="panel" style="margin-bottom:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h4 style="margin:0;">Leitura de Guia de Transporte</h4>
+    </div>
+   <form method="post" enctype="multipart/form-data" autocomplete="off" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+       <input type="hidden" name="form_type" value="importar_guia_envio">
+       <div style="flex:1; min-width:240px;">
+           <label style="margin-bottom:5px; display:block;">Ficheiro PDF da Guia</label>
+           <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required style="width:100%;">
+       </div>
+       <button type="submit" class="btn btn-blue">Ler Guia</button>
+     </form>
+    </div>
 
-  <div class="panel envio-form-panel" style="margin-top:0;">
-    <div class="panel envio-form-panel">
+    <div class="panel">
         <h4 style="margin-bottom:16px;">
             <?= $envioAtual ? 'Rascunho / Validação do Envio' : 'Novo Envio' ?>
+            <?php if ($envioAtual): ?>
+            <span style="font-size:12px; font-weight:500; color:#6b7280; margin-left:10px;">
+                Estado: <strong style="color:<?= ($envioAtual['estado'] === 'Rascunho') ? '#b45309' : '#16a34a' ?>">
+                    <?= htmlspecialchars($envioAtual['estado']) ?>
+                </strong>
+            </span>
+            <?php endif; ?>
         </h4>
 
         <?php if ($envioAtual): ?>
-            <?php
-                $isCliente = (($envioAtual['documento'] ?? '') === 'G. Transp cliente');
-                $isFornecedor = (($envioAtual['documento'] ?? '') === 'G. Transp fornec');
-            ?>
+        <?php
+        $isCliente = (($envioAtual['documento'] ?? '') === 'G. Transp Cliente');
+        $isFornecedor = (($envioAtual['documento'] ?? '') === 'G. Transp Fornec');
+        ?>
 
-            <div class="small-note" style="margin-bottom:12px;">
-                Estado atual: <strong><?= htmlspecialchars($envioAtual['estado']) ?></strong>
-            </div>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:18px; font-size:13px; color:#15803d;">
+            Guia lida com sucesso. Necessário rever os dados!
+        </div>
 
-            <div class="small-note" style="margin-bottom:14px; color:#0f5132;">
-                Leitura da Guia de Transporte finalizada com sucesso. Revê os dados antes de confirmar o envio.
-            </div>
+        <form method="post" autocomplete="off">
+            <input type="hidden" name="form_type" value="guardar_rascunho_envio">
+            <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
 
-            <?php if (!empty($envioAtual['observacoes'])): ?>
-                <div class="small-note" style="margin-bottom:16px;">
-                    <?= htmlspecialchars($envioAtual['observacoes']) ?>
+            <div class="form-grid">
+                <div>
+                    <label>Documento</label>
+                    <option name="documento" id="documento_envio" required>
+                        <option value=""--Selecione --</option>
+                        <option value="G. Transp Fornec" <?= $isFornecedor ? 'selected' : '' ?>>G. Transp Fornec</option>
+                        <option value="G.Transp Cliente" <?= $isCliente ? 'selected' : '' ?>>G. Transp Cliente</option>
+                    </select>
                 </div>
-            <?php endif; ?>
-
-            <form method="post" autocomplete="off">
-                <input type="hidden" name="form_type" value="guardar_rascunho_envio">
-                <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
-
-                <div class="form-grid">
-                    <div>
-                        <label>Documento</label>
-                        <select name="documento" id="documento_envio" required>
-                            <option value="">-- Selecione o Documento --</option>
-                            <option value="G. Transp fornec" <?= $isFornecedor ? 'selected' : '' ?>>G. Transp fornec</option>
-                            <option value="G. Transp cliente" <?= $isCliente ? 'selected' : '' ?>>G. Transp cliente</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>Nº Documento</label>
-                        <input type="text" name="num_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
-                    </div>
-
-                    <div>
-                        <label>Data</label>
-                        <input type="date" name="data_documento" id="data_documento" value="<?= htmlspecialchars($envioAtual['data_documento'] ?? '') ?>" required>
-                    </div>
-
-                    <div>
-                        <label>Parceiro</label>
-                        <?php if ($isCliente): ?>
-                            <select name="parceiro" id="parceiro_envio" required>
-                                <option value="Field Service" selected>Field Service</option>
-                            </select>
-                            <div class="small-note">Guia Cliente: parceiro forçado a Field Service.</div>
-                        <?php else: ?>
-                            <select name="parceiro" id="parceiro_envio" required>
-                                <option value="">-- Selecione o Parceiro --</option>
-                                <?php foreach ($parceirosInventario as $parceiroInv): ?>
-                                    <option value="<?= htmlspecialchars($parceiroInv) ?>" <?= (($envioAtual['parceiro'] ?? '') === $parceiroInv) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($parceiroInv) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="small-note">Guia Fornecedor: parceiro identificado a partir da guia e limitado aos parceiros do Inventário.</div>
-                        <?php endif; ?>
-                    </div>
+                <div>
+                    <label>Nº Documento</label>
+                    <input type="rext" name="data_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
                 </div>
-
-                <h4 style="margin:22px 0 12px;">Linhas do Envio</h4>
-
-                <div id="linhasEnvioWrap">
-                    <?php if (empty($envioLinhas)): ?>
-                        <div class="linha-envio-grid">
-                            <select name="linha_categoria[]" class="linha-categoria" required>
-                                <option value="">-- Tipo --</option>
-                                <?php foreach ($categoriasInventarioReal as $cat): ?>
-                                    <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-
-                            <select name="linha_produto[]" class="linha-produto" data-selected="" required>
-                                <option value="">-- Nome da Peça --</option>
-                            </select>
-
-                            <input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required>
-                            <input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série">
-                            <div class="sn-avisos"></div>
-                        </div>
+                <div>
+                    <label>Data</label>
+                    <input type="date" name="data_documento" value="<?= htmlspecialchars($envioAtual['data_documento'] ?? '') ?>" required>
+                </div>
+                <div>
+                    <label>Parceiro</label>
+                    <?php if ($isCliente): ?>
+                    <select name="parceiro" required>
+                        <option value="Field Service" selected>Field Service</option>
+                    </select>
+                    <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
                     <?php else: ?>
-                        <?php foreach ($envioLinhas as $i => $linha): ?>
-                            <div class="linha-envio-grid" data-linha-index="<?= (int)$i ?>">
-                                <select name="linha_categoria[]" class="linha-categoria" required>
-                                    <option value="">-- Tipo --</option>
-                                    <?php foreach ($categoriasInventarioReal as $cat): ?>
-                                        <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($cat) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-
-                                <select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
-                                    <option value="">-- Nome da Peça --</option>
-                                </select>
-
-                                <input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['quantidade'] ?? 1) ?>" required>
-
-                                <input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série">
-
-                                <div class="sn-avisos">
-                                    <?php if (!empty($linha['observacoes'])): ?>
-                                        <div class="small-note" style="color:#b26a00;"><?= htmlspecialchars($linha['observacoes']) ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
+                    <select name="parceiro" required>
+                        <option value="">-- Selecione --</option>
+                        <?php foreach ($parceirosInventario as $p): ?>
+                        <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($p) ?>
+                        </option>
                         <?php endforeach; ?>
-                    <?php endif; ?>
+                    </select>
+                <?php endif; ?>
                 </div>
+            </div>
 
-                <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-                    <button type="button" class="btn btn-grey" id="adicionarLinhaEnvio">Adicionar Linha</button>
-                    <button type="submit" class="btn btn-blue">Guardar como Rascunho</button>
+            <h4 style="margin:22px 0 12px;">Linhas do Envio</h4>
+            <div id="linhasEnvioWrap">
+                <?php if (empty($envioLinhas)): ?>
+                <div class="linha-envio-grid">
+                    <select name="linha_categoria[]" class="linha-categoria" required>
+                        <option value="">-- Tipo --</option>
+                        <?php foreach ($categoriasInventarioReal as $cat): ?>
+                        <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="linha_produto[]" class="linha-produto" data-selected="" required>
+                        <option value="">-- Nome da Peça --</option>
+                    </select>
+                    <input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required>
+                    <input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série">
+                    <div class="sn-avisos"></div>
                 </div>
-            </form>
+                <?php else: ?>
+                  <?php foreach ($envioLinhas as $i => $linha): ?>
+                    <div class="linha-envio-grid" data-linha-index="<?= (int)$i ?>">
+                        <select name="linha_categoria[]" class="linha-categoria" required>
+                            <option value="">-- Tipo --</option>
+                            <?php foreach ($categoriasInventarioReal as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($cat) ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
+                            <option value="">-- Nome da Peça --</option>
+                        </select>
+                        <input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
+                        <input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série">
+                        <div class="sn-avisos">
+                            <?php if (!empty($linha['observacoes'])): ?>
+                            <div class="small-note" style="color:#b26a00;"><?= htmlspecialchars($linha['observacoes']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
 
-            <form method="post" style="margin-top:14px;">
-                <input type="hidden" name="form_type" value="confirmar_envio_final">
-                <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
-                <button type="submit" class="btn btn-green">Confirmar e Guardar Envio</button>
-            </form>
+            <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button type="button" class="btn btn-grey" id="adicionarLinhaEnvio">+ Linha</button>
+                <button type="submit" class="btn btn-blue">Guardar Rascunho</button>
+            </div>
+        </form>
+
+            <div style="margin-top:14px; padding-top:14px; border-top:1px solid #e5e7eb; display:flex; gap:10px; flex-wrap:wrap;">
+                <form method="post" style="margin:0;">
+                    <input type="hidden" name="form_type" value="confirmar_envio_final">
+                    <input type="hidden" name="envio_id" value="<?= ($int)$envioAtual['id'] ?>">
+                    <button type="submit" class="btn btn-green">✓ Confirmar e Guardar Envio</button>
+                </form>
+
+            <?php if (($envioAtual['estado'] ?? '') ?? '') === 'Rascunho'): ?>
+                <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
+                    <input type="hidden" name="form_type" value="apagar_envio">
+                    <input type="hidden" name="envio_id" value="<?= ($int)$envioAtual['id'] ?>">
+                    <button type="submit" class="btn btn-red">Apagar Guia</button>
+                </form>
+            <?php endif; ?>
+            </div>
 
         <?php else: ?>
-            <div class="small-note">
-                Ainda não existe nenhum rascunho aberto. Faz primeiro a leitura da guia para abrir a página de validação.
-            </div>
-        <?php endif; ?>
-
-        <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
-          <form method="post" style="display:inline;"
-              onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
-            <input type="hidden" name="form_type" value="apagar_envio">
-            <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
-            <button type="submit" class="btn btn-red">Apagar Guia</button>
-          </form>
+         <div style="text-align:center; padding:40px 20px; color:#6b7280;">
+             <div style="font-size:40px; margin-bottom:12px;">📄</div>
+             <p style="font-size:15px; font-wight:500; margin-bottom:6px;">Nenhum rascunho abertoo</p>
+             <p style="font-size:13px;">Faz a leitura de uma Guia para começar.</p>
+         </div>
         <?php endif; ?>
     </div>
+
     <?php else: ?>
-      <!-- ── Vista: Lista de Envios ── -->
-      <div class="panel" style="margin-top:0;">
+    <!-- ════════════════════════════════════════════════
+         VISTA: LISTA DE ENVIOS
+    ════════════════════════════════════════════════ -->
 
-      
-    <div class="panel envio-lista-panel">
+    <div class="panel">
         <h4 style="margin-bottom:18px;">Lista de Envios</h4>
-
-        <table class="table envios-table">
-            <thead>
+        <div style="overflow-x:auto;">
+            <table class="table envios-table">
+                <thead>
                 <tr>
                     <th>ID</th>
                     <th>Documento</th>
@@ -3606,38 +4020,42 @@ select{
                     <th>Criado Por</th>
                     <th>Ações</th>
                 </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($envios)): ?>
-                    <tr>
-                        <td colspan="8" class="envios-vazio">Nenhum envio registado.</td>
-                    </tr>
-                <?php else: ?>
+                </thead>
+                <tbody>
+                  <?php if (empty($envios)): ?>
+                    <tr><td colspan="8" class="envios-vazio">Nenhum envio registado.</td></tr>
+                  <?php else: ?>
                     <?php foreach ($envios as $e): ?>
-                        <tr>
-                            <td><?= (int)$e['id'] ?></td>
-                            <td><?= htmlspecialchars($e['documento']) ?></td>
-                            <td><?= htmlspecialchars($e['num_documento']) ?></td>
-                            <td><?= htmlspecialchars(date('d/m/Y', strtotime($e['data_documento']))) ?></td>
-                            <td><?= htmlspecialchars($e['parceiro']) ?></td>
-                            <td><?= htmlspecialchars($e['estado']) ?></td>
-                            <td><?= htmlspecialchars($e['criado_por']) ?></td>
-                            <td class="actions">
-                                <?php if (($e['estado'] ?? '') === 'Rascunho'): ?>
-                                    <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int)$e['id'] ?>">Abrir Rascunho</a>
-                                <?php else: ?>
-                                    <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int)$e['id'] ?>">Ver</a>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                     <tr>
+                       <td><?= (int)$e['id'] ?></td>
+                       <td><?= htmlspecialchars($e['documento']) ?></td>
+                       <td><?= htmlspecialchars($e['num_documento']) ?></td>
+                       <td><?= htmlspecialchars($e['data_documento'] ? date('d/m/Y', strtotime($e['data_documento'])) : '—') ?></td>
+                       <td><?= htmlspecialchars($e['parceiro']) ?></td>
+                       <td>
+                           <span style="
+                             display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600;
+                             background:<?= $e['estado']==='Rascunho' ? '#fef3c7' : ($e['estado']==='Ativa' ? '#dcfce7' : ($e['estado']==='Concluida' ? '#dbeafe' : '#f3f4f6')) ?>;
+                             color:<?= $e['estado']==='Rascunho' ? '#92400e' : ($e['estado']==='Ativa' ? '#15803d' : ($e['estado']==='Concluida' ? '#1d4ed8' : '#374151')) ?>;">
+                             <?= htmlspecialchars($e['estado']) ?>
+                           </span>
+                       </td>
+                       <td><?= htmlspecialchars($e['criado_por']) ?></td>
+                       <td>
+                           <?php if (($e['estado'] ?? '') === 'Rascunho'): ?>
+                            <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int)$e['id'] ?>">Abrir Rascunho</a>
+                           <?php else: ?>
+                            <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int)$e['id'] ?>">Ver</a>
+                           <?php endif; ?>
+                       </td>
+                     </tr>
+                <?php endforeach; ?>
+             <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
-<?php endif; ?>
-
+  <?php endif; ?>
 
 
 
@@ -4100,6 +4518,515 @@ select{
   </div>
 </div>
 
+
+<?php elseif ($page === 'pats'): ?>
+
+<?php
+// KPIs rápidos para o topo da página
+$kpiPatsTotal = countQuery($pdo, "SELECT COUNT(*) FROM pats");
+$kpiPatsAbertos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Aberto'");
+$kpiPatsEmCurso = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Em Curso'");
+$kpiPatsConcluidos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Concluído'");
+$kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade='Urgente' AND estado NOT IN ('Concluído','Cancelado')");
+?>
+
+<?php if ($patVerId > 0 && $patDetalhe): ?>
+    ════════════════════════════════════════════
+    VISTA: DETALHE / EDIÇÃO DO PAT
+    ════════════════════════════════════════════
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+  <a href="app.php?page=pats" class="btn btn-grey">← Voltar à lista</a>
+  <h3 style="margin:0; font-size:17px;">
+      <?= htmlspecialchars($patDetalhe['numero_pat']) ?>/<?= (int)$patDetalhe['revisao'] ?>
+  </h3>
+  <span style="
+    padding:3px 12px; border-radius:20px; font-size:12px; font-weight:600;
+    background:<?= $patDetalhe['estado']==='Aberto' ? '#dbeafe' : ($patDetalhe['estado']==='Em Curso' ? '#fef3c7' : ($patDetalhe['estado']==='Concluído' ? '#dcfce7' : '#f3f4f6')) ?>;
+    color:<?= $patDetalhe['estado']==='Aberto' ? '#1d4ed8' : ($patDetalhe['estado']==='Em Curso' ? '#92400e' : ($patDetalhe['estado']==='Concluído' ? '#15803d' : '#374151')) ?>;">
+    <?= htmlspecialchars($patDetalhe['estado']) ?>
+  </span>
+<?php if ($patDetalhe['prioridade'] === 'Urgente'): ?>
+   <span style="padding:3px 12px; border-radius:20px; font-size:12px; font-weight:600; background:#fee2e2; color:#dc2626;">Urgente</span>
+<?php endif; ?>
+   <div style="margin-left:auto; display:flex; gap:10px;">
+     <a href="workorder.php?id=<?= (int)$patDetalhe['id'] ?>" target="_blank" class="btn btn-blue">📄 Folha de Obra</a>
+   </div>
+</div>
+
+<form method="post" autocomplete="off">
+  <input type="hidden" name="form_type" value="editar_pat">
+  <input type="hidden" name="pat_id" value="<?= (int)$patDetalhe['id'] ?>">
+
+  <!-- Cliente -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Cliente</h4>
+     <div class="form-grid">
+       <div>
+         <label>Nº PAT</label>
+         <input type="text" name="numero_pat" value="<?= htmlspecialchars($patDetalhe['numero_pat']) ?>" required>
+       </div>
+       <div>
+         <label>Revisão</label>
+         <input type="number" name="revisao" min="1" value="<?= (int)$patDetalhe['revisao'] ?>">
+       </div>
+       <div>
+         <label>Entidade</label>
+         <input type="text" name="entidade" value="<?= htmlspecialchars($patDetalhe['entidade']) ?>">
+       </div>
+       <div>
+         <label>Local</label>
+         <input type="text" name="local_cliente" value="<?= htmlspecialchars($patDetalhe['local_cliente']) ?>">
+       </div>
+       <div>
+         <label>Contacto</label>
+         <input type="text" name="contacto" value="<?= htmlspecialchars($patDetalhe['contacto']) ?>">
+       </div>
+       <div>
+         <label>Morada</label>
+         <input type="text" name="morada" value="<?= htmlspecialchars($patDetalhe['morada']) ?>">
+       </div>
+     </div>
+  </div>
+
+  <!-- Pedido -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Pedido de Assistência</h4>
+    <div class="form-grid">
+      <div>
+        <label>Data de Receção</label>
+        <input type="datetime-local" name="data_recepcao"
+          value="<?= $patDetalhe['data_recepcao'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_recepcao'])) : '' ?>">
+      </div>
+      <div>
+        <label>Data Limite</label>
+        <input type="datetime-local" name="data_limite"
+          value="<?= $patDetalhe['data_limite'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_limite'])) : '' ?>">
+      </div>
+      <div style="display:flex; gap:20px; align-items:center; padding-top:22px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
+          <input type="checkbox" name="garantia" value="1" <?= $patDetalhe['garantia'] ? 'checked' : '' ?>>
+           Ao Abrigo da Garantia
+        </label>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label>Descrição do Pedido</label>
+        <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['descricao']) ?></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- NewVision -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">NewVision</h4>
+    <div class="form-grid">
+      <div>
+        <label>Técnico Responsável</label>
+        <input type="text" name="tecnico" value="<?= htmlspecialchars($patDetalhe['tecnico']) ?>">
+      </div>
+      <div>
+        <label>Prioridade</label>
+        <select name="prioridade">
+            <option value="Normal"  <?= $patDetalhe['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+            <option value="Urgente" <?= $patDetalhe['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+        </select>
+      </div>
+      <div>
+        <label>Estado</label>
+        <select name="estado">
+          <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+            <option value="<?= $est ?>" <?= $patDetalhe['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label>Comentários / Instruções</label>
+        <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['comentarios']) ?></textarea>
+    </div>
+  </div>
+  </div>
+
+  <!-- Módulos para Assistência -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Módulos para Assistência</h4>
+    <table class="table" id="tabelaModulos" style="margin-bottom:10px;">
+      <thead>
+        <tr>
+          <th>Solução / Equipamento</th>
+          <th>Modelo</th>
+          <th>Nº de Série</th>
+          <th style="width:48px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $modulosParaRender = !empty($patModulos) ? $patModulos : [['solucao_equipamento'=>'','modelo'=>'','num_serie'=>'']];
+        foreach ($modulosParaRender as $mod): ?>
+          <tr>
+              <td><input type="text" name="mod_solucao[]" value="<?= htmlspecialchars($mod['solucao_equipamento']) ?>" style="width:100%;"></td>
+              <td><input type="text" name="mod_modelo[]"  value="<?= htmlspecialchars($mod['modelo']) ?>" style="width:100%;"></td>
+              <td><input type="text" name="mod_serie[]"   value="<?= htmlspecialchars($mod['num_serie']) ?>" style="width:100%;"></td>
+              <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-grey btn-add-modulo">+ Linha</button>
+  </div>
+
+  <!-- Intervenção -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Intervenção</h4>
+    <div class="form-grid">
+      <div>
+        <label>Data / Hora Início</label>
+        <input type="datetime-local" name="data_inicio"
+           value="<?= $patDetalhe['data_inicio'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_inicio'])) : '' ?>">
+      </div>
+      <div>
+        <label>Data / Hora Fim</label>
+        <input type="datetime-local" name="data_fim"
+          value="<?= $patDetalhe['data_fim'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_fim'])) : '' ?>">
+      </div>
+      <div style="grid-column:1/-1;">
+        <label>Técnicos Presentes</label>
+        <input type="text" name="tecnicos_presentes" value="<?= htmlspecialchars($patDetalhe['tecnicos_presentes']) ?>"
+      </div>
+    </div>
+  </div>
+
+  <!-- Componentes Trocados -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Componentes Trocados</h4>
+    <div style="overflow-x:auto;">
+      <table class="table" id="tabelaComponentes" style="margin-bottom:10px; min-width:700px;">
+        <thead>
+          <tr>
+            <th>Removido</th>
+            <th>Nº de Série Removido</th>
+            <th>Colocado</th>
+            <th>Nº de Série Colocado</th>
+            <th style="width:70px;">Qtd</th>
+            <th style="width:48px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php
+          $compParaRender = !empty($patComp) ? $pat : [['removido'=>'','sn_removido'=>'','colocado'=>'','sn_colocado'=>'','quantidade'=>1]];
+          foreach ($compParaRender as $comp): ?>
+            <tr>
+              <td><input type="text" name="comp_removido[]"  value="<?= htmlspecialchars($comp['removido']) ?>"   style="width:100%;"></td>
+              <td><input type="text" name="comp_sn_rem[]"    value="<?= htmlspecialchars($comp['sn_removido']) ?>" style="width:100%;"></td>
+              <td><input type="text" name="comp_colocado[]"  value="<?= htmlspecialchars($comp['colocado']) ?>"   style="width:100%;"></td>
+              <td><input type="text" name="comp_sn_col[]"    value="<?= htmlspecialchars($comp['sn_colocado']) ?>" style="width:100%;"></td>
+              <td><input type="number" name="comp_qtd[]"     value="<?= (int)$comp['quantidade'] ?>" min="1" style="width:100%;"></td>
+              <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-grey btn-add-comp">+ Linha</button>
+  </div>
+
+  <!-- Observações -->
+  <div class="panel" style="margin-bottom:18px;">
+    <h4 style="margin-bottom:14px;">Observações</h4>
+    <textarea name="observacoes" rows="3" style="width:100%; resize:vertica;"><?= htmlspecialchars($patDetalhe['observacoes']) ?></textarea>
+  </div>
+
+  <!-- Ações -->
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+        <button type="submit" class="btn btn-blue">💾 Guardar Alterações</button>
+        <form method="post" style="margin:0;" onsubmit="return confirm('Apagar este PAT permanentemente?');">
+            <input type="hidden" name="form_type" value="apagar_pat">
+            <input type="hidden" name="pat_id"    value="<?= (int)$patDetalhe['id'] ?>">
+            <button type="submit" class="btn btn-red">Apagar PAT</button>
+        </form>
+    </div>
+</form>
+
+    <?php elseif ($patAcao === 'novo'): ?>
+    <!-- ════════════════════════════════════════════
+         VISTA: NOVO PAT
+    ════════════════════════════════════════════ -->
+
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <a href="app.php?page=pats" class="btn btn-grey">← Voltar</a>
+        <h3 style="margin:0;">Novo PAT</h3>
+    </div>
+
+    <form method="post" autocomplete="off">
+        <input type="hidden" name="form_type" value="criar_pat">
+
+        <div class="panel" style="margin-bottom:18px;">
+            <h4 style="margin-bottom:14px;">Cliente</h4>
+            <div class="form-grid">
+                <div>
+                    <label>Nº PAT <span style="color:red;">*</span></label>
+                    <input type="text" name="numero_pat" placeholder="Ex: PAT-00102514" required>
+                </div>
+                <div>
+                    <label>Revisão</label>
+                    <input type="number" name="revisao" min="1" value="1">
+                </div>
+                <div>
+                    <label>Entidade</label>
+                    <input type="text" name="entidade" placeholder="Ex: UNILABS">
+                </div>
+                <div>
+                    <label>Local</label>
+                    <input type="text" name="local_cliente">
+                </div>
+                <div>
+                    <label>Contacto</label>
+                    <input type="text" name="contacto">
+                </div>
+                <div>
+                    <label>Morada</label>
+                    <input type="text" name="morada">
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:18px;">
+            <h4 style="margin-bottom:14px;">Pedido de Assistência</h4>
+            <div class="form-grid">
+                <div>
+                    <label>Data de Receção</label>
+                    <input type="datetime-local" name="data_recepcao">
+                </div>
+                <div>
+                    <label>Data Limite</label>
+                    <input type="datetime-local" name="data_limite">
+                </div>
+                <div style="display:flex; gap:20px; align-items:center; padding-top:22px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
+                        <input type="checkbox" name="garantia" value="1"> Garantia
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
+                        <input type="checkbox" name="contrato_manutencao" value="1"> Contrato de Manutenção
+                    </label>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Descrição</label>
+                    <textarea name="descricao" rows="4" style="width:100%; resize:vertical;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:18px;">
+            <h4 style="margin-bottom:14px;">NewVision</h4>
+            <div class="form-grid">
+                <div>
+                    <label>Técnico Responsável</label>
+                    <input type="text" name="tecnico">
+                </div>
+                <div>
+                    <label>Prioridade</label>
+                    <select name="prioridade">
+                        <option value="Normal">Normal</option>
+                        <option value="Urgente">Urgente</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Estado</label>
+                    <select name="estado">
+                        <option value="Aberto">Aberto</option>
+                        <option value="Em Curso">Em Curso</option>
+                        <option value="Concluído">Concluído</option>
+                        <option value="Cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Comentários / Instruções</label>
+                    <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:18px;">
+            <h4 style="margin-bottom:14px;">Módulos para Assistência</h4>
+            <table class="table" id="tabelaModulos" style="margin-bottom:10px;">
+                <thead>
+                <tr><th>Solução / Equipamento</th><th>Modelo</th><th>Nº de Série</th><th style="width:48px;"></th></tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td><input type="text" name="mod_solucao[]" style="width:100%;"></td>
+                    <td><input type="text" name="mod_modelo[]"  style="width:100%;"></td>
+                    <td><input type="text" name="mod_serie[]"   style="width:100%;"></td>
+                    <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
+                </tr>
+                </tbody>
+            </table>
+            <button type="button" class="btn btn-grey btn-add-modulo">+ Linha</button>
+        </div>
+
+        <div class="panel" style="margin-bottom:18px;">
+            <h4 style="margin-bottom:14px;">Componentes Trocados</h4>
+            <div style="overflow-x:auto;">
+                <table class="table" id="tabelaComponentes" style="margin-bottom:10px; min-width:700px;">
+                    <thead>
+                    <tr>
+                        <th>Removido</th><th>Nº Série Removido</th>
+                        <th>Colocado</th><th>Nº Série Colocado</th>
+                        <th style="width:70px;">Qtd</th><th style="width:48px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td><input type="text" name="comp_removido[]"  style="width:100%;"></td>
+                        <td><input type="text" name="comp_sn_rem[]"    style="width:100%;"></td>
+                        <td><input type="text" name="comp_colocado[]"  style="width:100%;"></td>
+                        <td><input type="text" name="comp_sn_col[]"    style="width:100%;"></td>
+                        <td><input type="number" name="comp_qtd[]" value="1" min="1" style="width:100%;"></td>
+                        <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" class="btn btn-grey btn-add-comp">+ Linha</button>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <button type="submit" class="btn btn-blue">Criar PAT</button>
+        </div>
+    </form>
+
+    <?php else: ?>
+    <!-- ════════════════════════════════════════════
+         VISTA: LISTA DE PATs
+    ════════════════════════════════════════════ -->
+
+    <!-- KPIs -->
+    <div class="clientes-kpis" style="margin-bottom:20px;">
+        <div class="cliente-kpi">
+            <div class="label">Total</div>
+            <div class="valor"><?= $kpiPatsTotal ?></div>
+        </div>
+        <div class="cliente-kpi">
+            <div class="label">Abertos</div>
+            <div class="valor" style="color:#1d4ed8;"><?= $kpiPatsAbertos ?></div>
+        </div>
+        <div class="cliente-kpi">
+            <div class="label">Em Curso</div>
+            <div class="valor" style="color:#92400e;"><?= $kpiPatsEmCurso ?></div>
+        </div>
+        <div class="cliente-kpi">
+            <div class="label">Concluídos</div>
+            <div class="valor" style="color:#15803d;"><?= $kpiPatsConcluidos ?></div>
+        </div>
+        <div class="cliente-kpi">
+            <div class="label">Urgentes Ativos</div>
+            <div class="valor" style="color:#dc2626;"><?= $kpiPatsUrgentes ?></div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="panel" style="margin-bottom:20px;">
+        <form method="get">
+            <input type="hidden" name="page" value="pats">
+            <div class="clientes-filtros">
+                <div>
+                    <label>Pesquisar</label>
+                    <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Nº PAT, entidade ou técnico">
+                </div>
+                <div>
+                    <label>Estado</label>
+                    <select name="estado">
+                        <option value="">-- Todos --</option>
+                        <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+                        <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label>Prioridade</label>
+                    <select name="prioridade">
+                        <option value="">-- Todas --</option>
+                        <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+                        <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="submit" class="btn btn-blue">Filtrar</button>
+                    <a href="app.php?page=pats" class="btn btn-grey">Limpar</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Botão novo PAT + Tabela -->
+    <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h4 style="margin:0;">Lista de PATs</h4>
+            <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Nº PAT</th>
+                    <th>Entidade</th>
+                    <th>Técnico</th>
+                    <th>Receção</th>
+                    <th>Limite</th>
+                    <th>Prioridade</th>
+                    <th>Estado</th>
+                    <th>Ações</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php if (empty($patsList)): ?>
+                    <tr><td colspan="8" style="text-align:center; color:#6b7280; padding:30px;">Nenhum PAT encontrado.</td></tr>
+                <?php else: ?>
+          <?php foreach ($patsList as $pat): ?>
+            <?php
+                $estCor = match($pat['estado']) {
+                'Aberto'    => ['bg'=>'#dbeafe','color'=>'#1d4ed8'],
+                'Em Curso'  => ['bg'=>'#fef3c7','color'=>'#92400e'],
+                'Concluído' => ['bg'=>'#dcfce7','color'=>'#15803d'],
+                default     => ['bg'=>'#f3f4f6','color'=>'#374151'],
+                };
+                ?>
+                <tr>
+                    <td><strong><?= htmlspecialchars($pat['numero_pat']) ?>/<?= (int)$pat['revisao'] ?></strong></td>
+                    <td><?= htmlspecialchars($pat['entidade']) ?></td>
+                    <td><?= htmlspecialchars($pat['tecnico']) ?></td>
+                    <td><?= $pat['data_recepcao'] ? date('d/m/Y H:i', strtotime($pat['data_recepcao'])) : '—' ?></td>
+                    <td><?= $pat['data_limite']   ? date('d/m/Y H:i', strtotime($pat['data_limite']))   : '—' ?></td>
+                    <td>
+                        <?php if ($pat['prioridade'] === 'Urgente'): ?>
+                            <span style="padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#fee2e2; color:#dc2626;">Urgente</span>
+                        <?php else: ?>
+                            <span style="color:#6b7280; font-size:12px;">Normal</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                <span style="padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600;
+                        background:<?= $estCor['bg'] ?>; color:<?= $estCor['color'] ?>;">
+                  <?= htmlspecialchars($pat['estado']) ?>
+                </span>
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <a href="app.php?page=pats&ver=<?= (int)$pat['id'] ?>" class="btn btn-grey" style="padding:4px 12px; font-size:12px;">Editar</a>
+                        <a href="workorder.php?id=<?= (int)$pat['id'] ?>" target="_blank" class="btn btn-blue" style="padding:4px 12px; font-size:12px;">📄 Folha</a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+        <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <?php endif;  ?>
+    <!-- ════════════════════════════════════════════
+         FIM VISTA: LISTA DE PATs
+    ════════════════════════════════════════════ -->
+
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>
   <div class="panel">Módulo em preparação.</div>
@@ -4301,7 +5228,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const configToggle = document.getElementById('configToggle');
-  const configGroup = document.querySelector('.sidebar-group');
+  const configGroup = configToggle.closest('.sidebar-group');
   const sidebar = document.getElementById('sidebar');
 
   if (configToggle && configGroup && sidebar) {
@@ -4828,6 +5755,49 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // ── Linhas dinâmicas genéricas ─────────────────────────
+        function clonarUltimaLinha(tabela) {
+            const tbody = tabela.querySelector('tbody');
+            const linhas = tbody.querySelectorAll('tr');
+            if (!linhas.length) return;
+            const nova = linhas[linhas.length - 1].cloneNode(true);
+            nova.querySelectorAll('input').forEach(function (inp) { inp.value = inp.type === 'number' ? 1 : ''; });
+            tbody.appendChild(nova);
+            bindRemover(nova);
+        }
+
+        function bindRemover(linha) {
+            const btn = linha.querySelector('.btn-remover-linha');
+            if (btn) btn.addEventListener('click', function () {
+                const tbody = linha.parentElement;
+                if (tbody.querySelectorAll('tr').length > 1) {
+                    linha.remove();
+                }
+            });
+        }
+
+        // Bind remover nas linhas já existentes
+        document.querySelectorAll('#tabelaModulos tbody tr, #tabelaComponentes tbody tr').forEach(bindRemover);
+
+        // Botões de adicionar linha — Módulos
+        const btnMod = document.querySelector('.btn-add-modulo');
+        const tabelaMod = document.getElementById('tabelaModulos');
+        if (btnMod && tabelaMod) {
+            btnMod.addEventListener('click', function () { clonarUltimaLinha(tabelaMod); });
+        }
+
+        // Botões de adicionar linha — Componentes
+        const btnComp = document.querySelector('.btn-add-comp');
+        const tabelaComp = document.getElementById('tabelaComponentes');
+        if (btnComp && tabelaComp) {
+            btnComp.addEventListener('click', function () { clonarUltimaLinha(tabelaComp); });
+        }
+    });
 </script>
 
 </body>
