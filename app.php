@@ -124,7 +124,8 @@ $pageTitles = [
   'estados' => 'Estados',
   'parceiros' => 'Parceiros',
   'fabricantes' => 'Fabricantes',
-  'produtos' => 'Produtos'
+  'produtos' => 'Produtos',
+  'nvi' => 'N-Vi (Assistente)'
   ];
 
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
@@ -132,19 +133,27 @@ $pageTitles = [
     $topbarTitle = $vista === '1' ? 'Lista de Envios' : 'Novo Envio';
   }
 
-$estados = [
-    'Abater',
-    'Cliente',
-    'Desconhecido',
-    'Devolução',
-    'Disponível',
-    'Fornecedor(Reparação)',
-    'Laboratório',
-    'OT',
-    'Parceiro',
-    'PAT',
-    'Spares'
-];
+// ------------------------------------------------------------
+// Listas de referência — agora vêm das tabelas de gestão (BD),
+// geríveis nas páginas Categorias / Estados / Parceiros / Produtos.
+// ------------------------------------------------------------
+$estados    = $pdo->query("SELECT nome FROM estados ORDER BY nome ASC")->fetchAll(PDO::FETCH_COLUMN);
+$parceiros  = $pdo->query("SELECT empresa FROM parceiros ORDER BY empresa ASC")->fetchAll(PDO::FETCH_COLUMN);
+$categorias = $pdo->query("SELECT nome FROM categorias ORDER BY nome ASC")->fetchAll(PDO::FETCH_COLUMN);
+
+// Cascata categoria => [produtos], construída a partir da tabela `produtos`.
+$catalogoProdutos = [];
+foreach ($categorias as $catNome) {
+    $catalogoProdutos[$catNome] = [];
+}
+foreach ($pdo->query(
+    "SELECT c.nome AS categoria, p.nome AS produto
+       FROM produtos p
+       JOIN categorias c ON c.id = p.categoria_id
+      ORDER BY c.nome ASC, p.nome ASC"
+) as $linhaCat) {
+    $catalogoProdutos[$linhaCat['categoria']][] = $linhaCat['produto'];
+}
 
 $estadoEnvio = [
   'Rascunho',
@@ -153,22 +162,10 @@ $estadoEnvio = [
   'Cancelada'
 ];
 
-$parceiros = [
-    'Assistencia 35',
-    'Bravantic',
-    'Cronotécnica',
-    'Field Newvision',
-    'Hisense',
-    'Inforlandia',
-    'J.H. Ornelas',
-    'Konica Minolta',
-    'MC Computadores',
-    'Newnote',
-    'NEWVISION-Technology Centre',
-    'SVDI-RET(Ingenico)'
-];
-
-$categorias = [
+/* ----------------------------------------------------------------
+   Listas antigas (hardcoded). Substituídas pelas tabelas da BD acima.
+   Mantidas comentadas apenas como referência histórica.
+$catalogoProdutosAntigo = [
     'Acetato',
     'Botões',
     'Botões WiFi',
@@ -195,7 +192,7 @@ $categorias = [
     'Video Extender'
 ];
 
-$catalogoProdutos = [
+$catalogoProdutosAntigo2 = [
     'Acetato' => ['Acetatos Prima 12 (26 UNIDADES)',],
     'Botões' => [ 'eGo',],
     'Botões WiFi' => ['Botão WiFi',],
@@ -269,6 +266,7 @@ $catalogoProdutos = [
                         'Digitus HDMI DS-55529',
                         'VGA VE02ALR c/Transformador',],
 ];
+---------------------------------------------------------------- */
 
 // ============================================================
 // 6. VALORES TEMPORÁRIOS DOS FORMULÁRIOS
@@ -1472,7 +1470,7 @@ $ordensCanceladas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='
 
 $ordensConcluidas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Concluida'");
 
-$ultimoPat = $pdo->query("SELECT data_criacao FROM pats ORDER BY data_criacao DESC LIMIT 1")->fetchColumn() ?: null;
+$ultimoPat = $pdo->query("SELECT created_at FROM pats ORDER BY created_at DESC LIMIT 1")->fetchColumn() ?: null;
 
 
 // ══════════════════════════════════════════════
@@ -1513,7 +1511,7 @@ if ($page === 'pats') {
 
     $patSql = "SELECT * FROM pats"
             . ($patWhere ? ' WHERE ' . implode(' AND ', $patWhere) : '')
-            . "ORDER BY created_at DESC";
+            . " ORDER BY created_at DESC";
     $patStmt = $pdo->prepare($patSql);
     $patStmt->execute($patParams);
     $patsList = $patStmt->fetchAll();
@@ -1576,12 +1574,12 @@ $trendRows = $pdo->query("
 
 $patTrendRows = $pdo->query("
     SELECT
-      DATE_FORMAT(data_criacao, '%Y-%m') AS mes_ordem,
-      DATE_FORMAT(data_criacao, '%b %Y') AS mes,
+      DATE_FORMAT(created_at, '%Y-%m') AS mes_ordem,
+      DATE_FORMAT(created_at, '%b %Y') AS mes,
       COUNT(*) AS total
     FROM pats
-    WHERE data_criacao >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-    GROUP BY DATE_FORMAT(data_criacao, '%Y-%m'), DATE_FORMAT(data_criacao, '%b %Y')
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m'), DATE_FORMAT(created_at, '%b %Y')
     ORDER BY mes_ordem ASC
   ")->fetchAll();
 
@@ -1836,6 +1834,52 @@ $clientesRoots = [];
 $clientesChildrenMap = [];
 
 if ($page === 'alertas') {
+    // Lista de clientes — a partir da tabela `clientes`
+    // (importada do CSV via github/importar_clientes.php).
+    try {
+        $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date FROM clientes ORDER BY account_name ASC")->fetchAll();
+    } catch (Throwable $e) {
+        $rows = [];
+        $clientesStats['csv_error'] = 'Tabela de clientes não encontrada. Corre o importador: php github/importar_clientes.php';
+    }
+    foreach ($rows as $r) {
+        $accountName = (string)$r['account_name'];
+        if ($accountName === '') { continue; }
+        $type   = (string)($r['type'] ?? '');
+        $parent = (string)($r['parent_account'] ?? '');
+        $lastActivity = (string)($r['last_activity'] ?? '');
+        $lastModified = (string)($r['last_modified_date'] ?? '');
+
+        $cliente = [
+            'account_name'       => $accountName,
+            'type'               => $type,
+            'parent_account'     => $parent,
+            'last_activity'      => $lastActivity,
+            'last_modified_date' => $lastModified,
+            'is_child'           => $parent !== '',
+        ];
+        $clientes[] = $cliente;
+        $clientesStats['total']++;
+        if (strcasecmp($type, 'Customer') === 0) {
+            $clientesStats['customers']++;
+        } elseif (strcasecmp($type, 'Prospect') === 0) {
+            $clientesStats['prospects']++;
+        } elseif (stripos($type, 'Partner') !== false) {
+            $clientesStats['partners']++;
+        }
+        if ($parent !== '') {
+            $clientesStats['com_parent']++;
+            if (!isset($clientesChildrenMap[$parent])) {
+                $clientesChildrenMap[$parent] = [];
+            }
+            $clientesChildrenMap[$parent][] = $cliente;
+        }
+        if ($type !== '' && !in_array($type, $clientesTipos, true)) {
+            $clientesTipos[] = $type;
+        }
+    }
+
+    /* ===== BLOCO ANTIGO (leitura do CSV) — substituído pela BD acima. Mantido comentado como referência.
     $csvPath = __DIR__ . '/report1780499256737.csv';
 
     $clientesStats['debug'] = [
@@ -2015,6 +2059,7 @@ if ($page === 'alertas') {
         $clientesStats['csv_error'] = 'CSV não encontrado ou sem permissões de leitura.';
         $clientesStats['debug']['csv_error'] = 'CSV não encontrado ou sem permissões de leitura.';
     }
+    ===== FIM BLOCO ANTIGO ===== */
 
     sort($clientesTipos, SORT_NATURAL | SORT_FLAG_CASE);
 
@@ -2074,11 +2119,298 @@ if ($page === 'alertas') {
         });
     }
     unset($children);
+
+    // Contactos/moradas (do Report .xlsx importado para clientes_contactos),
+    // agregados por conta (uma conta pode ter vários contactos).
+    $contactosMap = [];
+    try {
+        $stmtCt = $pdo->query("
+            SELECT account_name,
+                   GROUP_CONCAT(DISTINCT NULLIF(email,'')  SEPARATOR ', ') AS emails,
+                   GROUP_CONCAT(DISTINCT NULLIF(phone,'')  SEPARATOR ', ') AS phones,
+                   GROUP_CONCAT(DISTINCT NULLIF(mobile,'') SEPARATOR ', ') AS mobiles,
+                   MIN(NULLIF(mailing_street,''))  AS street,
+                   MIN(NULLIF(mailing_city,''))    AS city,
+                   MIN(NULLIF(mailing_zip,''))     AS zip,
+                   MIN(NULLIF(mailing_country,'')) AS country,
+                   COUNT(*) AS n
+              FROM clientes_contactos
+             GROUP BY account_name
+        ");
+        foreach ($stmtCt as $ct) {
+            $contactosMap[$ct['account_name']] = $ct;
+        }
+    } catch (Throwable $e) {
+        $contactosMap = []; // tabela ainda não existe — ignora
+    }
 }
 
 
 function active(string $p, string $page): string {
     return $p === $page ? 'active-link' : '';
+}
+
+// Tradução do tipo de cliente para português (apenas apresentação;
+// o valor original mantém-se na BD para KPIs e filtros).
+function tipoPt(string $type): string {
+    $type = trim($type);
+    if ($type === '') {
+        return 'Sem tipo';
+    }
+    $mapa = [
+        'customer'                => 'Cliente',
+        'end customer'            => 'Cliente Final',
+        'own shop'                => 'Loja Própria',
+        'prospect'                => 'Potencial Cliente',
+        'exclusive agent'         => 'Agente Exclusivo',
+        'partner'                 => 'Parceiro',
+        'partner - portugal'      => 'Parceiro - Portugal',
+        'partner - international'  => 'Parceiro - Internacional',
+        'partner - spain'         => 'Parceiro - Espanha',
+        'partner - latam'         => 'Parceiro - LATAM',
+    ];
+    return $mapa[mb_strtolower($type, 'UTF-8')] ?? $type;
+}
+
+// Célula de contactos/morada para a página Clientes (dados do Report .xlsx).
+function contactoCelula(array $map, string $nome): string {
+    $c = $map[$nome] ?? null;
+    if (!$c) {
+        return '<span style="color:#9ca3af;">—</span>';
+    }
+    $linhas = [];
+    if (!empty($c['emails'])) {
+        $linhas[] = '📧 ' . htmlspecialchars($c['emails']);
+    }
+    $tel = implode(', ', array_filter([$c['phones'] ?? '', $c['mobiles'] ?? '']));
+    if ($tel !== '') {
+        $linhas[] = '📞 ' . htmlspecialchars($tel);
+    }
+    $morada = implode(', ', array_filter([$c['street'] ?? '', $c['city'] ?? '', $c['zip'] ?? '', $c['country'] ?? '']));
+    if ($morada !== '') {
+        $linhas[] = '📍 ' . htmlspecialchars($morada);
+    }
+    if (!$linhas) {
+        return '<span style="color:#9ca3af;">—</span>';
+    }
+    $extra = ((int)($c['n'] ?? 1) > 1)
+        ? '<div style="color:#9ca3af; font-size:11px; margin-top:2px;">' . (int)$c['n'] . ' contactos</div>'
+        : '';
+    return '<div style="font-size:12px; line-height:1.5; max-width:340px; word-break:break-word;">'
+        . implode('<br>', $linhas) . '</div>' . $extra;
+}
+
+// ============================================================
+// N-Vi — assistente (linguagem natural -> SQL read-only, por regras)
+// ============================================================
+function nviSemAcento(string $s): string {
+    $s = mb_strtolower($s, 'UTF-8');
+    return strtr($s, [
+        'á'=>'a','à'=>'a','â'=>'a','ã'=>'a','é'=>'e','ê'=>'e','í'=>'i',
+        'ó'=>'o','ô'=>'o','õ'=>'o','ú'=>'u','ç'=>'c',
+    ]);
+}
+
+/**
+ * Interpreta a pergunta e devolve um SELECT (read-only) com parâmetros.
+ * Devolve ['erro'=>'...'] se não reconhecer.
+ */
+function nviInterpretar(string $perguntaOriginal, array $estados): array {
+    $q = nviSemAcento($perguntaOriginal);
+    $tem = function (string ...$ks) use ($q): bool {
+        foreach ($ks as $k) {
+            if (strpos($q, $k) !== false) return true;
+        }
+        return false;
+    };
+
+    // estado mencionado: 1.º entre aspas (ex.: 'Trânsito'); 2.º por palavra inteira,
+    // ignorando as expressões de agrupamento ("por parceiro/categoria/estado")
+    $estadoMatch = null;
+    if (preg_match("/['\"]([^'\"]+)['\"]/u", $perguntaOriginal, $mq)) {
+        $alvo = nviSemAcento(trim($mq[1]));
+        foreach ($estados as $e) {
+            if (nviSemAcento((string)$e) === $alvo) { $estadoMatch = $e; break; }
+        }
+    }
+    if ($estadoMatch === null) {
+        $qScan = preg_replace('/\bpor\s+(parceiro|categoria|tipo|estado)\b/u', ' ', $q);
+        foreach ($estados as $e) {
+            $en = nviSemAcento((string)$e);
+            if ($en !== '' && preg_match('/\b' . preg_quote($en, '/') . '\b/u', $qScan)) {
+                $estadoMatch = $e;
+                break;
+            }
+        }
+    }
+
+    // 1) Top N tipos/categorias (opcionalmente "disponíveis")
+    if ($tem('top') && $tem('tipo', 'categoria')) {
+        $lim = preg_match('/top\s*(\d+)/', $q, $m) ? max(1, (int)$m[1]) : 5;
+        $disp = $tem('disponive');
+        return [
+            'erro'   => '',
+            'titulo' => "Top $lim tipos" . ($disp ? ' disponíveis' : ''),
+            'sql'    => "SELECT categoria AS tipo, COUNT(*) AS total FROM pecas"
+                      . ($disp ? " WHERE estado = 'Disponível'" : "")
+                      . " GROUP BY categoria ORDER BY total DESC LIMIT $lim",
+            'params' => [],
+        ];
+    }
+    // 2) Últimas N peças
+    if ($tem('ultima', 'recente') && $tem('peca')) {
+        $lim = preg_match('/(\d+)/', $q, $m) ? min(200, max(1, (int)$m[1])) : 20;
+        return [
+            'erro'   => '',
+            'titulo' => "Últimas $lim peças",
+            'sql'    => "SELECT id, categoria, produto, sn, parceiro, estado, created_at
+                         FROM pecas ORDER BY created_at DESC, id DESC LIMIT $lim",
+            'params' => [],
+        ];
+    }
+    // 3) Autor da ordem/envio mais recente
+    if ($tem('autor', 'quem criou', 'criado por', 'quem') && $tem('ordem', 'envio')) {
+        return [
+            'erro'   => '',
+            'titulo' => 'Autor da ordem mais recente',
+            'sql'    => "SELECT criado_por, documento, num_documento, data_documento, created_at
+                         FROM envios ORDER BY created_at DESC, id DESC LIMIT 1",
+            'params' => [],
+        ];
+    }
+    // 4) Peças por parceiro (com estado opcional)
+    if ($tem('peca') && $tem('parceiro')) {
+        if ($estadoMatch !== null) {
+            return [
+                'erro'   => '',
+                'titulo' => "Peças em '$estadoMatch' por parceiro",
+                'sql'    => "SELECT parceiro, COUNT(*) AS total FROM pecas WHERE estado = ? GROUP BY parceiro ORDER BY total DESC",
+                'params' => [$estadoMatch],
+            ];
+        }
+        return [
+            'erro'   => '',
+            'titulo' => 'Peças por parceiro',
+            'sql'    => "SELECT parceiro, COUNT(*) AS total FROM pecas GROUP BY parceiro ORDER BY total DESC",
+            'params' => [],
+        ];
+    }
+    // 5) Peças por categoria/tipo
+    if ($tem('peca') && $tem('categoria', 'tipo')) {
+        return [
+            'erro'   => '',
+            'titulo' => 'Peças por categoria',
+            'sql'    => "SELECT categoria, COUNT(*) AS total FROM pecas GROUP BY categoria ORDER BY total DESC",
+            'params' => [],
+        ];
+    }
+    // 6) Peças por estado (visão geral)
+    if ($tem('peca') && $tem('estado') && $estadoMatch === null) {
+        return [
+            'erro'   => '',
+            'titulo' => 'Peças por estado',
+            'sql'    => "SELECT estado, COUNT(*) AS total FROM pecas GROUP BY estado ORDER BY total DESC",
+            'params' => [],
+        ];
+    }
+    // 7) Quantas peças (total ou num estado)
+    if ($tem('quant') && $tem('peca')) {
+        if ($estadoMatch !== null) {
+            return [
+                'erro'   => '',
+                'titulo' => "Nº de peças em '$estadoMatch'",
+                'sql'    => "SELECT COUNT(*) AS total FROM pecas WHERE estado = ?",
+                'params' => [$estadoMatch],
+            ];
+        }
+        return ['erro'=>'', 'titulo'=>'Nº total de peças', 'sql'=>"SELECT COUNT(*) AS total FROM pecas", 'params'=>[]];
+    }
+    // 8) PATs
+    if ($tem('pat')) {
+        if ($tem('estado')) {
+            return ['erro'=>'', 'titulo'=>'PATs por estado', 'sql'=>"SELECT estado, COUNT(*) AS total FROM pats GROUP BY estado ORDER BY total DESC", 'params'=>[]];
+        }
+        return ['erro'=>'', 'titulo'=>'Nº total de PATs', 'sql'=>"SELECT COUNT(*) AS total FROM pats", 'params'=>[]];
+    }
+    // 9) Contactos de um cliente específico
+    if ($tem('email', 'contacto', 'telefone', 'telemovel', 'morada')) {
+        if (preg_match('/(?:de|do|da|dos|das)\s+(.+)$/u', $perguntaOriginal, $m)) {
+            $nome = trim($m[1], " ?.\t\n");
+            if ($nome !== '') {
+                return [
+                    'erro'   => '',
+                    'titulo' => "Contactos de \"$nome\"",
+                    'sql'    => "SELECT account_name, email, phone, mobile, mailing_city, mailing_country
+                                 FROM clientes_contactos WHERE account_name LIKE ? ORDER BY account_name LIMIT 50",
+                    'params' => ['%' . $nome . '%'],
+                ];
+            }
+        }
+    }
+    // 10) Clientes (visão geral, a partir da tabela `clientes`)
+    if ($tem('cliente')) {
+        if ($tem('tipo')) {
+            return [
+                'erro'   => '',
+                'titulo' => 'Clientes por tipo',
+                'sql'    => "SELECT CASE LOWER(TRIM(COALESCE(type,'')))
+                                      WHEN 'customer'                THEN 'Cliente'
+                                      WHEN 'end customer'            THEN 'Cliente Final'
+                                      WHEN 'own shop'                THEN 'Loja Própria'
+                                      WHEN 'prospect'                THEN 'Potencial Cliente'
+                                      WHEN 'exclusive agent'         THEN 'Agente Exclusivo'
+                                      WHEN 'partner'                 THEN 'Parceiro'
+                                      WHEN 'partner - portugal'      THEN 'Parceiro - Portugal'
+                                      WHEN 'partner - international'  THEN 'Parceiro - Internacional'
+                                      WHEN 'partner - spain'         THEN 'Parceiro - Espanha'
+                                      WHEN 'partner - latam'         THEN 'Parceiro - LATAM'
+                                      ELSE 'Sem tipo'
+                                    END AS tipo,
+                                    COUNT(*) AS total
+                             FROM clientes GROUP BY tipo ORDER BY total DESC",
+                'params' => [],
+            ];
+        }
+        return [
+            'erro'   => '',
+            'titulo' => 'Nº de clientes',
+            'sql'    => "SELECT COUNT(*) AS total_clientes,
+                                SUM(parent_account IS NOT NULL AND parent_account <> '') AS com_conta_mae
+                         FROM clientes",
+            'params' => [],
+        ];
+    }
+
+    return ['erro' => 'Não consegui interpretar a pergunta. Experimenta um dos exemplos rápidos (ex.: "Top 5 tipos disponíveis", "Últimas 20 peças", "Autor da ordem mais recente"), ou pergunta por peças/PATs/clientes por estado, categoria ou parceiro.'];
+}
+
+// Processamento da pergunta ao N-Vi (só na página nvi).
+$nvi = ['pergunta'=>'', 'sql'=>'', 'titulo'=>'', 'colunas'=>[], 'linhas'=>[], 'erro'=>'', 'executou'=>false];
+if ($page === 'nvi') {
+    $nvi['pergunta'] = trim($_POST['pergunta'] ?? ($_GET['q'] ?? ''));
+    if ($nvi['pergunta'] !== '') {
+        $interp = nviInterpretar($nvi['pergunta'], $estados);
+        if (!empty($interp['erro'])) {
+            $nvi['erro'] = $interp['erro'];
+        } else {
+            // Salvaguarda: só permitir SELECT (read-only)
+            if (stripos(ltrim($interp['sql']), 'select') !== 0) {
+                $nvi['erro'] = 'Apenas são permitidas consultas de leitura.';
+            } else {
+                $nvi['sql']    = $interp['sql'];
+                $nvi['titulo'] = $interp['titulo'];
+                try {
+                    $st = $pdo->prepare($interp['sql']);
+                    $st->execute($interp['params'] ?? []);
+                    $nvi['linhas']  = $st->fetchAll();
+                    $nvi['colunas'] = $nvi['linhas'] ? array_keys($nvi['linhas'][0]) : [];
+                    $nvi['executou'] = true;
+                } catch (Throwable $e) {
+                    $nvi['erro'] = 'Erro ao executar a consulta: ' . $e->getMessage();
+                }
+            }
+        }
+    }
 }
 
 // ============================================================
@@ -2087,6 +2419,27 @@ function active(string $p, string $page): string {
 // ============================================================
 
 // ---- Handlers POST: guardar / eliminar ----
+// Helpers de validação das tabelas de gestão
+function tabNomeDuplicado(PDO $pdo, string $tabela, string $coluna, string $valor, int $excluirId = 0, ?int $catId = -1): bool {
+    $sql = "SELECT COUNT(*) FROM `$tabela` WHERE `$coluna` = ?";
+    $params = [$valor];
+    if ($catId !== -1) { $sql .= " AND categoria_id <=> ?"; $params[] = $catId; }
+    if ($excluirId > 0) { $sql .= " AND id <> ?"; $params[] = $excluirId; }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int)$stmt->fetchColumn() > 0;
+}
+function tabContar(PDO $pdo, string $sql, array $params): int {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int)$stmt->fetchColumn();
+}
+function tabValor(PDO $pdo, string $sql, array $params): string {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (string)$stmt->fetchColumn();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ft = $_POST['form_type'] ?? '';
 
@@ -2096,6 +2449,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nome = trim($_POST['nome'] ?? '');
         if ($nome === '') {
             flashError('O nome da categoria é obrigatório.');
+            redirectTo('app.php?page=categorias&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if (tabNomeDuplicado($pdo, 'categorias', 'nome', $nome, $id)) {
+            flashError('Já existe uma categoria com esse nome.');
             redirectTo('app.php?page=categorias&' . ($id ? "edit=$id" : 'nova=1'));
         }
         if ($id > 0) {
@@ -2110,8 +2467,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=categorias');
     }
     if ($ft === 'eliminar_categoria') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nomeCat = tabValor($pdo, "SELECT nome FROM categorias WHERE id = ?", [$id]);
+        $emUso = tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE categoria = ?", [$nomeCat])
+               + tabContar($pdo, "SELECT COUNT(*) FROM produtos WHERE categoria_id = ?", [$id]);
+        if ($emUso > 0) {
+            flashError('Não é possível eliminar esta categoria: está a ser usada em peças ou produtos.');
+            redirectTo('app.php?page=categorias');
+        }
         $stmt = $pdo->prepare("DELETE FROM categorias WHERE id = ?");
-        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        $stmt->execute([$id]);
         flashSuccess('Categoria eliminada com sucesso.');
         redirectTo('app.php?page=categorias');
     }
@@ -2123,6 +2488,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $descricao = trim($_POST['descricao'] ?? '');
         if ($nome === '') {
             flashError('O nome do estado é obrigatório.');
+            redirectTo('app.php?page=estados&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if (tabNomeDuplicado($pdo, 'estados', 'nome', $nome, $id)) {
+            flashError('Já existe um estado com esse nome.');
             redirectTo('app.php?page=estados&' . ($id ? "edit=$id" : 'nova=1'));
         }
         if ($id > 0) {
@@ -2137,8 +2506,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=estados');
     }
     if ($ft === 'eliminar_estado') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nomeEst = tabValor($pdo, "SELECT nome FROM estados WHERE id = ?", [$id]);
+        if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE estado = ?", [$nomeEst]) > 0) {
+            flashError('Não é possível eliminar este estado: está a ser usado em peças.');
+            redirectTo('app.php?page=estados');
+        }
         $stmt = $pdo->prepare("DELETE FROM estados WHERE id = ?");
-        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        $stmt->execute([$id]);
         flashSuccess('Estado eliminado com sucesso.');
         redirectTo('app.php?page=estados');
     }
@@ -2149,6 +2524,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nome = trim($_POST['nome'] ?? '');
         if ($nome === '') {
             flashError('O nome do fabricante é obrigatório.');
+            redirectTo('app.php?page=fabricantes&' . ($id ? "edit=$id" : 'nova=1'));
+        }
+        if (tabNomeDuplicado($pdo, 'fabricantes', 'nome', $nome, $id)) {
+            flashError('Já existe um fabricante com esse nome.');
             redirectTo('app.php?page=fabricantes&' . ($id ? "edit=$id" : 'nova=1'));
         }
         if ($id > 0) {
@@ -2163,8 +2542,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=fabricantes');
     }
     if ($ft === 'eliminar_fabricante') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (tabContar($pdo, "SELECT COUNT(*) FROM produtos WHERE fabricante_id = ?", [$id]) > 0) {
+            flashError('Não é possível eliminar este fabricante: está associado a produtos.');
+            redirectTo('app.php?page=fabricantes');
+        }
         $stmt = $pdo->prepare("DELETE FROM fabricantes WHERE id = ?");
-        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        $stmt->execute([$id]);
         flashSuccess('Fabricante eliminado com sucesso.');
         redirectTo('app.php?page=fabricantes');
     }
@@ -2179,6 +2563,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flashError('O nome do produto é obrigatório.');
             redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
         }
+        if (tabNomeDuplicado($pdo, 'produtos', 'nome', $nome, $id, $catId)) {
+            flashError('Já existe um produto com esse nome nessa categoria.');
+            redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
+        }
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE produtos SET nome = ?, categoria_id = ?, fabricante_id = ? WHERE id = ?");
             $stmt->execute([$nome, $catId, $fabId, $id]);
@@ -2191,8 +2579,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=produtos');
     }
     if ($ft === 'eliminar_produto') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nomeProd = tabValor($pdo, "SELECT nome FROM produtos WHERE id = ?", [$id]);
+        if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE produto = ?", [$nomeProd]) > 0) {
+            flashError('Não é possível eliminar este produto: está a ser usado em peças.');
+            redirectTo('app.php?page=produtos');
+        }
         $stmt = $pdo->prepare("DELETE FROM produtos WHERE id = ?");
-        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        $stmt->execute([$id]);
         flashSuccess('Produto eliminado com sucesso.');
         redirectTo('app.php?page=produtos');
     }
@@ -2214,6 +2608,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flashError('O nome da empresa é obrigatório.');
             redirectTo('app.php?page=parceiros&' . ($id ? "edit=$id" : 'nova=1'));
         }
+        if (tabNomeDuplicado($pdo, 'parceiros', 'empresa', $empresa, $id)) {
+            flashError('Já existe um parceiro com esse nome de empresa.');
+            redirectTo('app.php?page=parceiros&' . ($id ? "edit=$id" : 'nova=1'));
+        }
         $vals = array_map(fn($v) => ($v !== '' ? $v : null), array_values($campos));
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE parceiros SET empresa = ?, morada = ?, contato1_nome = ?, contato1_email = ?, contato1_telefone = ?, contato2_nome = ?, contato2_email = ?, contato2_telefone = ? WHERE id = ?");
@@ -2227,8 +2625,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=parceiros');
     }
     if ($ft === 'eliminar_parceiro') {
+        $id = (int)($_POST['id'] ?? 0);
+        $nomeParc = tabValor($pdo, "SELECT empresa FROM parceiros WHERE id = ?", [$id]);
+        if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE parceiro = ?", [$nomeParc]) > 0) {
+            flashError('Não é possível eliminar este parceiro: está a ser usado em peças.');
+            redirectTo('app.php?page=parceiros');
+        }
         $stmt = $pdo->prepare("DELETE FROM parceiros WHERE id = ?");
-        $stmt->execute([(int)($_POST['id'] ?? 0)]);
+        $stmt->execute([$id]);
         flashSuccess('Parceiro eliminado com sucesso.');
         redirectTo('app.php?page=parceiros');
     }
@@ -2245,7 +2649,7 @@ $parceiroVer = null;
 $listaCategorias  = [];
 $listaFabricantes = [];
 
-function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, array &$paginas): array
+function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, int &$paginas): array
 {
     $total = (int)$pdo->query("SELECT COUNT(*) FROM ($sqlBase) t")->fetchColumn();
     $paginas = (int)ceil($total / $perPage);
@@ -2314,13 +2718,13 @@ if ($page === 'parceiros') {
 }
 
 // Pager numerado reutilizável (estilo das capturas)
-function paginacaoTabela(string $pageName, int $totalPaginas, int $atual): void
+function paginacaoTabela(string $pageName, int $totalPaginas, int $atual, string $extra = ''): void
 {
     if ($totalPaginas <= 1) return;
     echo '<div style="display:flex;gap:6px;margin-top:18px;">';
     for ($i = 1; $i <= $totalPaginas; $i++) {
         $cls = $i === $atual ? 'btn btn-blue' : 'btn btn-grey';
-        echo '<a class="' . $cls . '" href="app.php?page=' . $pageName . '&p=' . $i . '">' . $i . '</a>';
+        echo '<a class="' . $cls . '" href="app.php?page=' . $pageName . '&p=' . $i . $extra . '">' . $i . '</a>';
     }
     echo '</div>';
 }
@@ -2388,10 +2792,16 @@ body{
   overflow-y: auto;
   overflow-x: hidden;
   transition: width .25s ease;
+  display: flex;
+  flex-direction: column;
   }
 
+.sidebar > *{ flex-shrink: 0; }
+
 .sidebar .brand{
-  padding: 18px 22px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 22px;
   border-bottom: 1px solid rgba(255,255,255,.06);
   display: flex;
   align-items: center;
@@ -2593,9 +3003,9 @@ body{
 }
 
 .sidebar .footer-logo{
-  position: absolute;
-  bottom: 18px;
-  left: 24px;
+  margin-top: auto;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255,255,255,.06);
   opacity: .92;
   font-weight: 700;
   color: #d0d0d0;
@@ -2603,10 +3013,8 @@ body{
   }
 
 .sidebar.collapsed .footer-logo{
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
   text-align: center;
+  padding: 14px 6px;
   font-size: 9px;
   }
 
@@ -3443,10 +3851,6 @@ select{
     <i class="bi bi-speedometer2"></i><span>Dashboard</span>
   </a>
 
-  <a class="<?=active('alertas',$page)?>" href="app.php?page=alertas">
-    <i class="bi bi-exclamation-octagon"></i><span>Clientes</span>
-  </a>
-
   <a class="<?=active('inventario',$page)?>" href="app.php?page=inventario">
     <i class="bi bi-box-seam"></i><span>Inventário</span>
   </a>
@@ -3475,6 +3879,10 @@ select{
     </div>
   </div>
 
+  <a class="<?=active('alertas',$page)?>" href="app.php?page=alertas">
+    <i class="bi bi-people"></i><span>Clientes</span>
+  </a>
+
   <a class="<?=active('qrs',$page)?>" href="app.php?page=qrs">
     <i class="bi bi-qr-code"></i><span>QR's</span>
   </a>
@@ -3482,26 +3890,6 @@ select{
   <a class="<?=active('encomendas',$page)?>" href="app.php?page=encomendas">
     <i class="bi bi-cart"></i><span>Encomendas</span>
   </a>
-
-  <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria']) ? 'open' : '' ?>">
-  <button class="sidebar-parent" type="button" id="configToggle">
-    <span class="sidebar-parent-left">
-      <i class="bi bi-gear"></i>
-      <span>Configurações</span>
-    </span>
-    <i class="bi bi-chevron-down sidebar-arrow"></i>
-  </button>
-
-  <div class="sidebar-submenu">
-    <a class="submenu-link <?=active('contas',$page)?>" href="app.php?page=contas">
-      <span>Contas</span>
-    </a>
-
-    <a class="submenu-link <?=active('auditoria',$page)?>" href="app.php?page=auditoria">
-      <span>Auditoria</span>
-    </a>
-  </div>
-</div>
 
   <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
   <button class="sidebar-parent" type="button" id="tabelasToggle">
@@ -3527,6 +3915,30 @@ select{
     </a>
     <a class="submenu-link <?=active('produtos',$page)?>" href="app.php?page=produtos">
       <span>Produtos</span>
+    </a>
+  </div>
+</div>
+
+  <a class="<?=active('nvi',$page)?>" href="app.php?page=nvi">
+    <i class="bi bi-robot"></i><span>N-Vi (Assistente)</span>
+  </a>
+
+  <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria']) ? 'open' : '' ?>">
+  <button class="sidebar-parent" type="button" id="configToggle">
+    <span class="sidebar-parent-left">
+      <i class="bi bi-gear"></i>
+      <span>Configurações</span>
+    </span>
+    <i class="bi bi-chevron-down sidebar-arrow"></i>
+  </button>
+
+  <div class="sidebar-submenu">
+    <a class="submenu-link <?=active('contas',$page)?>" href="app.php?page=contas">
+      <span>Contas</span>
+    </a>
+
+    <a class="submenu-link <?=active('auditoria',$page)?>" href="app.php?page=auditoria">
+      <span>Auditoria</span>
     </a>
   </div>
 </div>
@@ -4538,7 +4950,7 @@ select{
                   <?php foreach ($clientesTipos as $tipo): ?>
                     <option value="<?= htmlspecialchars($tipo) ?>"
                       <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($tipo) ?>
+                      <?= htmlspecialchars(tipoPt($tipo)) ?>
                     </option>
                   <?php endforeach; ?>
                 </select>
@@ -4572,17 +4984,18 @@ select{
       <table class="clientes-table">
         <thead>
           <tr>
-            <th style="width:34%;">Conta</th>
-            <th style="width:16%;">Tipo</th>
-            <th style="width:24%;">Conta-Mãe</th>
-            <th style="width:13%;">Última Atividade</th>
-            <th style="width:13%;">Última Modificação</th>
+            <th style="width:24%;">Conta</th>
+            <th style="width:11%;">Tipo</th>
+            <th style="width:17%;">Conta-Mãe</th>
+            <th style="width:11%;">Última Atividade</th>
+            <th style="width:11%;">Última Modificação</th>
+            <th style="width:26%;">Contactos / Morada</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($clientesRoots)): ?>
             <tr>
-              <td colspan="5" class="clientes-empty">Nenhum Cliente encontrado.</td>
+              <td colspan="6" class="clientes-empty">Nenhum Cliente encontrado.</td>
             </tr>
           <?php else: ?>
             <?php foreach ($clientesRoots as $i => $cliente): ?>
@@ -4612,7 +5025,7 @@ select{
           </td>
           <td>
               <span class="tipo-badge <?= $typeClass ?>">
-            <?= htmlspecialchars($cliente['type'] !== '' ? $cliente['type'] : 'Sem tipo') ?>
+            <?= htmlspecialchars(tipoPt($cliente['type'])) ?>
               </span>
           </td>
           <td>
@@ -4628,6 +5041,7 @@ select{
           <td>
             <?= htmlspecialchars($cliente['last_modified_date'] !== '' ? $cliente['last_modified_date'] : '-') ?>
           </td>
+          <td><?= contactoCelula($contactosMap ?? [], $cliente['account_name']) ?></td>
         </tr>
 
             <?php if ($temFilhos): ?>
@@ -4644,7 +5058,7 @@ select{
                 <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars($rowId) ?>" style="display:none;">
                   <td class="cliente-child-name"><?= htmlspecialchars($filho['account_name']) ?></td>
                   <td>
-                    <span class="tipo-badge <?= $childTypeClass ?>"> <?= htmlspecialchars($filho['type'] !== '' ? $filho['type'] : 'Sem tipo') ?> </span>
+                    <span class="tipo-badge <?= $childTypeClass ?>"> <?= htmlspecialchars(tipoPt($filho['type'])) ?> </span>
                   </td>
                   <td>
                     <?php if ($filho['parent_account'] !== ''): ?>
@@ -4657,6 +5071,7 @@ select{
                     <?= htmlspecialchars($filho['last_activity'] !== '' ? $filho['last_activity'] : '-') ?></td>
                   <td>
                     <?= htmlspecialchars($filho['last_modified_date'] !== '' ? $filho['last_modified_date'] : '-') ?></td>
+                  <td><?= contactoCelula($contactosMap ?? [], $filho['account_name']) ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php endif; ?>
@@ -5592,8 +6007,70 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         <?php if (!$tabListas): ?><tr><td colspan="<?= $det ? 9 : 7 ?>">Sem registos.</td></tr><?php endif; ?>
       </tbody>
     </table>
-    <?php paginacaoTabela('parceiros', $tabPaginas, $tabPag); ?>
+    <?php paginacaoTabela('parceiros', $tabPaginas, $tabPag, $det ? '&det=1' : ''); ?>
   <?php endif; ?>
+
+<?php elseif ($page === 'nvi'): ?>
+
+  <h1 class="section-title">Olá sou o 🤖 N-Vi, o assistente AI virtual da Newvision. Como posso ajudar?</h1>
+
+  <form method="post" action="app.php?page=nvi">
+    <div style="margin-bottom:14px;">
+      <label style="font-weight:600;">Pergunta:</label>
+      <textarea id="nviPergunta" name="pergunta" rows="4"
+                style="width:100%; padding:12px; border:1px solid #d6dbe1; border-radius:8px; resize:vertical;"
+                placeholder="ex.: Quantas peças estão em 'Trânsito' por parceiro?"><?= htmlspecialchars($nvi['pergunta']) ?></textarea>
+    </div>
+
+    <p style="color:#6b7280; font-size:13px; margin:6px 0;">
+      Dicas: pergunta em linguagem natural. O assistente gera uma <strong>RESPOSTA (read-only)</strong>, validada e executada.<br>
+      Não utilizes as respostas como formais em nome da Newvision sem validares por outras fontes.
+    </p>
+
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0;">
+      <span style="color:#6b7280; font-size:13px;">Exemplos rápidos:</span>
+      <button type="button" class="btn btn-grey" onclick="nviExemplo('Top 5 tipos disponíveis')">Top 5 tipos disponíveis</button>
+      <button type="button" class="btn btn-grey" onclick="nviExemplo('Últimas 20 peças')">Últimas 20 peças</button>
+      <button type="button" class="btn btn-grey" onclick="nviExemplo('Autor da ordem mais recente')">Autor da ordem mais recente</button>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="btn btn-blue">Executar</button>
+      <a class="btn btn-yellow" href="app.php?page=dashboard">← Voltar ao Dashboard</a>
+    </div>
+  </form>
+
+  <?php if ($nvi['erro'] !== ''): ?>
+    <div class="alerta-erro" style="margin-top:20px;"><?= htmlspecialchars($nvi['erro']) ?></div>
+  <?php elseif ($nvi['executou']): ?>
+    <div class="panel" style="margin-top:20px;">
+      <h4 style="margin:0 0 10px;"><?= htmlspecialchars($nvi['titulo']) ?></h4>
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; font-family:monospace; font-size:12px; color:#334155; margin-bottom:14px; white-space:pre-wrap;">
+        <?= htmlspecialchars(preg_replace('/\s+/', ' ', $nvi['sql'])) ?>
+      </div>
+      <?php if (empty($nvi['linhas'])): ?>
+        <p style="color:#6b7280;">Sem resultados para esta pergunta.</p>
+      <?php else: ?>
+        <div style="overflow-x:auto;">
+          <table class="table">
+            <thead><tr>
+              <?php foreach ($nvi['colunas'] as $col): ?><th><?= htmlspecialchars($col) ?></th><?php endforeach; ?>
+            </tr></thead>
+            <tbody>
+              <?php foreach ($nvi['linhas'] as $linha): ?>
+                <tr><?php foreach ($linha as $valor): ?><td><?= htmlspecialchars((string)$valor) ?></td><?php endforeach; ?></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <p style="color:#9ca3af; font-size:12px; margin-top:10px;"><?= count($nvi['linhas']) ?> resultado(s).</p>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+
+  <script>
+    function nviExemplo(t){ var ta=document.getElementById('nviPergunta'); if(ta){ ta.value=t; ta.form.submit(); } }
+  </script>
 
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>

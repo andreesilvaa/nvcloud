@@ -61,7 +61,7 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
 <title>Folha de Obra — <?= e($pat['numero_pat']) ?>/<?= (int)$pat['revisao'] ?></title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{--gold:#c9a14a;--gold-lt:#e8c97a;--dark:#1a1d21;--mid:#343a40;--ink:#1c1f24;--muted:#6b7280;--rule:#e2e5ea;--bg:#f7f8fa;--white:#ffffff;--red:#dc2626;--green:#16a34a}
+  :root{--gold:#cba35c;--gold-lt:#d8bd83;--gold-deep:#8a6d2f;--dark:#343a40;--mid:#5b6470;--ink:#1c1f24;--muted:#6b7280;--rule:#e2e5ea;--bg:#f7f8fa;--white:#ffffff;--urgent:#b23b3b}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5}
   .toolbar{position:fixed;top:0;left:0;right:0;height:56px;background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 32px;z-index:100;gap:12px}
@@ -91,8 +91,8 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
   .status-value{color:var(--white);font-weight:500}
   .status-sep{width:1px;height:16px;background:rgba(255,255,255,.12)}
   .priority-badge{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:4px;border:1px solid}
-  .priority-normal{color:#60a5fa;border-color:rgba(96,165,250,.4);background:rgba(96,165,250,.08)}
-  .priority-urgente{color:#f87171;border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
+  .priority-normal{color:#6b7280;border-color:rgba(107,114,128,.35);background:rgba(107,114,128,.06)}
+  .priority-urgente{color:var(--urgent);border-color:rgba(178,59,59,.4);background:rgba(178,59,59,.07)}
   .sheet-body{flex:1;padding:24px 32px 28px;display:flex;flex-direction:column;gap:18px}
   .section{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
   .section-header{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#f1f3f6;border-bottom:1px solid var(--rule)}
@@ -124,10 +124,10 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
   .comp-table .divider-col{width:32px;background:#f7f8fa;text-align:center;color:var(--muted)}
   .comp-table tbody tr:nth-child(even) td:not(.divider-col){background:#fafbfc}
   .tag{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:2px 6px}
-  .tag-removed{color:var(--red);background:rgba(220,38,38,.07)}
-  .tag-placed{color:var(--green);background:rgba(22,163,74,.07)}
-  .removed-col{background:rgba(220,38,38,.03)}
-  .placed-col{background:rgba(22,163,74,.03)}
+  .tag-removed{color:var(--mid);background:rgba(91,100,112,.08)}
+  .tag-placed{color:var(--gold-deep);background:rgba(203,163,92,.16)}
+  .removed-col{background:rgba(91,100,112,.04)}
+  .placed-col{background:rgba(203,163,92,.05)}
   .sig-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:4px}
   .sig-box{border:1px solid var(--rule);border-radius:8px;padding:14px}
   .sig-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:block}
