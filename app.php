@@ -1400,19 +1400,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
     $local = trim($_POST['local_cliente'] ?? '');
     $contacto = trim($_POST['contacto'] ?? '');
     $morada = trim($_POST['morada'] ?? '');
-    $dataRec = trim($_POST['data_recepcao'] ?? '') ?: null;
-    $dataLim = trim($_POST['data_limite'] ?? '') ?: null;
+    // Normaliza datas: vazio -> NULL; aceita o formato "Y-m-dTH:i" do datetime-local.
+    $normDt = fn($v) => ($v !== '' && strtotime($v)) ? date('Y-m-d H:i:s', strtotime($v)) : null;
+    $dataRec = $normDt(trim($_POST['data_recepcao'] ?? ''));
+    $dataLim = $normDt(trim($_POST['data_limite'] ?? ''));
     $garantia = isset($_POST['garantia']) ? 1 : 0;
     $contrato = isset($_POST['contrato_manutencao']) ? 1 : 0;
     $descricao = trim($_POST['descricao'] ?? '');
     $tecnico = trim($_POST['tecnico'] ?? '');
     $comentarios = trim($_POST['comentarios'] ?? '');
-    $dataIni = trim($_POST['data_inicio'] ?? '');
-    $dataFim = trim($_POST['data_fim'] ?? '');
+    $dataIni = $normDt(trim($_POST['data_inicio'] ?? ''));
+    $dataFim = $normDt(trim($_POST['data_fim'] ?? ''));
     $tecnicos = trim($_POST['tecnicos_presentes'] ?? '');
     $observacoes = trim($_POST['observacoes'] ?? '');
     $prioridade = in_array($_POST['prioridade'] ?? '', ['Normal','Urgente']) ? $_POST['prioridade'] : 'Normal';
-    $estado = in_array($_POST['estado'] ?? '', ['Aberto'.'Em Curso','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
+    $estado = in_array($_POST['estado'] ?? '', ['Aberto','Em Curso','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
 
     if ($numeroPat === '') {
         $_SESSION['mensagem_erro'] = 'O número do PAT é obrigatório.';
