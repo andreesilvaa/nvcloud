@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "StockVision — Salesforce",
+  "version": "1.0",
+  "description": "Copia Work Orders do Salesforce para o StockVision com um clique.",
+
+  "permissions": ["activeTab", "scripting", "storage"],
+
+  "host_permissions": [
+    "https://*.salesforce.com/*",
+    "https://*.force.com/*",
+    "https://*.lightning.force.com/*"
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "StockVision"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.salesforce.com/*",
+        "https://*.force.com/*",
+        "https://*.lightning.force.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+// ══════════════════════════════════════════════════════════
+// ENDPOINT AJAX — Receber Work Order da extensão Chrome
+// ONDE COLOCAR: antes de "$vista = $_GET['lista'] ?? '0';"
+// ══════════════════════════════════════════════════════════
+if (($_GET['action'] ?? '') === 'importar_workorder' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+
+    // Aceitar JSON no body
+    $body = file_get_contents('php://input');
+    $dados = json_decode($body, true);
+
+    if (!$dados) {
+        echo json_encode(['ok' => false, 'erro' => 'Payload inválido.']);
+        exit;
+    }
+
+    $numeroWo     = trim($dados['numero_wo']     ?? '');
+    $entidade     = trim($dados['entidade']      ?? '');
+    $localCliente = trim($dados['local_cliente'] ?? $entidade);
+    $contacto     = trim($dados['contacto']      ?? '');
+    $morada       = trim($dados['morada']        ?? '');
+    $descricao    = trim($dados['descricao']     ?? '');
+    $dataRec      = trim($dados['data_recepcao'] ?? '') ?: null;
+    $dataLim      = trim($dados['data_limite']   ?? '') ?: null;
+    $prioridade   = in_array($dados['prioridade'] ?? '', ['Normal','Urgente'])
+                    ? $dados['prioridade'] : 'Normal';
+
+    if ($numeroWo === '') {
+        echo json_encode(['ok' => false, 'erro' => 'Nº Work Order em falta.']);
+        exit;
+    }
+
+    // Verificar duplicado (mesmo WO já importado)
+    $stmtDup = $pdo->prepare(
+        "SELECT id FROM pats WHERE numero_pat = ? LIMIT 1"
+    );
+    $stmtDup->execute([$numeroWo]);
+    $existente = $stmtDup->fetchColumn();
+    if ($existente) {
+        echo json_encode([
+            'ok'     => true,
+            'pat_id' => (int)$existente,
+            'aviso'  => 'Este WO já tinha sido importado (PAT #' . $existente . ').',
+        ]);
+        exit;
+    }
+
+    // Converter datas ISO → formato MySQL (YYYY-MM-DD HH:MM:SS)
+    $converterData = function(?string $iso): ?string {
+        if (!$iso) return null;
+        $ts = strtotime($iso);
+        return $ts ? date('Y-m-d H:i:s', $ts) : null;
+    };
+
+    try {
+        $pdo->prepare("
+            INSERT INTO pats
+              (numero_pat, revisao, entidade, local_cliente, contacto, morada,
+               data_recepcao, data_limite, descricao,
+               prioridade, estado, criado_por, created_at)
+            VALUES
+              (?, 1, ?, ?, ?, ?,
+               ?, ?, ?,
+               ?, 'Aberto', ?, NOW())
+        ")->execute([
+            $numeroWo,
+            $entidade,
+            $localCliente,
+            $contacto,
+            $morada,
+            $converterData($dataRec),
+            $converterData($dataLim),
+            $descricao,
+            $prioridade,
+            $_SESSION['user_nome'] ?? 'Extensão',
+        ]);
+
+        $patId = (int)$pdo->lastInsertId();
+
+        echo json_encode(['ok' => true, 'pat_id' => $patId]);
+        exit;
+
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'erro' => $e->getMessage()]);
+        exit;
+    }
+}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockVision</title>
+<style>
+  :root {
+    --gold: #c9a14a;
+    --dark: #1a1d21;
+    --mid:  #343a40;
+    --ink:  #1c1f24;
+    --muted:#6b7280;
+    --rule: #e2e5ea;
+    --bg:   #f7f8fa;
+    --white:#ffffff;
+    --green:#16a34a;
+    --red:  #dc2626;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--white);
+    color: var(--ink);
+    font-size: 13px;
+    width: 340px;
+    min-height: 200px;
+  }
+
+  /* Cabeçalho */
+  .header {
+    background: var(--dark);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-logo {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: .04em;
+  }
+  .header-logo span { color: var(--gold); }
+  .header-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(201,161,74,.2);
+    color: var(--gold);
+    border: 1px solid rgba(201,161,74,.3);
+  }
+
+  /* Corpo */
+  .body { padding: 14px 16px; }
+
+  /* Estados */
+  .state { display: none; }
+  .state.active { display: block; }
+
+  /* Estado: não é WO */
+  .not-wo {
+    text-align: center;
+    padding: 24px 12px;
+    color: var(--muted);
+  }
+  .not-wo .icon { font-size: 32px; margin-bottom: 8px; }
+  .not-wo p { font-size: 12px; line-height: 1.5; }
+
+  /* Estado: a carregar */
+  .loading {
+    text-align: center;
+    padding: 24px 12px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 24px; height: 24px;
+    border: 3px solid var(--rule);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Estado: dados encontrados */
+  .dados-titulo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .campo { margin-bottom: 8px; }
+  .campo-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .campo-valor {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 5px 8px;
+    line-height: 1.4;
+    max-height: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .campo-valor.vazio { color: var(--muted); font-style: italic; }
+
+  .badge-prio {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    background: #fee2e2;
+    color: var(--red);
+  }
+  .badge-prio.normal { background: #dbeafe; color: #1d4ed8; }
+
+  /* Configurações */
+  .config-area { margin-top: 12px; }
+  .config-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .config-input {
+    width: 100%;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--ink);
+    outline: none;
+    background: var(--white);
+  }
+  .config-input:focus { border-color: var(--gold); }
+
+  /* Botões */
+  .btn-row {
+    margin-top: 14px;
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    flex: 1;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-gold { background: var(--gold); color: var(--dark); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+  }
+
+  /* Estado: sucesso */
+  .success {
+    text-align: center;
+    padding: 20px 12px;
+  }
+  .success .icon { font-size: 36px; margin-bottom: 10px; }
+  .success p { font-size: 13px; font-weight: 500; color: var(--green); margin-bottom: 4px; }
+  .success small { font-size: 11px; color: var(--muted); }
+  .success a {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 18px;
+    background: var(--gold);
+    color: var(--dark);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  /* Estado: erro */
+  .erro {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--red);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">STOCK<span>VISION</span></div>
+  <div class="header-badge" id="badgeStatus">—</div>
+</div>
+
+<div class="body">
+
+  <!-- Estado: não é Work Order -->
+  <div class="state" id="stateNotWO">
+    <div class="not-wo">
+      <div class="icon">📋</div>
+      <p>Abre uma <strong>Work Order</strong> no Salesforce<br>para copiar para o StockVision.</p>
+    </div>
+  </div>
+
+  <!-- Estado: a carregar -->
+  <div class="state" id="stateLoading">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>A ler Work Order…</p>
+    </div>
+  </div>
+
+  <!-- Estado: dados prontos -->
+  <div class="state" id="stateDados">
+    <div class="dados-titulo">Work Order encontrada</div>
+
+    <div class="campo">
+      <div class="campo-label">Nº Work Order</div>
+      <div class="campo-valor" id="dWO">—</div>
+    </div>
+    <div class="campo">
+      <div class="campo-label">Entidade</div>
+      <div class="campo-valor" id="dEntidade">—</div>
+    </div>
+    <div class="campo">
+      <div class="campo-label">Descrição</div>
+      <div class="campo-valor" id="dDescricao">—</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <div class="campo" style="flex:1">
+        <div class="campo-label">Data Limite</div>
+        <div class="campo-valor" id="dDataLim">—</div>
+      </div>
+      <div class="campo" style="flex:0 0 auto;">
+        <div class="campo-label">Prioridade</div>
+        <div style="padding-top:6px;"><span class="badge-prio normal" id="dPrio">Normal</span></div>
+      </div>
+    </div>
+
+    <div id="erroEnvio"></div>
+
+    <!-- URL do StockVision (guardada em storage) -->
+    <hr class="divider">
+    <div class="config-area">
+      <label class="config-label">URL do StockVision</label>
+      <input type="text" class="config-input" id="svUrl"
+             placeholder="http://localhost/nvcloud/app.php">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-outline" id="btnCancelar">Cancelar</button>
+      <button class="btn btn-gold"    id="btnEnviar">Copiar para StockVision</button>
+    </div>
+  </div>
+
+  <!-- Estado: sucesso -->
+  <div class="state" id="stateSuccess">
+    <div class="success">
+      <div class="icon">✅</div>
+      <p>PAT criado com sucesso!</p>
+      <small id="msgSuccessSub"></small>
+      <br>
+      <a id="linkPat" href="#" target="_blank">Abrir no StockVision →</a>
+    </div>
+  </div>
+
+  <!-- Estado: erro fatal -->
+  <div class="state" id="stateErro">
+    <div class="not-wo">
+      <div class="icon">⚠️</div>
+    </div>
+    <div class="erro" id="msgErro"></div>
+    <div class="btn-row">
+      <button class="btn btn-outline" id="btnTentarNovamente">Tentar novamente</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

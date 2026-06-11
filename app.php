@@ -87,6 +87,68 @@ try {
 
 $page = $_GET['page'] ?? 'dashboard';
 $action = $_GET['action'] ?? '';
+if (($_GET['action'] ?? '') === 'importar_workorder') {
+
+    $numeroWo     = trim($_GET['numero_wo']     ?? '');
+    $entidade     = trim($_GET['entidade']      ?? '');
+    $localCliente = trim($_GET['local_cliente'] ?? $entidade);
+    $contacto     = trim($_GET['contacto']      ?? '');
+    $morada       = trim($_GET['morada']        ?? '');
+    $descricao    = trim($_GET['descricao']     ?? '');
+    $dataRec      = trim($_GET['data_recepcao'] ?? '') ?: null;
+    $dataLim      = trim($_GET['data_limite']   ?? '') ?: null;
+    $prioridade   = in_array($_GET['prioridade'] ?? '', ['Normal','Urgente'])
+            ? $_GET['prioridade'] : 'Normal';
+
+    if ($numeroWo === '') {
+        $_SESSION['mensagem_erro'] = 'Nº Work Order em falta.';
+        header('Location: app.php?page=pats');
+        exit;
+    }
+
+    // Verificar se já existe
+    $stmtDup = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? LIMIT 1");
+    $stmtDup->execute([$numeroWo]);
+    $existente = $stmtDup->fetchColumn();
+    if ($existente) {
+        $_SESSION['mensagem_sucesso'] = 'Este WO já estava importado — a abrir o PAT existente.';
+        header('Location: app.php?page=pats&ver=' . (int)$existente);
+        exit;
+    }
+
+    $converterData = function(?string $iso): ?string {
+        if (!$iso) return null;
+        $ts = strtotime($iso);
+        return $ts ? date('Y-m-d H:i:s', $ts) : null;
+    };
+
+    try {
+        $pdo->prepare("
+            INSERT INTO pats
+              (numero_pat, revisao, entidade, local_cliente, contacto, morada,
+               data_recepcao, data_limite, descricao,
+               prioridade, estado, criado_por, created_at)
+            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'Aberto', ?, NOW())
+        ")->execute([
+                $numeroWo, $entidade, $localCliente, $contacto, $morada,
+                $converterData($dataRec),
+                $converterData($dataLim),
+                $descricao, $prioridade,
+                $_SESSION['user_nome'] ?? 'Extensão',
+        ]);
+
+        $patId = (int)$pdo->lastInsertId();
+        $_SESSION['mensagem_sucesso'] = 'PAT criado a partir da Work Order ' . $numeroWo . '.';
+        header('Location: app.php?page=pats&ver=' . $patId);
+        exit;
+
+    } catch (Exception $e) {
+        $_SESSION['mensagem_erro'] = 'Erro ao criar PAT: ' . $e->getMessage();
+        header('Location: app.php?page=pats');
+        exit;
+    }
+}
+
 $vista = $_GET['lista'] ?? '0';
 
 $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
@@ -1725,15 +1787,31 @@ if ($page === 'auditoria') {
     $paramsAuditoria[] = $filtroAcao; 
   }
 
-  $sqlAuditoria = "SELECT id, peca_id, campo, antes, depois, utilizador, data_alteracao FROM historico";
-    if ($whereAuditoria) {
-      $sqlAuditoria .= " WHERE " . implode(" AND ", $whereAuditoria);
-    }
-    $sqlAuditoria .= " ORDER BY data_alteracao DESC, id DESC";
+  $whereSqlAud = $whereAuditoria ? (" WHERE " . implode(" AND ", $whereAuditoria)) : "";
+
+  // Paginação (50 por página)
+  $audPerPage = 50;
+  $audPag     = max(1, (int)($_GET['p'] ?? 1));
+  $stmtCnt = $pdo->prepare("SELECT COUNT(*) FROM historico" . $whereSqlAud);
+  $stmtCnt->execute($paramsAuditoria);
+  $audTotal   = (int)$stmtCnt->fetchColumn();
+  $audPaginas = max(1, (int)ceil($audTotal / $audPerPage));
+  if ($audPag > $audPaginas) { $audPag = $audPaginas; }
+  $audOffset  = ($audPag - 1) * $audPerPage;
+
+  $sqlAuditoria = "SELECT id, peca_id, campo, antes, depois, utilizador, data_alteracao FROM historico"
+                . $whereSqlAud
+                . " ORDER BY data_alteracao DESC, id DESC"
+                . " LIMIT $audPerPage OFFSET $audOffset";
 
     $stmtAuditoria = $pdo->prepare($sqlAuditoria);
     $stmtAuditoria->execute($paramsAuditoria);
     $auditoriaLogs = $stmtAuditoria->fetchAll();
+
+  // querystring dos filtros para manter na paginação
+  $audExtra = '';
+  if ($filtroUtilizador !== '') { $audExtra .= '&audit_user=' . urlencode($filtroUtilizador); }
+  if ($filtroAcao !== '')       { $audExtra .= '&audit_action=' . urlencode($filtroAcao); }
 }
 
 $qrResultado = null;
@@ -2170,6 +2248,41 @@ function tipoPt(string $type): string {
         'partner - latam'         => 'Parceiro - LATAM',
     ];
     return $mapa[mb_strtolower($type, 'UTF-8')] ?? $type;
+}
+
+// Cor de cada estado — MESMA paleta do gráfico de pizza do Dashboard (estadoColors).
+function estadoCorHex(string $estado): string {
+    static $cores = [
+        'Disponível'             => '#28a745',
+        'PAT'                    => '#6f42c1',
+        'Laboratório'            => '#2470dc',
+        'Abater'                 => '#dc3545',
+        'Cliente'                => '#20c997',
+        'Desconhecido'           => '#ffc107',
+        'Devolução'              => '#17a2b8',
+        'Fornecedor(Reparação)'  => '#fd7e14',
+        'Fornecedor (Reparação)' => '#fd7e14',
+        'OT'                     => '#495057',
+        'Parceiro'               => '#8c564b',
+        'Spares'                 => '#47372A',
+        'Trânsito'               => '#6c757d',
+    ];
+    return $cores[trim($estado)] ?? '#6c757d';
+}
+
+// Bolha (badge) colorida do estado para a tabela do Inventário.
+function estadoBolha(string $estado): string {
+    if (trim($estado) === '') {
+        return '';
+    }
+    $bg = estadoCorHex($estado);
+    $r = hexdec(substr($bg, 1, 2));
+    $g = hexdec(substr($bg, 3, 2));
+    $b = hexdec(substr($bg, 5, 2));
+    $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b; // luminância → contraste
+    $txt = $lum > 160 ? '#1c1f24' : '#ffffff';
+    return '<span class="estado-bolha" style="background:' . $bg . '; color:' . $txt . ';">'
+        . htmlspecialchars($estado) . '</span>';
 }
 
 // Célula de contactos/morada para a página Clientes (dados do Report .xlsx).
@@ -2797,6 +2910,16 @@ body{
   }
 
 .sidebar > *{ flex-shrink: 0; }
+
+.estado-bolha{
+  display:inline-block;
+  padding:3px 12px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.4;
+  white-space:nowrap;
+}
 
 .sidebar .brand{
   height: 64px;
@@ -4219,10 +4342,7 @@ select{
         <td><?=htmlspecialchars($p['cod_barras'])?></td>
         <td>N/A</td>
         <td><?=htmlspecialchars($p['parceiro'])?></td>
-          <td>
-        <span class="badge s-<?= preg_replace('/[^A-Za-zÀ-ÿ()]/u', '', $p['estado']) ?>"><?= htmlspecialchars($p['estado']) ?>
-        </span>
-          </td>
+          <td><?= estadoBolha($p['estado']) ?></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>">Editar</a>
               <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar peça?');">
@@ -4876,10 +4996,19 @@ select{
                                 }
                                 ?>
                               </td>
-                              <td>Peça #<?= (int)$log['peca_id'] ?>
-                    <?php if ($log['antes'] !== '' || $log['depois'] !== ''): ?>
-                      — antes: <span style="color:#d9534f;"><?= htmlspecialchars($log['antes']) ?></span>
-                      | depois: <span style="color:#28a745;"><?= htmlspecialchars($log['depois']) ?></span>
+                              <td>
+                    <?php
+                      $audAntes  = (string)($log['antes'] ?? '');
+                      $audDepois = (string)($log['depois'] ?? '');
+                      if ((int)$log['peca_id'] > 0):
+                    ?>
+                      Peça #<?= (int)$log['peca_id'] ?>
+                      <?php if ($audAntes !== '' || $audDepois !== ''): ?>
+                        — antes: <span style="color:#d9534f;"><?= htmlspecialchars($audAntes) ?></span>
+                        | depois: <span style="color:#28a745;"><?= htmlspecialchars($audDepois) ?></span>
+                      <?php endif; ?>
+                    <?php else: ?>
+                      <?= htmlspecialchars($audDepois !== '' ? $audDepois : $audAntes) ?>
                     <?php endif; ?>
                   </td>
     <td><?= date('d/m/Y H:i', strtotime($log['data_alteracao'])) ?></td>
@@ -4893,6 +5022,28 @@ select{
                 </tbody>
             </table>
         </div>
+
+        <?php if ($audPaginas > 1): ?>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:18px;">
+          <?php
+            $audWin = 2;
+            $ini = max(1, $audPag - $audWin);
+            $fim = min($audPaginas, $audPag + $audWin);
+            $audLink = function (int $n, string $txt, bool $atual = false) use ($audExtra) {
+                $cls = $atual ? 'btn btn-blue' : 'btn btn-grey';
+                return '<a class="' . $cls . '" href="app.php?page=auditoria&p=' . $n . $audExtra . '">' . $txt . '</a>';
+            };
+            if ($audPag > 1)         { echo $audLink(1, '«') . $audLink($audPag - 1, '‹'); }
+            if ($ini > 1)            { echo '<span style="color:#9ca3af;">…</span>'; }
+            for ($i = $ini; $i <= $fim; $i++) { echo $audLink($i, (string)$i, $i === $audPag); }
+            if ($fim < $audPaginas)  { echo '<span style="color:#9ca3af;">…</span>'; }
+            if ($audPag < $audPaginas) { echo $audLink($audPag + 1, '›') . $audLink($audPaginas, '»'); }
+          ?>
+          <span style="color:#6b7280; font-size:13px; margin-left:8px;">
+            Página <?= $audPag ?> de <?= $audPaginas ?> · <?= (int)$audTotal ?> registos
+          </span>
+        </div>
+        <?php endif; ?>
     </div>
 </section>
 
