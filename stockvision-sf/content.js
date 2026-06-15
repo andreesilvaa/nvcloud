@@ -59,8 +59,8 @@ function obterSessionId() {
 // ── 4. API Salesforce ──────────────────────────────────────
 async function lerViaApi(recordId, sessionId) {
   var v    = await determinarVersao(sessionId);
-  var soql = "SELECT WorkOrderNumber,Subject,Description,Status,Priority," +
-             "StartDate,EndDate,Account.Name,Account.BillingStreet," +
+  var soql = "SELECT WorkOrderNumber,Description,Status,Priority,CreatedDate," +
+             "StartDate,Account.Name,Account.BillingStreet," +
              "Account.BillingCity,Account.BillingPostalCode," +
              "Account.BillingCountry,Account.Phone,Contact.Name" +
              " FROM WorkOrder WHERE Id='" + recordId + "'";
@@ -78,9 +78,10 @@ async function lerViaApi(recordId, sessionId) {
     local_cliente: c.Name||'',
     contacto:      ct.Name||c.Phone||'',
     morada:        [c.BillingStreet,c.BillingCity,c.BillingPostalCode,c.BillingCountry].filter(Boolean).join(', '),
-    descricao:     wo.Description||wo.Subject||'',
+    descricao:     wo.Description||'',          // apenas a linha "Description"
+    tecnico:       '',                          // "Support Partner" lido via DOM (não fiável na API)
     data_recepcao: wo.StartDate||'',
-    data_limite:   wo.EndDate||'',
+    data_limite:   wo.CreatedDate||'',          // Data Limite = data de criação da WO
     prioridade:    mapPrio(wo.Priority),
     status_sf:     wo.Status||'',
   }};
@@ -91,9 +92,9 @@ async function lerViaApi(recordId, sessionId) {
 // extraindo apenas o valor e ignorando botões de ação.
 function lerViaDomCirurgico() {
   var d = {
-    numero_wo:'', entidade:'', local_cliente:'', contacto:'',
+    numero_wo:'', entidade:'', local_cliente:'', contacto:'', tecnico:'',
     morada:'', descricao:'', data_recepcao:'', data_limite:'',
-    prioridade:'Normal', status_sf:''
+    prioridade:'', status_sf:''   // '' para o campo poder ser lido; default 'Normal' no fim
   };
 
   // Mapeamento: label (em minúsculas) → campo interno
@@ -101,19 +102,18 @@ function lerViaDomCirurgico() {
     'work order number': 'numero_wo',
     'account name':      'entidade',
     'account':           'entidade',
-    'subject':           'descricao',
-    'description':       'descricao',
+    'description':       'descricao',   // só a linha "Description" (não "Subject")
+    'support partner':   'tecnico',     // técnico responsável
     'priority':          'prioridade',
     'status':            'status_sf',
     'start date':        'data_recepcao',
-    'end date':          'data_limite',
-    'due date':          'data_limite',
+    'created date':      'data_limite', // Data Limite = data de criação da WO
     'contact':           'contacto',
     // Português
     'conta':             'entidade',
-    'assunto':           'descricao',
     'prioridade':        'prioridade',
-    'data de fim':       'data_limite',
+    'data de criação':   'data_limite',
+    'data de criacao':   'data_limite',
     'data de início':    'data_recepcao',
   };
 
@@ -143,12 +143,22 @@ function lerViaDomCirurgico() {
     var valor = extrairValorDoCampo(bloco);
     if (!valor) return;
 
+    // Campo vazio no Salesforce: o que se lê é muitas vezes a própria label
+    // (ex.: "Contact", "Start Date", "End Date") — nesse caso, ignorar.
+    if (valor.trim().toLowerCase() === labelTxt) return;
+
     if (campo === 'prioridade') {
-      d[campo] = mapPrio(valor);
+      // Só aceita valores que sejam mesmo uma prioridade reconhecida
+      // (ignora label/texto errado lido de outro elemento).
+      var pr = tokensPrioridade(valor);
+      if (pr) d.prioridade = pr;
     } else {
       d[campo] = valor;
     }
   });
+
+  // Se a prioridade não foi lida de lado nenhum, assume Normal.
+  if (!d.prioridade) d.prioridade = 'Normal';
 
   // Fallback para número WO — ler do URL ou do header do registo
   if (!d.numero_wo) {
@@ -235,10 +245,19 @@ function lerNumerWoFallback() {
 }
 
 // ── 8. Auxiliares ──────────────────────────────────────────
+// Reconhece a prioridade a partir de qualquer texto. Devolve 'Urgente',
+// 'Normal' ou null (não reconhecido). Tolerante a espaços e texto extra
+// (ex.: "High", "P1 - Critical", "Alta").
+function tokensPrioridade(p) {
+  if (!p) return null;
+  var l = ' ' + String(p).toLowerCase() + ' ';
+  if (/(critical|cr[ií]tic|high|alta|urgent)/.test(l)) return 'Urgente';
+  if (/(medium|m[eé]di|low|baixa|normal)/.test(l))     return 'Normal';
+  return null;
+}
+
 function mapPrio(p) {
-  if (!p) return 'Normal';
-  var l = p.toLowerCase();
-  return (l==='high'||l==='critical'||l==='urgente'||l==='alta') ? 'Urgente' : 'Normal';
+  return tokensPrioridade(p) || 'Normal';
 }
 
 async function determinarVersao(sessionId) {

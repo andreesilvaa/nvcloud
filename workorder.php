@@ -26,6 +26,9 @@ if ($patId <= 0) { die('ID do PAT inválido.'); }
 $stmt = $pdo->prepare("SELECT * FROM pats WHERE id = ?");
 $stmt->execute([$patId]);
 $pat = $stmt->fetch();
+if ($pat) {
+    $pat = array_map(fn($v) => is_null($v) ? '' : $v, $pat);
+}
 if (!$pat) { die('PAT não encontrado.'); }
 
 $sm = $pdo->prepare("SELECT * FROM pats_modulos WHERE pat_id = ? ORDER BY id");

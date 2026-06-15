@@ -11,30 +11,15 @@ if (isset($_SESSION['user_id']))
     exit;
     }
 
+require_once __DIR__ . '/config.php';
 
-$host = 'localhost';
-$db = 'stocks_db';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-
+$dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
 $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
+$pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 
-$erro = '';
-
-if (isset($_GET['expired'])) {
-    $erro = 'A sessão expirou. Inicia sessão novamente.';
-}
-
-try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (Exception $e) {
-    die('Erro de ligação à base de dados: ' . $e->getMessage());
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim($_POST['email'] ?? ''));

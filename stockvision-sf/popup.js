@@ -119,6 +119,7 @@ function enviarParaStockVision() {
     entidade:      dadosWO.entidade       || '',
     local_cliente: dadosWO.local_cliente  || '',
     contacto:      dadosWO.contacto       || '',
+    tecnico:       dadosWO.tecnico        || '',
     morada:        dadosWO.morada         || '',
     descricao:     (dadosWO.descricao     || '').substring(0, 800),
     data_recepcao: dadosWO.data_recepcao  || '',

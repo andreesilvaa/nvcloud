@@ -23,6 +23,12 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 
 $_SESSION['LAST_ACTIVITY'] = time();
 
 
+// Token CSRF para ações sensíveis
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
 // ============================================================
 // 2. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
@@ -56,30 +62,87 @@ function e($value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * Procura morada e contacto na tabela clientes_contactos para uma entidade.
+ * Tenta, por ordem: (1) match exato, (2) frase das 2 primeiras palavras,
+ * (3) palavra a palavra (a mais longa primeiro). Prefere SEMPRE linhas que
+ * tenham morada/telefone reais (muitas linhas da mesma conta estão a NULL).
+ * Devolve ['morada'=>string, 'contacto'=>string] (vazios se nada encontrado).
+ */
+function nvEnriquecerCliente(PDO $pdo, string $entidade): array
+{
+    $vazio = ['morada' => '', 'contacto' => ''];
+    $entidade = trim($entidade);
+    if ($entidade === '') return $vazio;
+
+    $cols  = "mailing_street, mailing_city, mailing_zip, mailing_country, phone, mobile, email";
+    $ordem = "ORDER BY (mailing_street IS NOT NULL AND mailing_street <> '') DESC,
+                       (phone IS NOT NULL AND phone <> '') DESC, id ASC";
+    // Escapar wildcards de LIKE (\, %, _) — nomes com '_' davam falsos positivos.
+    $esc = fn(string $s): string => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s);
+
+    $stmtLike = $pdo->prepare("SELECT $cols FROM clientes_contactos WHERE account_name LIKE ? $ordem LIMIT 1");
+    $cli = null;
+
+    // 1. Match exato
+    $st = $pdo->prepare("SELECT $cols FROM clientes_contactos WHERE account_name = ? $ordem LIMIT 1");
+    $st->execute([$entidade]);
+    $cli = $st->fetch() ?: null;
+
+    // 2. Frase das 2 primeiras palavras (ex.: "EDP Comercial")
+    if (!$cli) {
+        $palavras = preg_split('/\s+/u', $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $frase = implode(' ', array_slice($palavras, 0, 2));
+        if ($frase !== '') {
+            $stmtLike->execute(['%' . $esc($frase) . '%']);
+            $cli = $stmtLike->fetch() ?: null;
+        }
+    }
+
+    // 3. Palavra a palavra (significativas: >= 4 letras, a mais longa primeiro)
+    if (!$cli) {
+        $tokens = preg_split('/[^\p{L}\p{N}]+/u', $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $tokens = array_values(array_filter($tokens, fn($w) => mb_strlen($w) >= 4));
+        usort($tokens, fn($a, $b) => mb_strlen($b) - mb_strlen($a));
+        foreach ($tokens as $w) {
+            $stmtLike->execute(['%' . $esc($w) . '%']);
+            $r = $stmtLike->fetch();
+            if ($r) { $cli = $r; break; }
+        }
+    }
+
+    if (!$cli) return $vazio;
+
+    $morada = implode(', ', array_filter([
+        $cli['mailing_street']  ?? '',
+        $cli['mailing_city']    ?? '',
+        $cli['mailing_zip']     ?? '',
+        $cli['mailing_country'] ?? '',
+    ]));
+    $contacto = ($cli['phone'] ?? '') ?: ($cli['mobile'] ?? '') ?: ($cli['email'] ?? '') ?: '';
+
+    return ['morada' => $morada, 'contacto' => $contacto];
+}
+
 
 // ============================================================
 // 3. BASE DE DADOS
 // ============================================================
 
-$host = 'localhost';
-$db = 'stocks_db';
-$user = 'root';
-$pass = '';
-$charset = 'utf8mb4';
+require_once __DIR__ . '/config.php';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
 
 $options = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
+    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 } catch (Exception $e) {
     die('Erro de ligação à base de dados: ' . $e->getMessage());
 }
-
 
 // ============================================================
 // 4. ESTADO DA PÁGINA / ROUTING SIMPLES
@@ -87,18 +150,45 @@ try {
 
 $page = $_GET['page'] ?? 'dashboard';
 $action = $_GET['action'] ?? '';
-if (($_GET['action'] ?? '') === 'importar_workorder') {
+if (
+    (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder')
+) {
+    $tokenRecebido = $_GET['csrf'] ?? $_POST['csrf'] ?? '';
+    $viaExtensao = ($_SERVER['HTTP_X_SOURCE'] ?? '') === 'nv-extension';
+    if (!$viaExtensao && $tokenRecebido !== ($_SESSION['csrf_token'] ?? '')) {
+        $_SESSION['mensagem_erro'] = 'Ação inválida.';
+        header('Location: app.php?page=pats');
+        exit;
+    }
+    $source = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
+    $numeroWo = trim($source['numero_wo'] ?? '');
+    $entidade = trim($source['entidade'] ?? '');
+    $localCliente = trim($source['local_cliente'] ?? $entidade);
+    $contacto = trim($source['contacto'] ?? '');
+    $tecnico = trim($source['tecnico'] ?? '');
+    $morada = trim($source['morada'] ?? '');
+    $descricao = trim($source['descricao'] ?? '');
+    $dataRec = trim($source['data_recepcao'] ?? '');
+    $dataLim = trim($source['data_limite'] ?? '');
+    $prioridade = in_array($source['prioridade'] ?? '', ['Normal','Urgente'])
+            ? $source['prioridade'] : 'Normal';
 
-    $numeroWo     = trim($_GET['numero_wo']     ?? '');
-    $entidade     = trim($_GET['entidade']      ?? '');
-    $localCliente = trim($_GET['local_cliente'] ?? $entidade);
-    $contacto     = trim($_GET['contacto']      ?? '');
-    $morada       = trim($_GET['morada']        ?? '');
-    $descricao    = trim($_GET['descricao']     ?? '');
-    $dataRec      = trim($_GET['data_recepcao'] ?? '') ?: null;
-    $dataLim      = trim($_GET['data_limite']   ?? '') ?: null;
-    $prioridade   = in_array($_GET['prioridade'] ?? '', ['Normal','Urgente'])
-            ? $_GET['prioridade'] : 'Normal';
+
+    // Garantir UTF-8 válido (a extensão lê o DOM do Salesforce e pode trazer
+    // bytes mal-formados que, sob STRICT_TRANS_TABLES, rebentariam o INSERT).
+    $utf8 = function ($s) {
+        $s = (string)$s;
+        return ($s === '' || mb_check_encoding($s, 'UTF-8'))
+            ? $s
+            : mb_convert_encoding($s, 'UTF-8', 'Windows-1252');
+    };
+    $numeroWo     = $utf8($numeroWo);
+    $entidade     = $utf8($entidade);
+    $localCliente = $utf8($localCliente);
+    $contacto     = $utf8($contacto);
+    $tecnico      = $utf8($tecnico);
+    $morada       = $utf8($morada);
+    $descricao    = $utf8($descricao);
 
     if ($numeroWo === '') {
         $_SESSION['mensagem_erro'] = 'Nº Work Order em falta.';
@@ -106,39 +196,62 @@ if (($_GET['action'] ?? '') === 'importar_workorder') {
         exit;
     }
 
-    // Verificar se já existe
+    // Verificar duplicado
     $stmtDup = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? LIMIT 1");
     $stmtDup->execute([$numeroWo]);
     $existente = $stmtDup->fetchColumn();
     if ($existente) {
-        $_SESSION['mensagem_sucesso'] = 'Este WO já estava importado — a abrir o PAT existente.';
+        $_SESSION['mensagem_sucesso'] = 'Este WO já estava importado.';
         header('Location: app.php?page=pats&ver=' . (int)$existente);
         exit;
     }
 
+    // "Contact" é a label do campo no Salesforce (campo vazio), não um contacto.
+    if ($contacto === 'Contact') $contacto = '';
+
+    // ── Enriquecer com clientes_contactos (isolado — nunca bloqueia o INSERT) ──
+    try {
+        if ($entidade !== '' && ($morada === '' || $contacto === '')) {
+            $info = nvEnriquecerCliente($pdo, $entidade);
+            if ($morada === ''   && $info['morada']   !== '') $morada   = $info['morada'];
+            if ($contacto === '' && $info['contacto'] !== '') $contacto = $info['contacto'];
+        }
+    } catch (Throwable $eCli) {
+        // Enriquecimento falhou — continua sem enriquecer, não bloqueia o PAT
+        error_log('Erro enriquecimento clientes_contactos: ' . $eCli->getMessage());
+    }
+
+    // ── Converter datas ───────────────────────────────────
     $converterData = function(?string $iso): ?string {
         if (!$iso) return null;
         $ts = strtotime($iso);
         return $ts ? date('Y-m-d H:i:s', $ts) : null;
     };
 
+    // ── INSERT do PAT ─────────────────────────────────────
     try {
         $pdo->prepare("
             INSERT INTO pats
-              (numero_pat, revisao, entidade, local_cliente, contacto, morada,
+              (numero_pat, revisao, entidade, local_cliente, contacto, tecnico, morada,
                data_recepcao, data_limite, descricao,
                prioridade, estado, criado_por, created_at)
-            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'Aberto', ?, NOW())
+            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Aberto', ?, NOW())
         ")->execute([
-                $numeroWo, $entidade, $localCliente, $contacto, $morada,
+                $numeroWo,
+                $entidade,
+                $localCliente,
+                $contacto,
+                $tecnico,
+                $morada,
                 $converterData($dataRec),
                 $converterData($dataLim),
-                $descricao, $prioridade,
+                $descricao,
+                $prioridade,
                 $_SESSION['user_nome'] ?? 'Extensão',
         ]);
 
         $patId = (int)$pdo->lastInsertId();
-        $_SESSION['mensagem_sucesso'] = 'PAT criado a partir da Work Order ' . $numeroWo . '.';
+        $_SESSION['mensagem_sucesso'] = 'PAT criado — WO ' . htmlspecialchars($numeroWo);
         header('Location: app.php?page=pats&ver=' . $patId);
         exit;
 
@@ -148,6 +261,7 @@ if (($_GET['action'] ?? '') === 'importar_workorder') {
         exit;
     }
 }
+
 
 $vista = $_GET['lista'] ?? '0';
 
@@ -174,11 +288,13 @@ $pageTitles = [
   'dashboard' => 'Dashboard',
   'alertas' => 'Clientes',
   'inventario' => 'Inventário',
+  'inventory' => 'Inventário',
   'nova_peca' => 'Nova Peça',
   'historico' => 'Histórico da Peça',
   'pats' => "Pat's",
   'envios' => 'Envios',
   'qrs' => "QR's",
+  'qr' => "QR's",
   'encomendas' => 'Encomendas',
   'contas' =>'Contas',
   'auditoria' => 'Auditoria',
@@ -187,7 +303,8 @@ $pageTitles = [
   'parceiros' => 'Parceiros',
   'fabricantes' => 'Fabricantes',
   'produtos' => 'Produtos',
-  'nvi' => 'N-Vi (Assistente)'
+  'nvi' => 'N-Vi',
+  'configuracoes' => 'Configurações',
   ];
 
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
@@ -1409,12 +1526,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
     $descricao = trim($_POST['descricao'] ?? '');
     $tecnico = trim($_POST['tecnico'] ?? '');
     $comentarios = trim($_POST['comentarios'] ?? '');
+    $observacoes = trim($_POST['observacoes'] ?? '');
+
+    // Se o campo tiver HTML do xdebug gravado por engano, LIMPAR
+    $limparXdebug = fn(string $s): string =>
+        (str_contains($s, 'xdebug-error') || str_contains($s, '<font size=')) ? '' : $s;
+    $comentarios = $limparXdebug($comentarios);
+    $observacoes = $limparXdebug($observacoes);
     $dataIni = $normDt(trim($_POST['data_inicio'] ?? ''));
     $dataFim = $normDt(trim($_POST['data_fim'] ?? ''));
     $tecnicos = trim($_POST['tecnicos_presentes'] ?? '');
-    $observacoes = trim($_POST['observacoes'] ?? '');
     $prioridade = in_array($_POST['prioridade'] ?? '', ['Normal','Urgente']) ? $_POST['prioridade'] : 'Normal';
     $estado = in_array($_POST['estado'] ?? '', ['Aberto','Em Curso','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
+
+    // Garantir UTF-8 válido em todos os campos de texto. Sob STRICT_TRANS_TABLES
+    // qualquer byte inválido (ex.: dados lidos do DOM do Salesforce pela extensão)
+    // faria o INSERT/UPDATE rebentar com erro 1366 (Incorrect string value).
+    $utf8 = function ($s) {
+        $s = (string)$s;
+        return ($s === '' || mb_check_encoding($s, 'UTF-8'))
+            ? $s
+            : mb_convert_encoding($s, 'UTF-8', 'Windows-1252');
+    };
+    $numeroPat   = $utf8($numeroPat);
+    $entidade    = $utf8($entidade);
+    $local       = $utf8($local);
+    $contacto    = $utf8($contacto);
+    $morada      = $utf8($morada);
+    $descricao   = $utf8($descricao);
+    $tecnico     = $utf8($tecnico);
+    $comentarios = $utf8($comentarios);
+    $observacoes = $utf8($observacoes);
+    $tecnicos    = $utf8($tecnicos);
 
     if ($numeroPat === '') {
         $_SESSION['mensagem_erro'] = 'O número do PAT é obrigatório.';
@@ -1472,9 +1615,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
             VALUES (?, ?, ?, ?)
         ");
         foreach ($modSolucoes as $i => $sol) {
-            $sol = trim($sol);
-            $mod = trim($modModelos[$i] ?? '');
-            $ser = trim($modSeries[$i] ?? '');
+            $sol = $utf8(trim($sol));
+            $mod = $utf8(trim($modModelos[$i] ?? ''));
+            $ser = $utf8(trim($modSeries[$i] ?? ''));
             if ($sol === '' && $mod === '' && $ser === '') continue;
             $stmtMod->execute([$patId, $sol, $mod, $ser]);
         }
@@ -1485,10 +1628,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
             VALUES (?, ?, ?, ?, ?, ?)
         ");
         foreach ($compRemovidos as $i => $rem) {
-            $rem = trim($rem);
-            $snr = trim($comSnRem[$i] ?? '');
-            $col = trim($compColocados[$i] ?? '');
-            $snc = trim($compSnCol[$i] ?? '');
+            $rem = $utf8(trim($rem));
+            $snr = $utf8(trim($comSnRem[$i] ?? ''));
+            $col = $utf8(trim($compColocados[$i] ?? ''));
+            $snc = $utf8(trim($compSnCol[$i] ?? ''));
             $qtd = max(1, (int)($compQtds[$i] ?? 1));
             if ($rem === '' && $col === '') continue;
             $stmtComp->execute([$patId, $rem, $snr, $col, $snc, $qtd]);
@@ -1498,9 +1641,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
         $_SESSION['mensagem_sucesso'] = $isEdicao ? 'PAT atualizado.' : 'PAT criado com sucesso.';
         header('Location: app.php?page=pats&ver=' . $patId);
         exit;
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $_SESSION['mensagem_erro'] = 'Erro ao guardar o PAT: ' . $e->getMessage();
+    } catch (Throwable $e) {
+        // Erro ao gravar: reverter, registar e voltar ao formulário SEM perder
+        // os dados nem matar a página (antes fazia die() e parecia que o PAT
+        // não era criado). A mensagem fica visível no topo da página PATs.
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Erro ao guardar PAT: ' . $e->getMessage());
+        $_SESSION['mensagem_erro'] = 'Não foi possível guardar o PAT: ' . $e->getMessage();
         header('Location: app.php?page=pats' . ($isEdicao ? '&ver=' . $editId : '&acao=novo'));
         exit;
     }
@@ -1536,6 +1683,40 @@ $ordensConcluidas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='
 
 $ultimoPat = $pdo->query("SELECT created_at FROM pats ORDER BY created_at DESC LIMIT 1")->fetchColumn() ?: null;
 
+// Notificações
+$notificacoes = [];
+
+$stmtUrg = $pdo->query("
+    SELECT id, numero_pat, revisao, entidade
+    FROM pats
+    WHERE prioridade = 'Urgente' AND estado NOT IN ('Concluído','Cancelado')
+    ORDER BY created_at DESC LIMIT 10
+");
+foreach ($stmtUrg->fetchAll() as $p) {
+    $notificacoes[] = [
+        'tipo' => 'urgente',
+        'msg' => 'PAT urgente: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — ' . htmlspecialchars($p['entidade']),
+        'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+    ];
+}
+
+$stmtPrazo = $pdo->query("
+    SELECT id, numero_pat, revisao, entidade, data_limite
+    FROM pats
+    WHERE data_limite IS NOT NULL
+      AND data_limite BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)
+      AND estado NOT IN ('Concluído','Cancelado')
+    ORDER BY data_limite ASC LIMIT 10
+");
+foreach ($stmtPrazo->fetchAll() as $p) {
+    $notificacoes[] = [
+       'tipo' => 'prazo',
+       'msg' => 'Prazo a expirar: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — ' . date('d/m/Y', strtotime($p['data_limite'])),
+       'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+    ];
+}
+
+$totalNotif = count($notificacoes);
 
 // ══════════════════════════════════════════════
 // DADOS — PATs
@@ -1585,6 +1766,10 @@ if ($page === 'pats') {
         $s = $pdo->prepare("SELECT * FROM pats WHERE id = ?");
         $s->execute([$patVerId]);
         $patDetalhe = $s->fetch();
+        if ($patDetalhe) {
+            // Converter NULL para '' - evita erros de htmlspecialchars no PHP 8.1+
+            $patDetalhe = array_map(fn($v) => is_null($v) ? '' : $v, $patDetalhe);
+        }
 
         if ($patDetalhe) {
             $m = $pdo->prepare("SELECT * FROM pats_modulos WHERE pat_id = ? ORDER BY id");
@@ -1646,6 +1831,18 @@ $patTrendRows = $pdo->query("
     GROUP BY DATE_FORMAT(created_at, '%Y-%m'), DATE_FORMAT(created_at, '%b %Y')
     ORDER BY mes_ordem ASC
   ")->fetchAll();
+
+$actividadeRecente = $pdo->query("
+    SELECT
+        h.peca_id, h.campo, h.antes, h.depois,
+        h.utilizador, h.data_alteracao,
+        p.produto, p.sn
+    FROM historico h
+    LEFT JOIN pecas p ON p.id = h.peca_id
+    WHERE h.peca_id > 0
+    ORDER BY h.data_alteracao DESC, h.id DESC
+    LIMIT 18
+")->fetchAll();
 
 $filters = [
     'categoria' => $_GET['categoria'] ?? '',
@@ -1917,7 +2114,7 @@ if ($page === 'alertas') {
     // Lista de clientes — a partir da tabela `clientes`
     // (importada do CSV via github/importar_clientes.php).
     try {
-        $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date FROM clientes ORDER BY account_name ASC")->fetchAll();
+        $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date, activity_count FROM clientes ORDER BY account_name ASC")->fetchAll();
     } catch (Throwable $e) {
         $rows = [];
         $clientesStats['csv_error'] = 'Tabela de clientes não encontrada. Corre o importador: php github/importar_clientes.php';
@@ -1937,6 +2134,7 @@ if ($page === 'alertas') {
             'last_activity'      => $lastActivity,
             'last_modified_date' => $lastModified,
             'is_child'           => $parent !== '',
+            'activity_count'     => (int)($r['activity_count'] ?? 0),
         ];
         $clientes[] = $cliente;
         $clientesStats['total']++;
@@ -2190,7 +2388,8 @@ if ($page === 'alertas') {
     }
 
     usort($clientesRoots, static function ($a, $b) {
-        return strcasecmp($a['account_name'], $b['account_name']);
+        $diff = ($b['activity_count'] ?? 0) - ($a['activity_count'] ?? 0);
+        return $diff !== 0 ? $diff : strcasecmp($a['account_name'], $b['account_name']);
     });
 
     foreach ($clientesChildrenMap as $parentName => &$children) {
@@ -2856,7 +3055,7 @@ function paginacaoTabela(string $pageName, int $totalPaginas, int $atual, string
 <link rel="stylesheet" href="fonts.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link 
   rel="stylesheet"
@@ -2892,7 +3091,7 @@ body{
 
 :root{
   --sidebar-width: 180px;
-  --sidebar-collapsed-width: 72px;
+  --sidebar-collapsed-width: 76px;
   }
 
 .sidebar{
@@ -2906,6 +3105,8 @@ body{
   padding-top: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   transition: width .25s ease;
   display: flex;
   flex-direction: column;
@@ -3057,8 +3258,8 @@ body{
   top: 0;
   height: 64px;
   background: #cba35c;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 0 18px 0 22px;
   z-index: 10;
@@ -3066,24 +3267,92 @@ body{
   }
 
 .topbar-title{
-  color: #000;
-  font-size: 24px;
-  font-weight:700;
+  font-family: 'Poppins', system-ui;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+  justify-self: start;
   }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  justify-self: end;
+}
+
+.search-bar-wrap {
+  position: relative;
+  width: 260px;
+}
+
+.topbar-search-panel {
+  display: none;
+  position: fixed;
+  top: 64px;
+  left: var(--sidebar-width);
+  right: 0;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 999;
+  transition: left .25s ease;
+}
+
+.topbar.collapsed ~ * .topbar-search-panel,
+.topbar-search-panel { left: var(--sidebar-width); }
+
+.topbar-search-panel.open { display: block; }
+
+.topbar-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.topbar-search-input-wrap i { color: #9ca3af; font-size: 18px; flex-shrink:0; }
+
+.topbar-search-input-wrap input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+  height: auto;
+  padding: 0;
+  box-shadow: none;
+}
 
 .main{
   width: calc(100% - var(--sidebar-width));
   margin-left: var(--sidebar-width);
-  padding: 80px 44px 28px 28px;
+  padding: 80px 28px 28px 28px;
   box-sizing: border-box;
   transition: all .25s ease;
   }
 
+
 .sidebar.collapsed .brand{
   padding: 16px 0 22px;
   justify-content: center;
+  }
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  }
+
+.topbar.collapsed {
+  left: var(--sidebar-collapsed-width);
+  }
+
+.main.collapsed {
+  width: calc(100% - var(--sidebar-collapsed-width));
+  margin-left: var(--sidebar-collapsed-width);
   }
 
 .sidebar.collapsed .brand img{
@@ -3099,6 +3368,8 @@ body{
 .sidebar.collapsed a span{
   display: none;
   }
+
+.sidebar::-webkit-scrollbar { display: none; }
 
 .sidebar.collapsed .menu-toggle{
   font-size: 22px;
@@ -3190,6 +3461,7 @@ body{
 
 .kpi-card{
           width:100% !important;
+          box-sizing:border-box;
           aspect-ratio:1 / 1;
           min-width: 0;
           padding: 12px;
@@ -3312,6 +3584,20 @@ select{
   background:#fff;
   color:#222;
   transition:border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+
+/* Checkboxes e radios não devem herdar width:100%/height:46px dos inputs de texto */
+input[type="checkbox"],
+input[type="radio"]{
+  width:18px;
+  height:18px;
+  min-width:18px;
+  padding:0;
+  margin:0;
+  border-radius:4px;
+  accent-color:#cba35c;
+  cursor:pointer;
+  flex:0 0 auto;
 }
 
 input:focus,
@@ -3957,6 +4243,232 @@ select{
   white-space:nowrap;
 }
 
+/* -- Menu Açoes Dropdown --*/
+.acao-wrap { position: relative; display: inline-block; }
+.acao-btn  {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    color: #374151;
+    transition: background .15s;
+}
+acao-btn:hover {background: #e5e7eb; }
+.acao-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4pc 16px rgba(0,0,0,.12);
+    min-width: 140px;
+    z-index: 100;
+    overflow: hidden;
+}
+.acao-menu a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1f2937;
+    text-decoration: none;
+    white-space: nowrap;
+    transiction: background .12s;
+}
+.acao-menu a:hover { background: #f3f4f6; }
+.acao-menu a i { font-size: 15px; }
+.acao-wrap.open .acao-menu { display: block; }
+
+
+/* -- Utilizador Dropdown --*/
+.user-dropdown { position: relative; }
+.user-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: 10px;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    transitions: background .15s;
+}
+.user-trigger:hover { background: rgba(0,0,0,.15); }
+.user-dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.14);
+    min-width: 180px;
+    z-index: 200;
+    overflow: hidden;
+}
+.user-dropdown-menu .dd-header {
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 13px;
+    color: #6b7280;
+}
+.user-dropdown-menu .dd-header strong {
+    display: block;
+    font-size: 14px;
+    color: #111827;
+    margin-bottom: 2px;
+}
+.user-dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #1f2937;
+    text-decoration: none;
+    transiction: background .12s;
+}
+.user-dropdown-menu a:hover { background: #f3f4f6; }
+.user-dropdown-menu a.danger { color: #dc2626; }
+.user-dropdown-menu a.danger:hover { background: #fef2f2; }
+.user-dropdown.open .user-dropdown-menu { display: block; }
+
+
+/* -- Modo Escuro -- */
+body.dark-mode {
+    background: #111827;
+    color: #e5e7eb;
+}
+body.dark-mode .sidebar { background: #1f2937; }
+body.dark-mode .sidebar a,
+body.dark-mode .sidebar-parent { color: #d1d5db; }
+body.dark-mode .main { backgroud: #111827; }
+body.dark-mode .kpi-card,
+body.dark-mode .panel { background: #1f2937; color: #e5e7eb; }
+body.dark-mode .table { background: #1f2937; color: #e5e7eb; }
+body.dark-mode .table th { background: #374151; color: #d1d5db; }
+body.dark-mode .table th,
+body.dark-mode .table td { border-color: #374151; }
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea { background: #374151; color: #e5e7eb; border-color: #4b5563; }
+body.dark-mode .panel h4 { color: #f3f4f6; }
+body.dark-mode .user-dropdown-menu { background: #1f2937; border-color: #374151; }
+body.dark-mode .user-dropdown-menu a { color: #e5e7eb; }
+body.dark-mode .user-dropdown-menu a:hover {background: #374151; }
+body.dark-mode .acao-menu { background: #1f2937; border-color: #374151; }
+body.dark-mode .acao-menu a { color: #e5e7eb; }
+body.dark-mode .acao-menu a:hover { background: #374151; }
+
+
+/* -- Notificações -- */
+.notif-wrap { position: relative; }
+.notif-btn  {
+    background: none; border: none; color: #fff;
+    font-size: 20px; cursor: pointer;
+    padding: 6px 8px; border-radius: 6px;
+    transition: background .15s; position: relative;
+}
+.notif-btn:hover { background: rgba(0,0,0,.15); }
+.notif-badge {
+    position: absolute; top: 2px; right: 2px;
+    background: #ef4444; color: #fff;
+    border-radius: 999px; font-size: 10px; font-weight: 700;
+    min-width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+.notif-panel {
+    display: none; position: absolute; right: 0; top: calc(100% + 6px);
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.14); width: 320px; z-index: 200; overflow: hidden;
+}
+.notif-panel-header { padding: 12px 16px; font-weight: 700; font-size: 14px; border-bottom: 1px solid #f3f4f6; color: #111827; }
+.notif-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; text-decoration: none; color: #1f2937;
+    font-size: 13px; border-bottom: 1px solid #f9fafb; transition: background .12s;
+}
+.notif-item:hover { background: #f3f4f6; }
+.notif-item:last-child { border-bottom: none; }
+.notif-dot-urgente { color: #ef4444; font-size: 10px; margin-top: 3px; }
+.notif-dot-prazo   { color: #f59e0b; font-size: 10px; margin-top: 3px; }
+.notif-empty { padding: 18px; text-align: center; color: #6b7280; font-size: 13px; }
+.notif-wrap.open .notif-panel { display: block; }
+
+
+/* ── Pesquisa Global ── */
+.search-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 999;
+    align-items: flex-start; justify-content: center; padding-top: 120px;
+}
+.search-overlay.open { display: flex; }
+.search-box {
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    width: 560px; max-width: 90vw; overflow: hidden;
+}
+.search-input-wrap {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+}
+.search-input-wrap i { font-size: 20px; color: #9ca3af; }
+.search-input-wrap input {
+    flex: 1; border: none; outline: none;
+    font-size: 16px; background: transparent; height: auto; padding: 0;
+}
+.search-results { max-height: 360px; overflow-y: auto; }
+.search-result-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px; text-decoration: none; color: #1f2937;
+    font-size: 14px; border-bottom: 1px solid #f9fafb; transition: background .1s;
+}
+.search-result-item:hover { background: #f3f4f6; }
+.search-result-item i { font-size: 16px; color: #9ca3af; min-width: 20px; }
+.search-result-type { font-size: 11px; color: #9ca3af; margin-left: auto; white-space: nowrap; }
+.search-empty { padding: 24px; text-align: center; color: #9ca3af; font-size: 14px; }
+.search-hint  { padding: 10px 20px; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; }
+
+
+/* ── Responsividade Mobile ── */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 0px;
+        --sidebar-collapsed-width: 0px;
+    }
+    .sidebar {
+        width: 240px;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        z-index: 500;
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .topbar { left: 0 !important; }
+    .main {
+        width: 100% !important;
+        margin-left: 0 !important;
+        padding: 80px 16px 24px !important;
+    }
+    .sidebar-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,.4); z-index: 499;
+    }
+    .sidebar-overlay.visible { display: block; }
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+    .filters, .filters2 { grid-template-columns: 1fr !important; }
+    .topbar button span:not(.sr-only) { display: none; }
+}
+
 </style>
 </head>
 
@@ -3984,25 +4496,9 @@ select{
     <i class="bi bi-headset"></i><span>Pat's</span>
   </a>
 
-  <div class="sidebar-group <?= $page === 'envios' ? 'open' : '' ?>" id="enviosGroup">
-    <button class="sidebar-parent" type="button" id="enviosToggle">
-      <span class="sidebar-parent-left">
-        <i class="bi bi-truck"></i>
-        <span>Envios</span>
-      </span>
-        <i class="bi bi-chevron-down sidebar-arrow"></i>
-    </button>
-    <div class="sidebar-submenu">
-      <a class="submenu-link <?= ($page === 'envios' && $vista !== '1') ? 'active-link' : '' ?>"
-        href="app.php?page=envios">
-        <span>Novo Envio</span>
-      </a>
-      <a class="submenu-link <?= ($page === 'envios' && $vista === '1') ? 'active-link' : '' ?>"
-        href="app.php?page=envios&lista=1">
-        <span>Lista de Envios</span>
-      </a>
-    </div>
-  </div>
+  <a class="<?= active('envios', $page) ?>" href="app.php?page=envios">
+      <i class="bi bi-truck"></i><span>Envios</span>
+  </a>
 
   <a class="<?=active('alertas',$page)?>" href="app.php?page=alertas">
     <i class="bi bi-people"></i><span>Clientes</span>
@@ -4045,7 +4541,7 @@ select{
 </div>
 
   <a class="<?=active('nvi',$page)?>" href="app.php?page=nvi">
-    <i class="bi bi-robot"></i><span>N-Vi (Assistente)</span>
+    <i class="bi bi-robot"></i><span>N-Vi</span>
   </a>
 
   <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria']) ? 'open' : '' ?>">
@@ -4072,24 +4568,93 @@ select{
 </div>
 
 <div class="topbar">
-  <div class="topbar-title"><?= htmlspecialchars($topbarTitle) ?>
+    <div class="topbar-title"><?= htmlspecialchars($topbarTitle) ?></div>
+
+    <div class="search-bar-wrap" id="searchBarWrap">
+        <button type="button" onclick="toggleTopbarSearch()" id="searchBarBtn"
+                style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.12);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:14px;cursor:pointer;white-space:nowrap;"
+                title="Pesquisa global (Ctrl+K)">
+            <i class="bi bi-search"></i>
+            <span style="opacity:.8;">Pesquisar...</span>
+            <span style="font-size:11px;opacity:.6;margin-left:4px;">Ctrl+K</span>
+        </button>
+        <div class="topbar-search-panel" id="topbarSearchPanel">
+            <div class="topbar-search-input-wrap">
+                <i class="bi bi-search"></i>
+                <input type="text" id="globalSearchInput"
+                       placeholder="Pesquisar PATs, peças por SN, parceiros..."
+                       oninput="runSearch(this.value)" autocomplete="off">
+                <button onclick="closeTopbarSearch()" type="button"
+                        style="background:none;border:none;cursor:pointer;color:#9ca3af;padding:4px;font-size:16px;">✕</button>
+            </div>
+            <div class="search-results" id="searchResults">
+                <div class="search-empty">Começa a escrever para pesquisar</div>
+            </div>
+            <div class="search-hint">Ctrl+K abre · Esc fecha</div>
+        </div>
     </div>
-  <div class="user-box">
-    <span><?= htmlspecialchars($_SESSION['user_nome']) ?></span>
 
-    <?php if (!empty($_SESSION['user_fotografia'])): ?>
-      <img src="<?= htmlspecialchars($_SESSION['user_fotografia']) ?>" alt="Foto de perfil" class="user-avatar">
-    <?php else: ?>
-      <div class="user-avatar"></div>
-    <?php endif; ?>
+    <div class="topbar-right">
+        <div class="notif-wrap" id="notifWrap">
+            <button class="notif-btn" type="button" onclick="toggleNotif()" title="Notificações">
+                <i class="bi bi-bell"></i>
+                <?php if ($totalNotif > 0): ?>
+                    <span class="notif-badge"><?= $totalNotif ?></span>
+                <?php endif; ?>
+            </button>
+            <div class="notif-panel">
+                <div class="notif-panel-header">
+                    Notificações <?php if ($totalNotif > 0): ?>
+                        <span style="color:#6b7280;font-weight:400;">(<?= $totalNotif ?>)</span>
+                    <?php endif; ?>
+                </div>
+                <?php if (empty($notificacoes)): ?>
+                    <div class="notif-empty">Sem notificações</div>
+                <?php else: ?>
+                    <?php foreach ($notificacoes as $n): ?>
+                        <a class="notif-item" href="<?= $n['link'] ?>">
+                            <span class="notif-dot-<?= $n['tipo'] ?>">●</span>
+                            <span><?= $n['msg'] ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
 
-    <a href="logout.php" class="logout">Sair</a>
-  </div>
+        <button type="button" id="darkToggle" onclick="toggleDark()"
+            title="Modo escuro"
+            style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:6px 8px;border-radius:6px;transition:background .15s;"
+            onmouseenter="this.style.background='rgba(0,0,0,.15)'"
+            onmouseleave="this.style.background='none'">
+            <i class="bi bi-moon-fill" id="darkIcon"></i>
+        </button>
+
+        <div class="user-dropdown" id="userDropdown">
+        <button class="user-trigger" type="button" onclick="toggleUserMenu()">
+            <?php if (!empty($_SESSION['user_fotografia'])): ?>
+                <img src="<?= htmlspecialchars($_SESSION['user_fotografia']) ?>" alt="Foto" class="user-avatar">
+            <?php else: ?>
+                <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#555;">
+                    <?= strtoupper(mb_substr($_SESSION['user_nome'] ?? 'U', 0, 1)) ?>
+                </div>
+            <?php endif; ?>
+            <span><?= htmlspecialchars($_SESSION['user_nome']) ?></span>
+            <i class="bi bi-chevron-down" style="font-size:12px;opacity:.7;"></i>
+        </button>
+        <div class="user-dropdown-menu">
+            <div class="dd-header">
+                <strong><?= htmlspecialchars($_SESSION['user_nome']) ?></strong>
+                <?= htmlspecialchars($_SESSION['user_email'] ?? '') ?>
+            </div>
+            <a href="app.php?page=contas"><i class="bi bi-person"></i> O meu perfil</a>
+            <a href="logout.php" class="danger"><i class="bi bi-box-arrow-right"></i> Sair</a>
+        </div>
+    </div>
+    </div>
 </div>
 
 <div class="main">
 <?php if ($page === 'dashboard'): ?>
-
 
 <!-- Dashboard-Quadrados --> 
   <div class="kpi-row">
@@ -4211,7 +4776,76 @@ select{
   </div>
 </div>
 
-  <!-- Linha de baixo com os outros dois gráficos -->
+<div class="panel" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <h4 style="margin:0;">Atividade Recente — Inventário</h4>
+        <a href="app.php?page=auditoria" style="font-size:13px; color:#cba35c; text-decoration:none;">Ver tudo →</a>
+    </div>
+    <?php if (empty($actividadeRecente)): ?>
+        <div style="text-align:center; color:#9ca3af; padding:24px; font-size:14px;">
+            <i class="bi bi-clock-history" style="font-size:28px; display:block; margin-bottom:8px; opacity:.4;"></i>
+            Sem atividade registada.
+        </div>
+    <?php else: ?>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px;">
+        <?php foreach ($actividadeRecente as $a):
+            $icons = [
+                'criação'    => ['bi-plus-circle-fill', '#22c55e'],
+                'estado'     => ['bi-arrow-left-right', '#3b82f6'],
+                'parceiro'   => ['bi-building',          '#8b5cf6'],
+                'eliminação' => ['bi-trash3-fill',       '#ef4444'],
+                'produto'    => ['bi-tag',                '#f59e0b'],
+                'categoria'  => ['bi-folder',             '#0ea5e9'],
+                'sn'         => ['bi-upc-scan',           '#6366f1'],
+                'cod_barras' => ['bi-barcode',            '#64748b'],
+                'envio'      => ['bi-send',               '#06b6d4'],
+            ];
+            [$ico, $cor] = $icons[$a['campo']] ?? ['bi-pencil', '#6b7280'];
+            $nome = $a['produto'] ?: ('Peça #' . $a['peca_id']);
+            $diff = time() - strtotime($a['data_alteracao']);
+            $ago  = $diff < 60   ? 'agora mesmo'
+                  : ($diff < 3600  ? round($diff/60).'min atrás'
+                  : ($diff < 86400 ? round($diff/3600).'h atrás'
+                  : date('d/m/Y H:i', strtotime($a['data_alteracao']))));
+            $descricao = match($a['campo']) {
+                'criação'    => 'Adicionada ao inventário',
+                'eliminação' => 'Removida do inventário',
+                'estado'     => htmlspecialchars($a['antes']) . ' → ' . htmlspecialchars($a['depois']),
+                'parceiro'   => 'Parceiro: ' . htmlspecialchars($a['depois']),
+                'produto'    => 'Nome: ' . htmlspecialchars($a['depois']),
+                'categoria'  => 'Categoria: ' . htmlspecialchars($a['depois']),
+                'sn'         => 'SN: ' . htmlspecialchars($a['depois']),
+                'cod_barras' => 'Cód: ' . htmlspecialchars($a['depois']),
+                'envio'      => htmlspecialchars($a['depois']),
+                default      => ucfirst(htmlspecialchars($a['campo'])) . ': ' . htmlspecialchars($a['depois']),
+            };
+        ?>
+        <div style="display:flex; gap:10px; padding:12px 14px; background:#f9fafb; border:1px solid #f0f0f0; border-radius:10px; border-left:3px solid <?= $cor ?>;">
+            <div style="width:34px; height:34px; border-radius:50%; background:<?= $cor ?>1a; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="bi <?= $ico ?>" style="font-size:16px; color:<?= $cor ?>;"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:13px; font-weight:700; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <?= htmlspecialchars($nome) ?>
+                </div>
+                <?php if ($a['sn']): ?>
+                <div style="font-size:11px; color:#9ca3af; margin-top:1px; font-family:monospace;">
+                    SN: <?= htmlspecialchars($a['sn']) ?>
+                </div>
+                <?php endif; ?>
+                <div style="font-size:12px; color:#374151; margin-top:4px; font-weight:500;">
+                    <?= $descricao ?>
+                </div>
+                <div style="font-size:11px; color:#9ca3af; margin-top:4px;">
+                    <?= htmlspecialchars($a['utilizador']) ?> · <?= $ago ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
+
 <div class="panel-grid-2">
   <div class="panel">
     <h4>Tendência (6 meses)</h4>
@@ -4224,26 +4858,15 @@ select{
   </div>
 </div>
 
-<div class="panel-grid">
-  <div class="panel">
-    <h4>Estado das Peças</h4>
-    <canvas id="estadoBarChart"></canvas>
-  </div>
-
-  <div class="panel">
-    <h4>Peças por Parceiro</h4>
-    <canvas id="parceiroChart"></canvas>
-  </div>
-</div>
-
-
-
 
 
 <?php elseif ($page === 'inventario'): ?>
   <div style="margin-bottom:18px">
     <a class="btn btn-teal" href="app.php?page=nova_peca">Adicionar Peça</a>
     <a class="btn btn-green" href="app.php?page=qrs">Ler</a>
+    <a href="exportar_inventario_csv.php" class="btn btn-green" style="padding:12px 16px;">
+        <i class="bi bi-download"></i> Exportar CSV
+    </a>
   </div>
 
   <?php if (!empty($_SESSION['mensagem_erro'])) {
@@ -4494,27 +5117,27 @@ select{
 
 <?php elseif ($page === 'envios'): ?>
 
-<?php if ($vista !== '1'): ?>
-  <!-- ── Vista: Novo Envio ── -->
-    <div class="panel" style="margin-bottom:20px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-            <h4 style="margin:0;">Leitura de Guia de Transporte</h4>
-    </div>
-   <form method="post" enctype="multipart/form-data" autocomplete="off" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-       <input type="hidden" name="form_type" value="importar_guia_envio">
-       <div style="flex:1; min-width:240px;">
-           <label style="margin-bottom:5px; display:block;">Ficheiro PDF da Guia</label>
-           <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required style="width:100%;">
-       </div>
-       <button type="submit" class="btn btn-blue">Ler Guia</button>
-     </form>
-    </div>
+<!-- == Linha Superior: Leitura Guia (Esquerda) + Formulario (Direita) == -->
+<div style="display="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
+   <div class="panel" style="height:100%;">
+      <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Leitura de Guia de Transporte</h4>
+      <form method="post" enctype="multipart/form-data" autocomplete="off">
+          <input type="hidden" name="form_type" value="importar_guia_envio">
+          <div style="margin-bottom:14px;">
+              <label style="margin-bottom:5px; display:block;">PDF da Guia</label>
+              <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required style="width:100%;">
+          </div>
+          <button type="submit" class="btn btn-blue" style="width:100%;">Ler Guia</button>
+      </form>
+</div>
 
-    <div class="panel">
+    <!-- PAINEL DIREITO: Formulário / Rascunho -->
+    <div class="panel" style="height:100%;">
         <h4 style="margin-bottom:16px;">
+            <i class="bi bi-send" style="margin-right:6px; color:#c9a14a;"></i>
             <?= $envioAtual ? 'Rascunho / Validação do Envio' : 'Novo Envio' ?>
             <?php if ($envioAtual): ?>
-            <span style="font-size:12px; font-weight:500; color:#6b7280; margin-left:10px;">
+                <span style="font-size:12px; font-weight:500; color:#6b7280; margin-left:10px;">
                 Estado: <strong style="color:<?= ($envioAtual['estado'] === 'Rascunho') ? '#b45309' : '#16a34a' ?>">
                     <?= htmlspecialchars($envioAtual['estado']) ?>
                 </strong>
@@ -4523,128 +5146,104 @@ select{
         </h4>
 
         <?php if ($envioAtual): ?>
-        <?php
-        $isCliente = (($envioAtual['documento'] ?? '') === 'G. Transp Cliente');
-        $isFornecedor = (($envioAtual['documento'] ?? '') === 'G. Transp Fornec');
-        ?>
+            <?php
+            $isCliente   = (($envioAtual['documento'] ?? '') === 'G. Transp Cliente');
+            $isFornecedor = (($envioAtual['documento'] ?? '') === 'G. Transp Fornec');
+            ?>
 
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:18px; font-size:13px; color:#15803d;">
-            Guia lida com sucesso. Necessário rever os dados!
-        </div>
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:18px; font-size:13px; color:#15803d;">
+                Guia lida com sucesso. Necessário rever os dados!
+            </div>
 
-        <form method="post" autocomplete="off">
-            <input type="hidden" name="form_type" value="guardar_rascunho_envio">
-            <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="form_type" value="guardar_rascunho_envio">
+                <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
 
-            <div class="form-grid">
-                <div>
-                    <label>Documento</label>
-                    <select name="documento" id="documento_envio" required>
-                        <option value="">-- Selecione --</option>
-                        <option value="G. Transp Fornec" <?= $isFornecedor ? 'selected' : '' ?>>G. Transp Fornec</option>
-                        <option value="G.Transp Cliente" <?= $isCliente ? 'selected' : '' ?>>G. Transp Cliente</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Nº Documento</label>
-                    <label>
-                        <input type="text" name="data_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
-                    </label>
-                </div>
-                <div>
-                    <label>Data</label>
-                    <label>
+                <div class="form-grid">
+                    <div>
+                        <label>Documento</label>
+                        <select name="documento" id="documento_envio" required>
+                            <option value="">-- Selecione --</option>
+                            <option value="G. Transp Fornec" <?= $isFornecedor ? 'selected' : '' ?>>G. Transp Fornec</option>
+                            <option value="G.Transp Cliente" <?= $isCliente ? 'selected' : '' ?>>G. Transp Cliente</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Nº Documento</label>
+                        <input type="text" name="num_documento" value="<?= htmlspecialchars($envioAtual['num_documento'] ?? '') ?>" required>
+                    </div>
+                    <div>
+                        <label>Data</label>
                         <input type="date" name="data_documento" value="<?= htmlspecialchars($envioAtual['data_documento'] ?? '') ?>" required>
-                    </label>
-                </div>
-                <div>
-                    <label>Parceiro</label>
-                    <?php if ($isCliente): ?>
-                        <label>
+                    </div>
+                    <div>
+                        <label>Parceiro</label>
+                        <?php if ($isCliente): ?>
                             <select name="parceiro" required>
                                 <option value="Field Service" selected>Field Service</option>
                             </select>
-                        </label>
-                        <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
-                    <?php else: ?>
-                        <label>
+                            <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
+                        <?php else: ?>
                             <select name="parceiro" required>
                                 <option value="">-- Selecione --</option>
                                 <?php foreach ($parceirosInventario as $p): ?>
-                                <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($p) ?>
-                                </option>
+                                    <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($p) ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
-                        </label>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <h4 style="margin:22px 0 12px;">Linhas do Envio</h4>
+                <div id="linhasEnvioWrap">
+                    <?php if (empty($envioLinhas)): ?>
+                        <div class="linha-envio-grid">
+                            <label><select name="linha_categoria[]" class="linha-categoria" required>
+                                    <option value="">-- Tipo --</option>
+                                    <?php foreach ($categoriasInventarioReal as $cat): ?>
+                                        <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                                    <?php endforeach; ?>
+                                </select></label>
+                            <label><select name="linha_produto[]" class="linha-produto" data-selected="" required>
+                                    <option value="">-- Nome da Peça --</option>
+                                </select></label>
+                            <label><input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required></label>
+                            <label><input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série"></label>
+                            <div class="sn-avisos"></div>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($envioLinhas as $i => $linha): ?>
+                            <div class="linha-envio-grid" data-linha-index="<?= (int)$i ?>">
+                                <label><select name="linha_categoria[]" class="linha-categoria" required>
+                                        <option value="">-- Tipo --</option>
+                                        <?php foreach ($categoriasInventarioReal as $cat): ?>
+                                            <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($cat) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select></label>
+                                <label><select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
+                                        <option value="">-- Nome da Peça --</option>
+                                    </select></label>
+                                <label><input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['quantidade'] ?? 1) ?>" required></label>
+                                <label><input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série"></label>
+                                <div class="sn-avisos">
+                                    <?php if (!empty($linha['observacoes'])): ?>
+                                        <div class="small-note" style="color:#b26a00;"><?= htmlspecialchars($linha['observacoes']) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-            </div>
 
-            <h4 style="margin:22px 0 12px;">Linhas do Envio</h4>
-            <div id="linhasEnvioWrap">
-                <?php if (empty($envioLinhas)): ?>
-                <div class="linha-envio-grid">
-                    <label>
-                        <select name="linha_categoria[]" class="linha-categoria" required>
-                            <option value="">-- Tipo --</option>
-                            <?php foreach ($categoriasInventarioReal as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <label>
-                        <select name="linha_produto[]" class="linha-produto" data-selected="" required>
-                            <option value="">-- Nome da Peça --</option>
-                        </select>
-                    </label>
-                    <label>
-                        <input type="number" step="1" min="1" name="linha_quantidade[]" value="1" required>
-                    </label>
-                    <label>
-                        <input type="text" name="linha_num_serie[]" class="linha-num-serie" placeholder="Nº Série">
-                    </label>
-                    <div class="sn-avisos"></div>
+                <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    <button type="button" class="btn btn-grey" id="adicionarLinhaEnvio">+ Linha</button>
+                    <button type="submit" class="btn btn-blue">Guardar Rascunho</button>
                 </div>
-                <?php else: ?>
-                  <?php foreach ($envioLinhas as $i => $linha): ?>
-                    <div class="linha-envio-grid" data-linha-index="<?= (int)$i ?>">
-                        <label>
-                            <select name="linha_categoria[]" class="linha-categoria" required>
-                                <option value="">-- Tipo --</option>
-                                <?php foreach ($categoriasInventarioReal as $cat): ?>
-                                <option value="<?= htmlspecialchars($cat) ?>" <?= (($linha['artigo'] ?? '') === $cat) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($cat) ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </label>
-                        <label>
-                            <select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
-                                <option value="">-- Nome da Peça --</option>
-                            </select>
-                        </label>
-                        <label>
-                            <input type="number" step="1" min="1" name="linha_quantidade[]" value="<?= htmlspecialchars($linha['designacao'] ?? '') ?>" required>
-                        </label>
-                        <label>
-                            <input type="text" name="linha_num_serie[]" class="linha-num-serie" value="<?= htmlspecialchars($linha['num_serie'] ?? '') ?>" placeholder="Nº Série">
-                        </label>
-                        <div class="sn-avisos">
-                            <?php if (!empty($linha['observacoes'])): ?>
-                            <div class="small-note" style="color:#b26a00;"><?= htmlspecialchars($linha['observacoes']) ?></div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-
-            <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                <button type="button" class="btn btn-grey" id="adicionarLinhaEnvio">+ Linha</button>
-                <button type="submit" class="btn btn-blue">Guardar Rascunho</button>
-            </div>
-        </form>
+            </form>
 
             <div style="margin-top:14px; padding-top:14px; border-top:1px solid #e5e7eb; display:flex; gap:10px; flex-wrap:wrap;">
                 <form method="post" style="margin:0;">
@@ -4652,148 +5251,174 @@ select{
                     <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
                     <button type="submit" class="btn btn-green">✓ Confirmar e Guardar Envio</button>
                 </form>
-
-            <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
-                <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
-                    <input type="hidden" name="form_type" value="apagar_envio">
-                    <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
-                    <button type="submit" class="btn btn-red">Apagar Guia</button>
-                </form>
-            <?php endif; ?>
+                <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
+                    <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
+                        <input type="hidden" name="form_type" value="apagar_envio">
+                        <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
+                        <button type="submit" class="btn btn-red">Apagar Guia</button>
+                    </form>
+                <?php endif; ?>
             </div>
 
         <?php else: ?>
-         <div style="text-align:center; padding:40px 20px; color:#6b7280;">
-             <div style="font-size:40px; margin-bottom:12px;">📄</div>
-             <p style="font-size:15px; font-weight:500; margin-bottom:6px;">Nenhum rascunho aberto</p>
-             <p style="font-size:13px;">Faz a leitura de uma Guia para começar.</p>
-         </div>
+            <div style="text-align:center; padding:40px 20px; color:#6b7280;">
+                <div style="font-size:40px; margin-bottom:12px;">📄</div>
+                <p style="font-size:15px; font-weight:500; margin-bottom:6px;">Nenhum rascunho aberto</p>
+                <p style="font-size:13px;">Faz a leitura de uma Guia para começar.</p>
+            </div>
         <?php endif; ?>
     </div>
 
-    <?php else: ?>
-    <!-- ════════════════════════════════════════════════
-         VISTA: LISTA DE ENVIOS
-    ════════════════════════════════════════════════ -->
+</div><!-- fim grid superior -->
 
-    <div class="panel">
-        <h4 style="margin-bottom:18px;">Lista de Envios</h4>
-        <div style="overflow-x:auto;">
-            <table class="table envios-table">
-                <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Documento</th>
-                    <th>Nº Documento</th>
-                    <th>Data</th>
-                    <th>Parceiro</th>
-                    <th>Estado</th>
-                    <th>Criado Por</th>
-                    <th>Ações</th>
-                </tr>
-                </thead>
-                <tbody>
-                  <?php if (empty($envios)): ?>
-                    <tr><td colspan="8" class="envios-vazio">Nenhum envio registado.</td></tr>
-                  <?php else: ?>
-                    <?php foreach ($envios as $e): ?>
-                     <tr>
-                       <td><?= (int)$e['id'] ?></td>
-                       <td><?= htmlspecialchars($e['documento']) ?></td>
-                       <td><?= htmlspecialchars($e['num_documento']) ?></td>
-                       <td><?= htmlspecialchars($e['data_documento'] ? date('d/m/Y', strtotime($e['data_documento'])) : '—') ?></td>
-                       <td><?= htmlspecialchars($e['parceiro']) ?></td>
-                       <td>
-                           <span style="
-                             display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600;
-                             background:<?= $e['estado']==='Rascunho' ? '#fef3c7' : ($e['estado']==='Ativa' ? '#dcfce7' : ($e['estado']==='Concluida' ? '#dbeafe' : '#f3f4f6')) ?>;
-                             color:<?= $e['estado']==='Rascunho' ? '#92400e' : ($e['estado']==='Ativa' ? '#15803d' : ($e['estado']==='Concluida' ? '#1d4ed8' : '#374151')) ?>;">
-                             <?= htmlspecialchars($e['estado']) ?>
-                           </span>
-                       </td>
-                       <td><?= htmlspecialchars($e['criado_por']) ?></td>
-                       <td>
-                           <?php if (($e['estado'] ?? '') === 'Rascunho'): ?>
-                            <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int)$e['id'] ?>">Abrir Rascunho</a>
-                           <?php else: ?>
-                            <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int)$e['id'] ?>">Ver</a>
-                           <?php endif; ?>
-                       </td>
-                     </tr>
+
+<!-- ══ LINHA INFERIOR: Lista de Envios (largura total) ══ -->
+<div class="panel">
+    <h4 style="margin-bottom:18px;"><i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i>Lista de Envios</h4>
+    <div style="overflow-x:auto;">
+        <table class="table envios-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Documento</th>
+                <th>Nº Documento</th>
+                <th>Data</th>
+                <th>Parceiro</th>
+                <th>Estado</th>
+                <th>Criado Por</th>
+                <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if (empty($envios)): ?>
+                <tr><td colspan="8" class="envios-vazio">Nenhum envio registado.</td></tr>
+            <?php else: ?>
+                <?php foreach ($envios as $e): ?>
+                    <tr>
+                        <td><?= (int)$e['id'] ?></td>
+                        <td><?= htmlspecialchars($e['documento']) ?></td>
+                        <td><?= htmlspecialchars($e['num_documento']) ?></td>
+                        <td><?= htmlspecialchars($e['data_documento'] ? date('d/m/Y', strtotime($e['data_documento'])) : '—') ?></td>
+                        <td><?= htmlspecialchars($e['parceiro']) ?></td>
+                        <td>
+                       <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600;
+                               background:<?= $e['estado']==='Rascunho' ? '#fef3c7' : ($e['estado']==='Ativa' ? '#dcfce7' : ($e['estado']==='Concluida' ? '#dbeafe' : '#f3f4f6')) ?>;
+                               color:<?= $e['estado']==='Rascunho' ? '#92400e' : ($e['estado']==='Ativa' ? '#15803d' : ($e['estado']==='Concluida' ? '#1d4ed8' : '#374151')) ?>;">
+                         <?= htmlspecialchars($e['estado']) ?>
+                       </span>
+                        </td>
+                        <td><?= htmlspecialchars($e['criado_por']) ?></td>
+                        <td>
+                            <?php if (($e['estado'] ?? '') === 'Rascunho'): ?>
+                                <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int)$e['id'] ?>">Abrir Rascunho</a>
+                            <?php else: ?>
+                                <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int)$e['id'] ?>">Ver</a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                 <?php endforeach; ?>
-             <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+            <?php endif; ?>
+            </tbody>
+        </table>
     </div>
-  <?php endif; ?>
-
+</div>
 
 
 <?php elseif ($page === 'qrs'): ?>
 
-  <div class="panel" style="max-width: 1000px;">
-    <h4 style="margin-bottom:18px;">Leitor de QR / Código de Barras</h4>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
 
-    <div class="form-grid" style="align-items:start;">
-      <div>
-        <label>Leitura automática</label>
-        <div id="reader" style="width:100%; max-width:420px; border:1px solid #d6dbe1; border-radius:10px; overflow:hidden; background:#fff;"></div>
-        <div class="small-note">Permite acesso à câmara e aponta para o código.</div>
-      </div>
+        <!-- PAINEL ESQUERDO: Câmara -->
+        <div class="panel">
+            <h4 style="margin-bottom:4px;"><i class="bi bi-camera" style="color:#c9a14a; margin-right:6px;"></i>Leitura Automática</h4>
+            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">Permite o acesso à câmara e aponta para o código.</p>
+            <div id="reader" style="width:100%; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1;"></div>
+        </div>
 
-      <div>
-        <form method="get" class="panel" style="padding:0; box-shadow:none; background:transparent;">
-          <input type="hidden" name="page" value="qrs">
+        <!-- PAINEL DIREITO: Pesquisa manual + Resultado -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
 
-          <div style="margin-bottom:14px;">
-            <label for="qr_code">Valor lido</label>
-            <input type="text" name="qr_code" id="qr_code" value="<?= htmlspecialchars($qrTermo) ?>" placeholder="SN ou Código de Barras">
-          </div>
+            <!-- Caixa de pesquisa -->
+            <div class="panel">
+                <h4 style="margin-bottom:14px;"><i class="bi bi-search" style="color:#c9a14a; margin-right:6px;"></i>Pesquisa Manual</h4>
+                <form method="get">
+                    <input type="hidden" name="page" value="qrs">
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" name="qr_code" id="qr_code"
+                               value="<?= htmlspecialchars($qrTermo) ?>"
+                               placeholder="SN ou Código de Barras"
+                               style="flex:1;">
+                        <button type="submit" class="btn btn-blue">Procurar</button>
+                        <?php if ($qrTermo !== ''): ?>
+                            <a href="app.php?page=qrs" class="btn btn-grey">✕</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
 
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="submit" class="btn btn-blue">Procurar</button>
-            <a href="app.php?page=qrs" class="btn btn-grey">Limpar</a>
-          </div>
-        </form>
+            <!-- Resultado -->
+            <?php if ($qrTermo !== ''): ?>
+                <div class="panel">
+                    <?php if ($qrResultado): ?>
+                        <!-- ✅ Peça encontrada -->
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid #e5e7eb;">
+                            <div style="width:44px; height:44px; background:#dcfce7; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">✅</div>
+                            <div>
+                                <div style="font-weight:700; font-size:16px;"><?= htmlspecialchars($qrResultado['produto']) ?></div>
+                                <div style="font-size:12px; color:#6b7280; font-family:monospace;"><?= htmlspecialchars($qrResultado['sn']) ?></div>
+                            </div>
+                        </div>
 
-        <?php if ($qrTermo !== ''): ?>
-          <div class="panel" style="margin-top:18px;">
-            <h4 style="margin-bottom:14px;">Resultado</h4>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
+                            <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">ID</div>
+                                <div style="font-weight:600;">#<?= (int)$qrResultado['id'] ?></div>
+                            </div>
+                            <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Categoria</div>
+                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['categoria']) ?></div>
+                            </div>
+                            <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Parceiro</div>
+                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['parceiro'] ?: '—') ?></div>
+                            </div>
+                            <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
+                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Estado</div>
+                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['estado']) ?></div>
+                            </div>
+                            <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px; grid-column:1/-1;">
+                                <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Código de Barras</div>
+                                <div style="font-weight:600; font-family:monospace;"><?= htmlspecialchars($qrResultado['cod_barras'] ?: '—') ?></div>
+                            </div>
+                        </div>
 
-            <?php if ($qrResultado): ?>
-              <table class="table">
-                <tr><th>ID</th><td><?= (int)$qrResultado['id'] ?></td></tr>
-                <tr><th>Categoria</th><td><?= htmlspecialchars($qrResultado['categoria']) ?></td></tr>
-                <tr><th>Produto</th><td><?= htmlspecialchars($qrResultado['produto']) ?></td></tr>
-                <tr><th>SN</th><td><?= htmlspecialchars($qrResultado['sn']) ?></td></tr>
-                <tr><th>Código de Barras</th><td><?= htmlspecialchars($qrResultado['cod_barras']) ?></td></tr>
-                <tr><th>Parceiro</th><td><?= htmlspecialchars($qrResultado['parceiro']) ?></td></tr>
-                <tr><th>Estado</th><td><?= htmlspecialchars($qrResultado['estado']) ?></td></tr>
-              </table>
+                        <div style="display:flex; gap:10px;">
+                            <a class="btn btn-yellow" style="flex:1; text-align:center;" href="app.php?page=nova_peca&edit=<?= (int)$qrResultado['id'] ?>">
+                                <i class="bi bi-pencil"></i> Editar
+                            </a>
+                            <a class="btn btn-grey" style="flex:1; text-align:center;" href="app.php?page=historico&id=<?= (int)$qrResultado['id'] ?>">
+                                <i class="bi bi-clock-history"></i> Histórico
+                            </a>
+                        </div>
 
-              <div style="margin-top:16px;">
-                <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?= (int)$qrResultado['id'] ?>">Editar</a>
-                <a class="btn btn-grey" href="app.php?page=historico&id=<?= (int)$qrResultado['id'] ?>">Histórico</a>
-              </div>
-
-            <?php else: ?>
-              <div class="alerta-erro" style="margin-bottom:14px;">
-                Não foi encontrada nenhuma peça com esse SN ou Código de Barras.
-              </div>
-
-              <a 
-                class="btn btn-teal" 
-                href="app.php?page=nova_peca&sn=<?= urlencode($qrTermo) ?>&cod_barras=<?= urlencode($qrTermo) ?>"
-                >
-                 Criar nova peça com este SN
-              </a>
+                    <?php else: ?>
+                        <!-- ❌ Não encontrado -->
+                        <div style="text-align:center; padding:24px 16px;">
+                            <div style="font-size:40px; margin-bottom:12px;">🔍</div>
+                            <p style="font-weight:600; margin-bottom:4px;">Nenhuma peça encontrada</p>
+                            <p style="font-size:13px; color:#6b7280; margin-bottom:18px;">
+                                Não existe nenhuma peça com o SN/código <strong><?= htmlspecialchars($qrTermo) ?></strong>.
+                            </p>
+                            <a class="btn btn-teal" href="app.php?page=nova_peca&sn=<?= urlencode($qrTermo) ?>&cod_barras=<?= urlencode($qrTermo) ?>">
+                                <i class="bi bi-plus-circle"></i> Criar nova peça com este SN
+                            </a>
+                        </div>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
-          </div>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
+
+        </div><!-- fim coluna direita -->
+    </div><!-- fim grid -->
 
 
   <?php elseif ($page === 'contas'): ?>
@@ -5247,6 +5872,13 @@ $kpiPatsConcluidos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='C
 $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade='Urgente' AND estado NOT IN ('Concluído','Cancelado')");
 ?>
 
+<?php if (!empty($_SESSION['mensagem_erro'])): ?>
+  <div class="alerta-erro" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+  <?php unset($_SESSION['mensagem_erro']); endif; ?>
+<?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+  <div class="alerta-sucesso" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
 <?php if ($patVerId > 0 && $patDetalhe): ?>
     ════════════════════════════════════════════
     VISTA: DETALHE / EDIÇÃO DO PAT
@@ -5336,10 +5968,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 value="<?= $patDetalhe['data_limite'] ? date('Y-m-d\TH:i', strtotime($patDetalhe['data_limite'])) : '' ?>">
           </label>
       </div>
-      <div style="display:flex; gap:20px; align-items:center; padding-top:22px;">
+      <div style="display:flex; gap:28px; align-items:center; flex-wrap:wrap; padding-top:22px;">
         <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
           <input type="checkbox" name="garantia" value="1" <?= $patDetalhe['garantia'] ? 'checked' : '' ?>>
            Ao Abrigo da Garantia
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;">
+          <input type="checkbox" name="contrato_manutencao" value="1" <?= $patDetalhe['contrato_manutencao'] ? 'checked' : '' ?>>
+           Ao Abrigo do Contrato de Manutenção
         </label>
       </div>
       <div style="grid-column:1/-1;">
@@ -5380,47 +6016,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
               </select>
           </label>
       </div>
-      <div style="grid-column:1/-1;">
-        <label>Comentários / Instruções</label>
-          <label>
-              <textarea name="comentarios" rows="3" style="width:100%; resize:vertical;"><?= htmlspecialchars($patDetalhe['comentarios']) ?></textarea>
-          </label>
-      </div>
   </div>
-  </div>
-
-  <!-- Módulos para Assistência -->
-  <div class="panel" style="margin-bottom:18px;">
-    <h4 style="margin-bottom:14px;">Módulos para Assistência</h4>
-    <table class="table" id="tabelaModulos" style="margin-bottom:10px;">
-      <thead>
-        <tr>
-          <th>Solução / Equipamento</th>
-          <th>Modelo</th>
-          <th>Nº de Série</th>
-          <th style="width:48px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php
-        $modulosParaRender = !empty($patModulos) ? $patModulos : [['solucao_equipamento'=>'','modelo'=>'','num_serie'=>'']];
-        foreach ($modulosParaRender as $mod): ?>
-          <tr>
-              <td><label>
-                      <input type="text" name="mod_solucao[]" value="<?= htmlspecialchars($mod['solucao_equipamento']) ?>" style="width:100%;">
-                  </label></td>
-              <td><label>
-                      <input type="text" name="mod_modelo[]"  value="<?= htmlspecialchars($mod['modelo']) ?>" style="width:100%;">
-                  </label></td>
-              <td><label>
-                      <input type="text" name="mod_serie[]"   value="<?= htmlspecialchars($mod['num_serie']) ?>" style="width:100%;">
-                  </label></td>
-              <td><button type="button" class="btn btn-red btn-remover-linha" style="padding:4px 10px;">✕</button></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-    <button type="button" class="btn btn-grey btn-add-modulo">+ Linha</button>
   </div>
 
   <!-- Intervenção -->
@@ -5505,13 +6101,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
   <!-- Ações -->
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
         <button type="submit" class="btn btn-blue">💾 Guardar Alterações</button>
+    </div>
+</form>
+
         <form method="post" style="margin:0;" onsubmit="return confirm('Apagar este PAT permanentemente?');">
             <input type="hidden" name="form_type" value="apagar_pat">
             <input type="hidden" name="pat_id"    value="<?= (int)$patDetalhe['id'] ?>">
             <button type="submit" class="btn btn-red">Apagar PAT</button>
         </form>
-    </div>
-</form>
 
     <?php elseif ($patAcao === 'novo'): ?>
     <!-- ════════════════════════════════════════════
@@ -5777,6 +6374,9 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
             <h4 style="margin:0;">Lista de PATs</h4>
             <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
+            <a href="exportar_pats_csv.php" class="btn btn-green" style="padding:8px 14px; font-size:13px;">
+                <i class="bi bi-download"></i> Exportar CSV
+            </a>
         </div>
 
         <div style="overflow-x:auto;">
@@ -5825,9 +6425,18 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                   <?= htmlspecialchars($pat['estado']) ?>
                 </span>
                     </td>
-                    <td style="white-space:nowrap;">
-                        <a href="app.php?page=pats&ver=<?= (int)$pat['id'] ?>" class="btn btn-grey" style="padding:4px 12px; font-size:12px;">Editar</a>
-                        <a href="workorder.php?id=<?= (int)$pat['id'] ?>" target="_blank" class="btn btn-blue" style="padding:4px 12px; font-size:12px;">📄 Folha</a>
+                    <td>
+                      <div class="acao-wrap">
+                        <button class="acao-btn" type="button" onclick="toggleAcao(this)">⋮</button>
+                        <div class="acao-menu">
+                          <a href="app.php?page=pats&ver=<?= (int)$pat['id'] ?>">
+                            <i class="bi bi-pencil-square"></i> Editar
+                          </a>
+                          <a href="workorder.php?id=<?= (int)$pat['id'] ?>" target="_blank">
+                             <i class="bi bi-file-earmark-text"></i> Folha de Obra
+                          </a>
+                        </div>
+                      </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -6351,63 +6960,48 @@ if (document.getElementById('categoriaChart')) {
     }
   });
 }
-
-if (document.getElementById('estadoBarChart')) {
-  new Chart(document.getElementById('estadoBarChart'), {
-    type: 'bar',
-    data: {
-      labels: estadoLabels,
-      datasets: [{
-        label: 'Peças',
-        data: estadoTotals,
-        backgroundColor: '#cba35c'
-      }]
-    },
-    options: {
-      plugins: {
-        legend: {
-          display: false
-        }
-      }
-    }
-  });
-}
-
-if (document.getElementById('parceiroChart')) {
-  new Chart(document.getElementById('parceiroChart'), {
-    type: 'bar',
-    data: {
-      labels: parceiroLabels,
-      datasets: [{
-        label: 'Peças',
-        data: parceiroTotals,
-        backgroundColor: '#2ca59a'
-      }]
-    },
-    options: {
-      plugins: {
-        legend: {
-          display: false
-        }
-      }
-    }
-  });
-}
 </script>
 
 <script>
-const sidebar = document.getElementById('sidebar');
-const toggleSidebar = document.getElementById('toggleSidebar');
-const topbar = document.querySelector('.topbar');
-const main = document.querySelector('.main');
+    function closeMobileSidebar() {
+        const sb = document.getElementById('sidebar');
+        const ov = document.getElementById('sidebarOverlay');
+        if (sb) sb.classList.remove('mobile-open');
+        if (ov) ov.classList.remove('visible');
+    }
 
-if (sidebar && toggleSidebar && topbar && main){
-  toggleSidebar.addEventListener('click', function (){
-    sidebar.classList.toggle('collapsed');
-    topbar.classList.toggle('collapsed');
-    main.classList.toggle('collapsed');
-  });
-}
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar       = document.getElementById('sidebar');
+        const toggleSidebar = document.getElementById('toggleSidebar');
+        const topbar        = document.querySelector('.topbar');
+        const main          = document.querySelector('.main');
+
+        // Restaurar estado guardado
+        if (sidebar && topbar && main && localStorage.getItem('sv_sidebar') === 'collapsed') {
+            sidebar.classList.add('collapsed');
+            topbar.classList.add('collapsed');
+            main.classList.add('collapsed');
+        }
+
+        if (sidebar && toggleSidebar && topbar && main) {
+            toggleSidebar.addEventListener('click', function() {
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    sidebar.classList.toggle('mobile-open');
+                    const ov = document.getElementById('sidebarOverlay');
+                    if (ov) ov.classList.toggle('visible');
+                } else {
+                    sidebar.classList.toggle('collapsed');
+                    topbar.classList.toggle('collapsed');
+                    main.classList.toggle('collapsed');
+                    // Guardar estado
+                    localStorage.setItem('sv_sidebar',
+                        sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded'
+                    );
+                }
+            });
+        }
+    });
 </script>
 
 <script>
@@ -7007,7 +7601,121 @@ document.addEventListener('DOMContentLoaded', function () {
             btnComp.addEventListener('click', function () { clonarUltimaLinha(tabelaComp); });
         }
     });
+
+    function toggleAcao(btn) {
+        const wrap = btn.closest('.acao-wrap');
+        const isOpen = wrap.classList.contains('open');
+        // Fechar todos os outros Menus
+        document.querySelectorAll('.acao-wrap.open').forEach(w => w.classList.remove('open'));
+        if (!isOpen) wrap.classList.add('open');
+    }
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('acao-wrap')) {
+            document.querySelectorAll('.acao-wrap.open').forEach(w => w.classList.remove('open'));
+        }
+    });
 </script>
+
+<script>
+    // Dropdown Utilizador
+    function toggleUserMenu() {
+        document.getElementById('userDropdown').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+        const dd = document.getElementById('userDropdown');
+        if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+    })
+</script>
+
+<script>
+//Modo Escuro
+function toggleDark() {
+    const isDark = document.body.classList.toggle('dark-mode');
+    localStorage.setItem('sv_dark', isDark ? '1' : '0');
+    document.getElementById('darkIcon').className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+}
+(function() {
+    if (localStorage.getItem('sv_dark') === '1') {
+        document.body.classList.add('dark-mode');
+        const icon = document.getElementById('darkIcon');
+        if (icon) icon.className = 'bi bi-sun-fill';
+    }
+})();
+</script>
+
+<script>
+    function toggleNotif() {
+        const wrap = document.getElementById('notifWrap');
+        const isOpen = wrap.classList.contains('open');
+        document.querySelectorAll('.notif-wrap.open, .user-dropdown.open').forEach(el => el.classList.remove('open'));
+        if (!isOpen) wrap.classList.add('open');
+    }
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#notifWrap')) {
+            const w = document.getElementById('notifWrap');
+            if (w) w.classList.remove('open');
+        }
+    });
+</script>
+
+<script>
+    function toggleTopbarSearch() {
+        const panel = document.getElementById('topbarSearchPanel');
+        const input = document.getElementById('globalSearchInput');
+        const isOpen = panel.classList.contains('open');
+        if (isOpen) {
+            closeTopbarSearch();
+        } else {
+            panel.classList.add('open');
+            setTimeout(() => input && input.focus(), 50);
+        }
+    }
+    function closeTopbarSearch() {
+        const panel = document.getElementById('topbarSearchPanel');
+        const input = document.getElementById('globalSearchInput');
+        if (panel) panel.classList.remove('open');
+        if (input) input.value = '';
+        const el = document.getElementById('searchResults');
+        if (el) el.innerHTML = '<div class="search-empty">Começa a escrever para pesquisar</div>';
+    }
+    let searchTimer;
+    function runSearch(q) {
+        clearTimeout(searchTimer);
+        if (q.length < 2) {
+            document.getElementById('searchResults').innerHTML = '<div class="search-empty">Começa a escrever para pesquisar</div>';
+            return;
+        }
+        searchTimer = setTimeout(async () => {
+            const res  = await fetch('search_api.php?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            const el   = document.getElementById('searchResults');
+            if (!data.length) {
+                el.innerHTML = '<div class="search-empty">Sem resultados para "' + q + '"</div>';
+                return;
+            }
+            el.innerHTML = data.map(r =>
+                `<a class="search-result-item" href="${r.url}">
+                <i class="bi ${r.icon}"></i>
+                <span>${r.label}</span>
+                <span class="search-result-type">${r.type}</span>
+            </a>`
+            ).join('');
+        }, 200);
+    }
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); toggleTopbarSearch(); }
+        if (e.key === 'Escape') closeTopbarSearch();
+    });
+    document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('searchBarWrap');
+        const panel = document.getElementById('topbarSearchPanel');
+        if (panel && panel.classList.contains('open') && wrap && !wrap.contains(e.target)) {
+            closeTopbarSearch();
+        }
+    });
+</script>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
 
 </body>
 </html>

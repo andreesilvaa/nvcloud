@@ -1,0 +1,7 @@
+config.php
+uploads/
+vendor/
+.env
+*.log
+saida.txt
+report*.csv
