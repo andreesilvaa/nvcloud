@@ -565,15 +565,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
             }
         }
 
-    } else {
-        $stmt = $pdo->prepare("INSERT INTO pecas (categoria, produto, sn, cod_barras, parceiro, estado, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->execute([
-            $categoria,
-            $produto,
-            $sn,
-            $cod_barras,
-            $parceiro,
-            $estado
+ } else {
+ $stmt = $pdo->prepare("INSERT INTO pecas (categoria, produto, sn, cod_barras, parceiro, estado, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+ $stmt->execute([
+       $categoria,
+       $produto,
+       $sn,
+       $cod_barras,
+       $parceiro,
+       $estado
         ]);
 
         $novoId = (int)$pdo->lastInsertId();
@@ -836,17 +836,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
         $textoExtraido = extrairTextoPdfNova($caminhoPdf);
         $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario, $catalogoProdutos);
 
-        // Deteção de duplicados: se já existe rascunho com o mesmo Nº Documento, redireciona para ele
-        if (($dados['num_documento'] ?? '') !== '') {
-            $stmtDup = $pdo->prepare("SELECT id FROM envios WHERE num_documento = ? AND estado = 'Rascunho' LIMIT 1");
-            $stmtDup->execute([$dados['num_documento']]);
-            $dupRow = $stmtDup->fetch();
-            if ($dupRow) {
-                $_SESSION['mensagem_sucesso'] = 'Esta guia (N\u00ba ' . $dados['num_documento'] . ') j\u00e1 foi importada. A redirecionar para o rascunho existente.';
-                header('Location: app.php?page=envios&ver=' . $dupRow['id']);
-                exit;
-            }
+// Deteção de duplicados: se já existe rascunho com o mesmo Nº Documento, redireciona para ele
+   if (($dados['num_documento'] ?? '') !== '') {
+        $stmtDup = $pdo->prepare("SELECT id FROM envios WHERE num_documento = ? AND estado = 'Rascunho' LIMIT 1");
+        $stmtDup->execute([$dados['num_documento']]);
+        $dupRow = $stmtDup->fetch();
+   if ($dupRow) {
+   $_SESSION['mensagem_sucesso'] = 'Esta guia (N\u00ba ' . $dados['num_documento'] . ') j\u00e1 foi importada. A redirecionar para o rascunho existente.';
+   header('Location: app.php?page=envios&ver=' . $dupRow['id']);
+   exit;
         }
+      }
 
         // Cria o rascunho diretamente na BD com os dados extra\u00eddos do PDF
         $pdo->beginTransaction();
@@ -2144,7 +2144,7 @@ if ($page === 'alertas') {
     // Lista de clientes — a partir da tabela `clientes`
     // (importada do CSV via github/importar_clientes.php).
     try {
-        $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date, activity_count FROM clientes ORDER BY account_name ASC")->fetchAll();
+   $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date, activity_count FROM clientes ORDER BY account_name ASC")->fetchAll();
     } catch (Throwable $e) {
         $rows = [];
         $clientesStats['csv_error'] = 'Tabela de clientes não encontrada. Corre o importador: php github/importar_clientes.php';
@@ -2672,7 +2672,7 @@ function nviInterpretar(string $perguntaOriginal, array $estados): array {
     // 8) PATs
     if ($tem('pat')) {
         if ($tem('estado')) {
-            return ['erro'=>'', 'titulo'=>'PATs por estado', 'sql'=>"SELECT estado, COUNT(*) AS total FROM pats GROUP BY estado ORDER BY total DESC", 'params'=>[]];
+       return ['erro'=>'', 'titulo'=>'PATs por estado', 'sql'=>"SELECT estado, COUNT(*) AS total FROM pats GROUP BY estado ORDER BY total DESC", 'params'=>[]];
         }
         return ['erro'=>'', 'titulo'=>'Nº total de PATs', 'sql'=>"SELECT COUNT(*) AS total FROM pats", 'params'=>[]];
     }

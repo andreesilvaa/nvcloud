@@ -18,8 +18,36 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 
 $_SESSION['LAST_ACTIVITY'] = time();
 
 $tesseract = '"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"';
-$pdftoppm = '"C:\\poppler\\poppler-25.12.0\\Library\\bin\\pdftoppm.exe"';
-$pdftotext = '"C:\\poppler\\poppler-25.12.0\\Library\\bin\\pdftotext.exe"';
+$pdftoppm  = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftoppm.exe"';
+$pdftotext = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftotext.exe"';
+
+// ── Ligação à Base de Dados ───────────────────────────────────
+require_once __DIR__ . '/config.php';
+try {
+    $pdoEnvios = new PDO(
+        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET,
+        DB_USER,
+        DB_PASS,
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+} catch (Exception $e) {
+    die('Erro de ligação à BD: ' . htmlspecialchars($e->getMessage()));
+}
+
+// Catálogo produtos (do mais longo para melhor match)
+$catalogoDb = $pdoEnvios->query(
+    "SELECT p.nome AS produto, c.nome AS categoria
+       FROM produtos p JOIN categorias c ON c.id = p.categoria_id
+      ORDER BY LENGTH(p.nome) DESC"
+)->fetchAll();
+
+// Lista de parceiros para matching
+$parceirosDb = $pdoEnvios->query(
+    "SELECT empresa FROM parceiros ORDER BY empresa ASC"
+)->fetchAll(PDO::FETCH_COLUMN);
 
 $erro = '';
 $sucesso = '';
@@ -28,13 +56,14 @@ $itensExtraidos = [];
 $debugLinhas = [];
 $debugModo = '';
 $dadosGuia = [
-    'documento' => '',
-    'numero_documento' => '',
-    'data_documento' => '',
-    'destinatario_nome' => '',
+    'documento'          => '',
+    'numero_documento'   => '',
+    'data_documento'     => '',
+    'destinatario_nome'  => '',
     'destinatario_local' => '',
-    'fornecedor_numero' => '',
-    'contribuinte' => ''
+    'fornecedor_numero'  => '',
+    'contribuinte'       => '',
+    'parceiro'           => '',
 ];
 
 function limparTexto($texto) {
@@ -49,6 +78,70 @@ function normalizarTextoPdf($texto) {
     $texto = str_replace("\t", ' ', $texto);
     $texto = preg_replace('/[ ]{2,}/u', ' ', $texto);
     return trim($texto);
+}
+
+/**
+ * Normaliza texto para comparação: minúsculas, sem acentos.
+ */
+function normalizarParaMatch(string $s): string {
+    $s = mb_strtolower(trim($s), 'UTF-8');
+    $from = ['á','à','â','ã','ä','é','è','ê','ë','í','ì','î','ï',
+             'ó','ò','ô','õ','ö','ú','ù','û','ü','ç','ñ',
+             'Á','À','Â','Ã','Ä','É','È','Ê','Ë','Í','Ì','Î','Ï',
+             'Ó','Ò','Ô','Õ','Ö','Ú','Ù','Û','Ü','Ç','Ñ'];
+    $to   = ['a','a','a','a','a','e','e','e','e','i','i','i','i',
+             'o','o','o','o','o','u','u','u','u','c','n',
+             'a','a','a','a','a','e','e','e','e','i','i','i','i',
+             'o','o','o','o','o','u','u','u','u','c','n'];
+    return str_replace($from, $to, $s);
+}
+
+/**
+ * Dada a designação da guia, encontra o produto e categoria
+ * correspondentes na base de dados.
+ */
+function matchProduto(string $designacao, array $catalogo): array {
+    $resultado = ['produto' => $designacao, 'categoria' => '', 'score' => 0];
+    if (empty($catalogo) || trim($designacao) === '') return $resultado;
+    $destNorm = normalizarParaMatch($designacao);
+    foreach ($catalogo as $item) {
+        $prodNorm = normalizarParaMatch($item['produto']);
+        if ($prodNorm === '') continue;
+        if (strpos($destNorm, $prodNorm) !== false) {
+            $score = mb_strlen($prodNorm, 'UTF-8');
+            if ($score > $resultado['score']) {
+                $resultado = [
+                    'produto'   => $item['produto'],
+                    'categoria' => $item['categoria'],
+                    'score'     => $score,
+                ];
+            }
+        }
+    }
+    return $resultado;
+}
+
+/**
+ * Faz match do nome do destinatário contra os parceiros da BD.
+ */
+function matchParceiro(string $nome, array $parceiros): string {
+    if ($nome === '' || empty($parceiros)) return $nome;
+    $nomeNorm = normalizarParaMatch($nome);
+    foreach ($parceiros as $p) {
+        if (normalizarParaMatch($p) === $nomeNorm) return $p;
+    }
+    $melhor = ''; $melhorScore = 0;
+    foreach ($parceiros as $p) {
+        $pNorm   = normalizarParaMatch($p);
+        $palavras = preg_split('/[^a-z0-9]+/', $pNorm, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $score = 0;
+        foreach ($palavras as $palavra) {
+            if (strlen($palavra) >= 4 && strpos($nomeNorm, $palavra) !== false)
+                $score += strlen($palavra);
+        }
+        if ($score > $melhorScore) { $melhorScore = $score; $melhor = $p; }
+    }
+    return ($melhorScore >= 6) ? $melhor : $nome;
 }
 
 function linhaIgnorar($linha) {
@@ -85,50 +178,88 @@ function textoBrutoDoPdf($pdfDestino, $pdftotext) {
 
 function extrairCabecalhoGuia($texto) {
     $dados = [
-        'documento' => '',
-        'numero_documento' => '',
-        'data_documento' => '',
-        'destinatario_nome' => '',
+        'documento'          => '',
+        'numero_documento'   => '',
+        'data_documento'     => '',
+        'destinatario_nome'  => '',
         'destinatario_local' => '',
-        'fornecedor_numero' => '',
-        'contribuinte' => ''
+        'fornecedor_numero'  => '',
+        'contribuinte'       => '',
+        'parceiro'           => '',
     ];
 
+    // ── Tipo de documento ────────────────────────────────
     if (preg_match('/G\.\s*Transp\s*\(said\s*fornec\)/iu', $texto)) {
         $dados['documento'] = 'G. Transp (said fornec)';
+    } elseif (preg_match('/G\.\s*Transp\s*\(said\s*client\)/iu', $texto)) {
+        $dados['documento'] = 'G. Transp (said client)';
+    } elseif (preg_match('/Guia\s+de\s+transporte/iu', $texto)) {
+        $dados['documento'] = 'Guia de Transporte';
     }
 
-    if (preg_match('/G\.\s*Transp\s*\(said\s*fornec\)\s+(\d{1,6})\s+(\d{4}-\d{2}-\d{2})/iu', $texto, $m)) {
+    // ── Número e data do documento ────────────────────────
+    if (preg_match('/G\.\s*Transp\s*\(said\s*(?:fornec|client)\)\s+(\d{1,6})\s+(\d{4}-\d{2}-\d{2})/iu', $texto, $m)) {
         $dados['numero_documento'] = $m[1];
-        $dados['data_documento'] = $m[2];
+        $dados['data_documento']   = $m[2];
     } else {
         if (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/u', $texto, $m)) {
             $dados['data_documento'] = $m[1];
         }
-        if (preg_match('/N[ºo]\s*Documento.*?\n.*?\b(\d{1,6})\b/isu', $texto, $m)) {
+        if (preg_match('/N[\xba\xb0o\.?]\s*Documento[^0-9]*(\d{1,6})\b/isu', $texto, $m)) {
+            $dados['numero_documento'] = $m[1];
+        }
+        // Fallback ATCUD: número segue o ATCUD após o "-"
+        if ($dados['numero_documento'] === '' &&
+            preg_match('/ATCUD:[A-Z0-9]+-([0-9]+)/iu', $texto, $m)) {
             $dados['numero_documento'] = $m[1];
         }
     }
 
-    if (preg_match('/Exmo\(s\)\s+Senhor\(es\).*?\n\s*([^\n]+?LDA)/isu', $texto, $m)) {
+    // ── Nome do destinatário ──────────────────────────────
+    // Padrão 1: linha após "Exmo(s) Senhor(es)" com sufixo de empresa
+    if (preg_match(
+        '/Exmo\(s\)\s+Senhor\(es\).*?\n+\s*([^\n]{8,}(?:LDA|S\.?\s*A\.?|SRL|UNIPESSOAL|COOPERATIVA)[^\n]*)/isu',
+        $texto, $m
+    )) {
         $dados['destinatario_nome'] = limparTexto($m[1]);
-    } elseif (preg_match('/CRONOT[ÉE]CNICA\s*-\s*ELECTR[ÓO]NICA.*?LDA/iu', $texto, $m)) {
-        $dados['destinatario_nome'] = limparTexto($m[0]);
+    }
+    // Padrão 2: mesma linha (layout com colunas sobrepostas)
+    if ($dados['destinatario_nome'] === '' &&
+        preg_match('/Exmo\(s\)\s+Senhor\(es\)\s+([^\n]{8,})/iu', $texto, $m)) {
+        $cand = limparTexto($m[1]);
+        if (!preg_match('/^(?:Documento|N[\xba\xb0o]|Via\s+do)/iu', $cand))
+            $dados['destinatario_nome'] = $cand;
+    }
+    // Padrão 3: qualquer linha com sufixo societário
+    if ($dados['destinatario_nome'] === '' &&
+        preg_match('/^([A-Z\xc0-\xff\-][^\n]{8,}(?:LDA|S\.?A\.|UNIPESSOAL|COOPERATIVA)[^\n]*)/mu', $texto, $m)) {
+        $dados['destinatario_nome'] = limparTexto($m[1]);
+    }
+    // Limpeza: remover texto de coluna de documento que possa ter ficado colado
+    if ($dados['destinatario_nome'] !== '') {
+        $dados['destinatario_nome'] = preg_replace(
+            '/\s+(?:G\.\s*Transp|N\xba\s*Fornecedor|Documento|ORIGINAL|DUPLICADO|TRIPLICADO).*/iu',
+            '', $dados['destinatario_nome']
+        );
+        $dados['destinatario_nome'] = limparTexto($dados['destinatario_nome']);
     }
 
-    if (preg_match('/Local\s+de\s+descarga\s+(.+?)\s+Total\s+il[ií]quido/isu', $texto, $m)) {
+    // ── Local de descarga ───────────────────────────────
+    if (preg_match('/Local\s+de\s+descarga\s+(.+?)\s+(?:Total\s+il[i\xed]quido|Cod\.\s+Identifica[c\xe7][a\xe3]o)/isu', $texto, $m)) {
         $dados['destinatario_local'] = limparTexto($m[1]);
-    } elseif (preg_match('/Local\s+de\s+descarga\s+(.+?)\s+Cod\.\s+Identifica[cç][aã]o\s+AT/isu', $texto, $m)) {
+    } elseif (preg_match('/Local\s+de\s+descarga\s+(.+?)\s+Cod\./isu', $texto, $m)) {
         $dados['destinatario_local'] = limparTexto($m[1]);
     }
 
-    if (preg_match('/N[ºo]\s+Fornecedor.*?\b(\d{1,10})\b/isu', $texto, $m)) {
+    // ── Nº Fornecedor ───────────────────────────────────
+    if (preg_match('/N[\xba\xb0o]\s+Fornecedor[^0-9]*(\d{1,10})\b/isu', $texto, $m)) {
         $dados['fornecedor_numero'] = $m[1];
     } elseif (preg_match('/\b2476\b/u', $texto, $m)) {
         $dados['fornecedor_numero'] = $m[0];
     }
 
-    if (preg_match('/V\/\s*N[ºo]\s*Contribuinte.*?\b(\d{9})\b/isu', $texto, $m)) {
+    // ── Contribuinte ──────────────────────────────────
+    if (preg_match('/V\/\s*N[\xba\xb0o]\s*Contribu[i\xed]nte[^0-9]*(\d{9})\b/isu', $texto, $m)) {
         $dados['contribuinte'] = $m[1];
     } elseif (preg_match('/\b500339023\b/u', $texto, $m)) {
         $dados['contribuinte'] = $m[0];
@@ -259,11 +390,13 @@ function expandirLinhaEmItens($linha) {
     if (!empty($sns)) {
         foreach ($sns as $sn) {
             $resultado[] = [
-                'linha' => $linhaOriginal,
-                'tipo' => $tipo,
+                'linha'      => $linhaOriginal,
+                'tipo'       => $tipo,
                 'quantidade' => $quantidade,
-                'sn' => $sn,
-                'pat' => $patsTexto
+                'sn'         => $sn,
+                'pat'        => $patsTexto,
+                'nome_peca'  => '',
+                'categoria'  => '',
             ];
         }
         return $resultado;
@@ -271,11 +404,13 @@ function expandirLinhaEmItens($linha) {
 
     if ($patsTexto !== '') {
         $resultado[] = [
-            'linha' => $linhaOriginal,
-            'tipo' => $tipo,
+            'linha'      => $linhaOriginal,
+            'tipo'       => $tipo,
             'quantidade' => $quantidade,
-            'sn' => '',
-            'pat' => $patsTexto
+            'sn'         => '',
+            'pat'        => $patsTexto,
+            'nome_peca'  => '',
+            'categoria'  => '',
         ];
     }
 
@@ -535,6 +670,47 @@ function extrairDadosLinhaOcr($textoDesc, $textoQtd) {
     return $resultado;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confirmar_envio') {
+    $parceiro  = trim($_POST['parceiro']   ?? '');
+    $itensJson = $_POST['itens_json']      ?? '[]';
+    $itensConf = json_decode($itensJson, true) ?: [];
+
+    $atualizados    = [];
+    $naoEncontrados = [];
+    $semSN          = [];
+
+    foreach ($itensConf as $itemC) {
+        $sn = strtoupper(trim($itemC['sn'] ?? ''));
+        if ($sn === '') {
+            $semSN[] = $itemC['nome_peca'] ?? ($itemC['tipo'] ?? '?');
+            continue;
+        }
+        $stmtUpd = $pdoEnvios->prepare(
+            "UPDATE pecas SET estado = 'Parceiro', parceiro = ? WHERE UPPER(TRIM(sn)) = ? LIMIT 1"
+        );
+        $stmtUpd->execute([$parceiro, $sn]);
+        if ($stmtUpd->rowCount() > 0) {
+            $atualizados[] = $sn;
+        } else {
+            $naoEncontrados[] = $sn;
+        }
+    }
+
+    $msgParts = [];
+    if (!empty($atualizados))
+        $msgParts[] = count($atualizados) . ' peça(s) atualizadas para estado <strong>Parceiro</strong> → <strong>' . htmlspecialchars($parceiro) . '</strong>.';
+    if (!empty($naoEncontrados))
+        $msgParts[] = '<br>⚠ SNs não encontrados no Inventário: <code>' . implode(', ', array_map('htmlspecialchars', $naoEncontrados)) . '</code>';
+    if (!empty($semSN))
+        $msgParts[] = '<br>ℹ Peças sem SN (não atualizadas): ' . implode(', ', array_map('htmlspecialchars', $semSN));
+
+    if (!empty($atualizados)) {
+        $sucesso = implode('', $msgParts);
+    } else {
+        $erro = implode('', $msgParts) ?: 'Nenhuma peça foi atualizada. Verifica se os SNs existem no Inventário.';
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['guia_pdf'])) {
     $pdfDir = __DIR__ . '/uploads/pdf/';
     $imgDir = __DIR__ . '/uploads/ocr_pages/';
@@ -676,6 +852,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['guia_pdf'])) {
                         }
                     }
                 }
+
+                // ── Pós-processamento: matching de produto/categoria e parceiro ──
+                if (!empty($itensExtraidos)) {
+                    foreach ($itensExtraidos as &$itemPP) {
+                        $tipoExtraido = $itemPP['tipo'] ?? '';
+                        $match = matchProduto($tipoExtraido, $catalogoDb);
+                        $itemPP['nome_peca'] = $match['produto'];
+                        $itemPP['categoria'] = $match['categoria'];
+                    }
+                    unset($itemPP);
+                }
+
+                // Determinar parceiro da guia
+                if (stripos($dadosGuia['documento'], 'client') !== false) {
+                    $dadosGuia['parceiro'] = 'Field Service';
+                } elseif (!empty($dadosGuia['destinatario_nome'])) {
+                    $dadosGuia['parceiro'] = matchParceiro($dadosGuia['destinatario_nome'], $parceirosDb);
+                }
             }
         }
     }
@@ -740,55 +934,103 @@ details summary{cursor:pointer;font-weight:700}
     </div>
 
     <?php if ($erro): ?>
-        <div class="msg-erro"><?= htmlspecialchars($erro) ?></div>
+        <div class="msg-erro"><?= $erro ?></div>
     <?php endif; ?>
 
     <?php if ($sucesso): ?>
-        <div class="msg-ok"><?= htmlspecialchars($sucesso) ?></div>
+        <div class="msg-ok"><?= $sucesso ?></div>
     <?php endif; ?>
 
     <?php if (!empty($dadosGuia['destinatario_nome']) || !empty($itensExtraidos)): ?>
         <div class="card">
             <h2>Dados da guia</h2>
             <div class="grid">
-                <div class="kv"><b>Documento</b><?= htmlspecialchars($dadosGuia['documento'] ?: '-') ?></div>
+                <div class="kv"><b>Tipo de Guia</b><?= htmlspecialchars($dadosGuia['documento'] ?: '-') ?></div>
                 <div class="kv"><b>Nº Documento</b><?= htmlspecialchars($dadosGuia['numero_documento'] ?: '-') ?></div>
-                <div class="kv"><b>Data Documento</b><?= htmlspecialchars($dadosGuia['data_documento'] ?: '-') ?></div>
-                <div class="kv"><b>Nº Fornecedor</b><?= htmlspecialchars($dadosGuia['fornecedor_numero'] ?: '-') ?></div>
-                <div class="kv"><b>Contribuinte</b><?= htmlspecialchars($dadosGuia['contribuinte'] ?: '-') ?></div>
-                <div class="kv"><b>Entregue a</b><?= htmlspecialchars($dadosGuia['destinatario_nome'] ?: '-') ?></div>
-                <div class="kv" style="grid-column:1/-1;"><b>Local de descarga</b><?= htmlspecialchars($dadosGuia['destinatario_local'] ?: '-') ?></div>
+                <div class="kv"><b>Data</b><?= htmlspecialchars($dadosGuia['data_documento'] ?: '-') ?></div>
+                <div class="kv"><b>Destinatário</b><?= htmlspecialchars($dadosGuia['destinatario_nome'] ?: '-') ?></div>
+                <div class="kv" style="border:2px solid #c9a14a;background:#fffbf0">
+                    <b style="color:#92700f">Parceiro Identificado</b>
+                    <?= htmlspecialchars($dadosGuia['parceiro'] ?: '--- não identificado ---') ?>
+                </div>
+                <?php if ($dadosGuia['contribuinte']): ?>
+                <div class="kv"><b>Contribuinte</b><?= htmlspecialchars($dadosGuia['contribuinte']) ?></div>
+                <?php endif; ?>
+                <?php if ($dadosGuia['fornecedor_numero']): ?>
+                <div class="kv"><b>Nº Fornecedor</b><?= htmlspecialchars($dadosGuia['fornecedor_numero']) ?></div>
+                <?php endif; ?>
+                <?php if ($dadosGuia['destinatario_local']): ?>
+                <div class="kv" style="grid-column:1/-1;"><b>Local de Descarga</b><?= htmlspecialchars($dadosGuia['destinatario_local']) ?></div>
+                <?php endif; ?>
             </div>
         </div>
     <?php endif; ?>
 
     <?php if (!empty($itensExtraidos)): ?>
         <div class="card">
-            <h2>Peças extraídas</h2>
+            <h2>Peças Identificadas (<?= count($itensExtraidos) ?>)</h2>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>Linha lida</th>
-                            <th>Tipo de peça</th>
-                            <th>Quantidade</th>
-                            <th>SN</th>
+                            <th>Tipo</th>
+                            <th>Nome da Peça</th>
+                            <th style="text-align:center">Qtd.</th>
+                            <th>Número de Série</th>
                             <th>PAT</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($itensExtraidos as $item): ?>
                             <tr>
-                                <td><?= htmlspecialchars($item['linha']) ?></td>
-                                <td><?= htmlspecialchars($item['tipo']) ?></td>
-                                <td><?= htmlspecialchars((string)$item['quantidade']) ?></td>
-                                <td><?= htmlspecialchars($item['sn']) ?></td>
-                                <td><?= htmlspecialchars($item['pat']) ?></td>
+                                <td>
+                                    <?php if (!empty($item['categoria'])): ?>
+                                        <span style="display:inline-block;background:#eef2ff;color:#3730a3;padding:3px 9px;border-radius:999px;font-size:.82rem;font-weight:700;white-space:nowrap">
+                                            <?= htmlspecialchars($item['categoria']) ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="color:#9ca3af;font-style:italic">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= htmlspecialchars($item['nome_peca'] ?: ($item['tipo'] ?: '—')) ?></td>
+                                <td style="text-align:center"><?= htmlspecialchars((string)$item['quantidade']) ?></td>
+                                <td style="font-family:monospace;font-size:.88rem">
+                                    <?= $item['sn'] !== '' ? htmlspecialchars($item['sn']) : '<span style="color:#9ca3af">—</span>' ?>
+                                </td>
+                                <td style="font-size:.82rem;color:#6b7280;font-family:monospace">
+                                    <?= $item['pat'] !== '' ? htmlspecialchars($item['pat']) : '<span style="color:#9ca3af">—</span>' ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
+
+            <?php
+            $itensParaJson = array_map(fn($i) => [
+                'sn'        => $i['sn'],
+                'nome_peca' => $i['nome_peca'] ?: $i['tipo'],
+                'categoria' => $i['categoria'],
+                'tipo'      => $i['tipo'],
+            ], $itensExtraidos);
+            $itensJsonStr = htmlspecialchars(json_encode($itensParaJson, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
+            $parceiroPre  = htmlspecialchars($dadosGuia['parceiro'], ENT_QUOTES, 'UTF-8');
+            ?>
+            <form method="post" action="envios.php" style="margin-top:20px">
+                <input type="hidden" name="action"     value="confirmar_envio">
+                <input type="hidden" name="parceiro"   value="<?= $parceiroPre ?>">
+                <input type="hidden" name="itens_json" value="<?= $itensJsonStr ?>">
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 18px;background:#fffbf0;border:1px solid #f0c070;border-radius:12px">
+                    <p style="margin:0;font-size:.92rem;color:#78590a;flex:1">
+                        Revê as informações acima. Ao aprovar, as peças com SN serão atualizadas no
+                        <strong>Inventário</strong> para estado <strong>Parceiro</strong>
+                        <?php if ($dadosGuia['parceiro']): ?> → <strong><?= htmlspecialchars($dadosGuia['parceiro']) ?></strong><?php endif; ?>.
+                    </p>
+                    <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:11px 24px;border-radius:8px;cursor:pointer;font-size:.95rem;font-weight:700;font-family:inherit;white-space:nowrap">
+                        ✓ Aprovar Envio
+                    </button>
+                </div>
+            </form>
         </div>
     <?php endif; ?>
 
