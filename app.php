@@ -836,7 +836,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
         $textoExtraido = extrairTextoPdfNova($caminhoPdf);
         $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario, $catalogoProdutos);
 
-        // Cria o rascunho diretamente na BD com os dados extraídos do PDF
+        // Deteção de duplicados: se já existe rascunho com o mesmo Nº Documento, redireciona para ele
+        if (($dados['num_documento'] ?? '') !== '') {
+            $stmtDup = $pdo->prepare("SELECT id FROM envios WHERE num_documento = ? AND estado = 'Rascunho' LIMIT 1");
+            $stmtDup->execute([$dados['num_documento']]);
+            $dupRow = $stmtDup->fetch();
+            if ($dupRow) {
+                $_SESSION['mensagem_sucesso'] = 'Esta guia (N\u00ba ' . $dados['num_documento'] . ') j\u00e1 foi importada. A redirecionar para o rascunho existente.';
+                header('Location: app.php?page=envios&ver=' . $dupRow['id']);
+                exit;
+            }
+        }
+
+        // Cria o rascunho diretamente na BD com os dados extra\u00eddos do PDF
         $pdo->beginTransaction();
 
         $pdo->prepare("
@@ -1088,11 +1100,11 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
     $documento = '';
     foreach ($linhas as $linha) {
         if (preg_match('/G\.\s*Transp.*said\s+fornec/i', $linha)) {
-            $documento = 'G. Transp fornec';
+            $documento = 'G. Transp Fornec';
             break;
         }
         if (preg_match('/G\.\s*Transp.*said\s+cliente/i', $linha)) {
-            $documento = 'G. Transp cliente';
+            $documento = 'G.Transp Cliente';
             break;
         }
     }
@@ -1207,14 +1219,32 @@ if ($documento === 'G. Transp cliente') {
             continue;
         }
 
-        $designacao = trim($m[1]);                          // ex: "BOX D039"
-        $sn         = strtoupper(trim($m[2]));              // ex: "ISD039X23A50415"
-        $qtd        = (float) str_replace(',', '.', $m[3]); // ex: 1.0
+        $designacao = trim($m[1]);
+        $sn         = strtoupper(trim($m[2]));
+        $qtd        = (float) str_replace(',', '.', $m[3]);
 
-        $mapeamento = $mapearProduto($designacao);
+        // PRIORIDADE 1: procurar o SN na tabela pecas para obter categoria e produto exatos
+        $categoria = '';
+        $produto   = '';
+        if ($sn !== '') {
+            $stmtSn = $pdo->prepare("SELECT categoria, produto FROM pecas WHERE UPPER(TRIM(sn)) = ? LIMIT 1");
+            $stmtSn->execute([$sn]);
+            $pecaRow = $stmtSn->fetch();
+            if ($pecaRow && trim((string)$pecaRow['categoria']) !== '') {
+                $categoria = $pecaRow['categoria'];
+                $produto   = $pecaRow['produto'];
+            }
+        }
 
-        $linhaCategoria[]  = $mapeamento['categoria'];
-        $linhaProduto[]    = $mapeamento['produto'];
+        // PRIORIDADE 2: matching por nome (fallback)
+        if ($categoria === '') {
+            $mapeamento = $mapearProduto($designacao);
+            $categoria  = $mapeamento['categoria'];
+            $produto    = $mapeamento['produto'];
+        }
+
+        $linhaCategoria[]  = $categoria;
+        $linhaProduto[]    = $produto;
         $linhaQuantidade[] = $qtd;
         $linhaNumSerie[]   = $sn;
     }
@@ -5147,8 +5177,9 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 
         <?php if ($envioAtual): ?>
             <?php
-            $isCliente   = (($envioAtual['documento'] ?? '') === 'G. Transp Cliente');
-            $isFornecedor = (($envioAtual['documento'] ?? '') === 'G. Transp Fornec');
+            $docAtual     = strtolower(trim($envioAtual['documento'] ?? ''));
+            $isCliente    = ($docAtual === 'g.transp cliente' || $docAtual === 'g. transp cliente');
+            $isFornecedor = ($docAtual === 'g. transp fornec');
             ?>
 
             <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:18px; font-size:13px; color:#15803d;">
