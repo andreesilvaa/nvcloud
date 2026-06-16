@@ -363,8 +363,11 @@ function ehSnValido($token) {
 }
 
 function extrairPats($texto) {
-    preg_match_all('/PAT-\d+/iu', $texto, $m);
-    $pats = array_map('strtoupper', $m[0] ?? []);
+    // Apanhar PAT-XXXX e PAT XXXX (com ou sem hífen)
+    preg_match_all('/PAT[-\s]\d+/iu', $texto, $m);
+    $pats = array_map(function($p) {
+        return strtoupper(preg_replace('/^PAT\s+/i', 'PAT-', trim($p)));
+    }, $m[0] ?? []);
     return array_values(array_unique($pats));
 }
 
@@ -425,7 +428,9 @@ function expandirLinhaEmItens($linha) {
     if ($linhaOriginal === '' || !preg_match('/^ASSISTENCIA\b/iu', $linhaOriginal)) return [];
 
     $quantidade = extrairQuantidadeDaLinha($linhaOriginal);
-    $semQtd = preg_replace('/\s+\d+,\d{2}\s*$/u', '', $linhaOriginal);
+    // Remove TODAS as ocorrências de quantidade (não só no fim) para linhas compostas
+    $semQtd = preg_replace('/\s+\d+,\d{2}(\s|$)/u', ' ', $linhaOriginal);
+    $semQtd = limparTexto($semQtd);
     $tipo = extrairTipoPecaDaLinha($semQtd);
     $pats = extrairPats($semQtd);
 
@@ -436,7 +441,25 @@ function expandirLinhaEmItens($linha) {
         $parteNorm = strtoupper(limparTexto($parte));
         if ($i === 0) continue;
         if (ehPat($parteNorm)) continue;
-        if (ehSnValido($parteNorm)) $sns[] = $parteNorm;
+        if (ehSnValido($parteNorm)) { $sns[] = $parteNorm; continue; }
+        // Tenta extrair SN embutido num token composto
+        preg_match_all('/\b([A-Z0-9]{7,})\b/u', $parteNorm, $ms);
+        foreach ($ms[1] ?? [] as $c) {
+            $c = strtoupper(trim($c));
+            if (ehSnValido($c)) $sns[] = $c;
+        }
+    }
+
+    // Fallback: SN embutido na parte 0 (ex: "Cabeçote Proxima INLPXM011262")
+    if (empty($sns) && !empty($partes)) {
+        $parte0 = strtoupper(limparTexto($partes[0]));
+        $parte0 = preg_replace('/^ASSISTENCIA\s+/iu', '', $parte0);
+        $parte0 = preg_replace('/\s+PAT[-\s]\d+.*$/u', '', $parte0); // remove PAT e resto
+        preg_match_all('/\b([A-Z0-9]{7,})\b/u', $parte0, $ms0);
+        foreach ($ms0[1] ?? [] as $c) {
+            $c = strtoupper(trim($c));
+            if (ehSnValido($c)) $sns[] = $c;
+        }
     }
 
     $sns = array_values(array_unique($sns));
@@ -476,6 +499,32 @@ function expandirLinhaEmItens($linha) {
 function extrairItensTextoPdf($texto) {
     $linhas = linhasLimpasItens($texto);
     $linhasItens = dividirItensPorLinhas($linhas);
+
+    // Fallback para guias sem "ASSISTENCIA" (formato antigo PHC)
+    // Detecta SNs via prefixo "SN:" ou "SN " directamente no bloco
+    if (empty($linhasItens)) {
+        $bloco = extrairBlocoItens($texto);
+        if ($bloco !== '') {
+            $patsBloco = extrairPats($bloco);
+            $patTexto  = !empty($patsBloco) ? implode(', ', $patsBloco) : '';
+            preg_match_all('/\bSN[:\s]+([A-Z0-9]{7,})\b/iu', $bloco, $mSN);
+            foreach ($mSN[1] ?? [] as $snRaw) {
+                $sn = strtoupper(trim($snRaw));
+                if (!ehSnValido($sn)) continue;
+                // Tenta extrair tipo da linha que contém o SN
+                $tipoFallback = '';
+                foreach (preg_split('/\n/u', $bloco) as $linhaBloco) {
+                    if (stripos($linhaBloco, $snRaw) !== false) {
+                        $tipoFallback = limparTipoPeca(preg_replace('/\bSN[:\s]+[A-Z0-9]+\b/iu', '', $linhaBloco));
+                        $tipoFallback = preg_replace('/\s+\d+,\d{2}\s*$/u', '', $tipoFallback);
+                        $tipoFallback = limparTexto($tipoFallback);
+                        break;
+                    }
+                }
+                $linhasItens[] = 'ASSISTENCIA ' . ($tipoFallback ?: $sn) . '/' . $sn . ($patTexto ? '/' . str_replace('PAT-', 'PAT-', $patTexto) : '');
+            }
+        }
+    }
     $resultado = [];
     $vistos = [];
 
@@ -939,7 +988,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['guia_pdf'])) {
                 }
 
                 // Determinar parceiro da guia
-                if (stripos($dadosGuia['documento'], 'client') !== false) {
+                if (stripos($dadosGuia['documento'], 'cli') !== false) {
                     $dadosGuia['parceiro'] = 'Field Service';
                 } elseif (!empty($dadosGuia['destinatario_nome'])) {
                     $dadosGuia['parceiro'] = matchParceiro($dadosGuia['destinatario_nome'], $parceirosDb);
