@@ -7,20 +7,77 @@ namespace Composer\Autoload;
 class ComposerStaticInit3ffbe28fb745b145fa2fcd19500ebf5e
 {
     public static $files = array (
+        '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
+        '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
+        'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
+        'fb4ca2d97fe7ba6af750497425204e70' => __DIR__ . '/..' . '/sentry/sentry/src/functions.php',
     );
 
     public static $prefixLengthsPsr4 = array (
+        't' =>
+        array (
+            'thiagoalessio\\TesseractOCR\\' => 27,
+        ),
         'S' =>
         array (
+            'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
+            'Symfony\\Component\\OptionsResolver\\' => 34,
+            'Sentry\\' => 7,
+        ),
+        'P' =>
+        array (
+            'Psr\\Log\\' => 8,
+            'Psr\\Http\\Message\\' => 17,
+        ),
+        'J' =>
+        array (
+            'Jean85\\' => 7,
+        ),
+        'G' =>
+        array (
+            'GuzzleHttp\\Psr7\\' => 16,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
+        'thiagoalessio\\TesseractOCR\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/thiagoalessio/tesseract_ocr/src',
+        ),
+        'Symfony\\Polyfill\\Php80\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
+        ),
         'Symfony\\Polyfill\\Mbstring\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
+        ),
+        'Symfony\\Component\\OptionsResolver\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/options-resolver',
+        ),
+        'Sentry\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/sentry/sentry/src',
+        ),
+        'Psr\\Log\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/log/src',
+        ),
+        'Psr\\Http\\Message\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
+        ),
+        'Jean85\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/jean85/pretty-package-versions/src',
+        ),
+        'GuzzleHttp\\Psr7\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/psr7/src',
         ),
     );
 
@@ -35,7 +92,12 @@ class ComposerStaticInit3ffbe28fb745b145fa2fcd19500ebf5e
     );
 
     public static $classMap = array (
+        'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'PhpToken' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/PhpToken.php',
+        'Stringable' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Stringable.php',
+        'UnhandledMatchError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/UnhandledMatchError.php',
+        'ValueError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/ValueError.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

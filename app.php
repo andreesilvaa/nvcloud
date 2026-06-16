@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/bootstrap.php';
+
 // ============================================================
 // 1. SESSÃO E AUTENTICAÇÃO
 // ============================================================
@@ -32,6 +34,7 @@ $csrfToken = $_SESSION['csrf_token'];
 // ============================================================
 // 2. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
+
 
 function redirectTo(string $url): void
 {
@@ -130,6 +133,10 @@ function nvEnriquecerCliente(PDO $pdo, string $entidade): array
 // ============================================================
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/clientes.php';
+require_once __DIR__ . '/includes/relatorios_parser.php';
+require_once __DIR__ . '/includes/relatorios_reconciliar.php';
+require_once __DIR__ . '/includes/relatorios_aplicar.php';
 
 $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
 
@@ -295,7 +302,7 @@ $pageTitles = [
   'envios' => 'Envios',
   'qrs' => "QR's",
   'qr' => "QR's",
-  'encomendas' => 'Encomendas',
+  'relatorios' => 'Relatórios',
   'contas' =>'Contas',
   'auditoria' => 'Auditoria',
   'categorias' => 'Categorias',
@@ -474,6 +481,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     $cod_barras = trim($_POST['cod_barras'] ?? '');
     $parceiro = trim($_POST['parceiro'] ?? '');
     $estado = trim($_POST['estado'] ?? '');
+    $clienteNome = trim($_POST['cliente_instalacao'] ?? '');
+    $clienteId = null; $clientePendente = 0;
+    if ($estado === 'Cliente') {
+        if ($clienteNome !== '') {
+            $clienteId = nvObterOuCriarCliente($pdo, $clienteNome);
+        } else {
+            $clientePendente = 1; // permite gravar como "por identificar"
+        }
+    }
       if (!in_array($estado, $estados, true)){
         $_SESSION['mensagem_erro'] = 'O estado selecionado não é válido.';
         $_SESSION['form_nova_peca'] = $_POST;
@@ -1534,6 +1550,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'ap
     }
 }
 
+
+// ══════════════════════════════════════════════
+// HANDLER: Relatórios / Upload Manual
+// ══════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relatorio_upload') {
+    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) {
+        flashError('Ação inválida.'); redirectTo('app.php?page=relatorios');
+    }
+    if (($_FILES['relatorio']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        flashError('Nenhum ficheiro válido enviado.'); redirectTo('app.php?page=relatorios');
+    }
+    $f = $_FILES['relatorio'];
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['pdf','eml'], true)) {
+        flashError('O ficheiro tem de ser PDF ou EML.'); redirectTo('app.php?page=relatorios');
+    }
+
+    $dir = __DIR__ . '/uploads/relatorios/';
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+
+    $hash = hash_file('sha256', $f['tmp_name']);
+    // anti-duplicado (mesmo ficheiro)
+    $dup = $pdo->prepare("SELECT id, estado FROM relatorios WHERE hash_unico = ? LIMIT 1");
+    $dup->execute([$hash]);
+    if ($jaId = $dup->fetchColumn()) {
+        flashError('Este relatório já foi importado (#' . (int)$jaId . ').');
+        redirectTo('app.php?page=relatorios&ver=' . (int)$jaId);
+    }
+
+    $destino = $dir . $hash . '.' . $ext;
+    move_uploaded_file($f['tmp_name'], $destino);
+
+    try {
+        $parse = nvParseRelatorio($destino, $f['name']);
+        $res = nvReconciliarRelatorio($pdo, $parse, [
+                'origem' => 'manual',
+                'ficheiro_nome' => $f['name'],
+                'ficheiro_path' => 'uploads/relatorios/' . basename($destino),
+                'hash_unico' => $hash,
+        ]);
+        flashSuccess('Relatório importado. Reveja e aprove.');
+        redirectTo('app.php?page=relatorios&ver=' . $res['relatorio_id']);
+    } catch (Throwable $e) {
+        flashError('Erro a processar relatório: ' . $e->getMessage());
+        redirectTo('app.php?page=relatorios');
+    }
+}
+
+// ── RELATÓRIOS: aprovar / rejeitar ───────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relatorio_decidir') {
+    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) {
+        flashError('Ação inválida.'); redirectTo('app.php?page=relatorios');
+    }
+    $relId = (int)($_POST['relatorio_id'] ?? 0);
+    $dec   = $_POST['decisao'] ?? '';
+    $user  = $_SESSION['user_nome'] ?? 'Sistema';
+
+    if ($dec === 'aprovar') {
+        // decisões por linha (do ecrã rever): decisoes[ID][acao], decisoes[ID][cliente]
+        $decisoes = $_POST['decisoes'] ?? [];
+        $r = nvAplicarRelatorio($pdo, $relId, $decisoes, $user);
+        $r['ok'] ? flashSuccess($r['msg']) : flashError($r['msg']);
+    } elseif ($dec === 'rejeitar') {
+        $pdo->prepare("UPDATE relatorios SET estado='rejeitado' WHERE id=?")->execute([$relId]);
+        flashSuccess('Relatório rejeitado.');
+    }
+    redirectTo('app.php?page=relatorios&ver=' . $relId);
+}
+
 // ══════════════════════════════════════════════
 // HANDLER: Criar / Editar PAT
 // ══════════════════════════════════════════════
@@ -1839,6 +1924,8 @@ $estadoData = $pdo->query("SELECT estado, COUNT(*) total FROM pecas GROUP BY est
 $categoriaData = $pdo->query("SELECT categoria, COUNT(*) total FROM pecas GROUP BY categoria ORDER BY total DESC LIMIT 12")->fetchAll();
 
 $parceiroData = $pdo->query("SELECT parceiro, COUNT(*) total FROM pecas GROUP BY parceiro ORDER BY total DESC LIMIT 10")->fetchAll();
+
+$pendentesCliente = (int)$pdo->query("SELECT COUNT(*) FROM pecas WHERE cliente_pendente = 1")->fetchColumn();
 
 $trendRows = $pdo->query("
     SELECT 
@@ -4538,8 +4625,8 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     <i class="bi bi-qr-code"></i><span>QR's</span>
   </a>
 
-  <a class="<?=active('encomendas',$page)?>" href="app.php?page=encomendas">
-    <i class="bi bi-cart"></i><span>Encomendas</span>
+  <a class="<?=active('relatorios',$page)?>" href="app.php?page=relatorios">
+    <i class="bi bi-cart"></i><span>Relatórios</span>
   </a>
 
   <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
@@ -5080,6 +5167,23 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
               </select>
           </label>
       </div>
+
+        <div id="campoCliente" style="display:none">
+            <label>Cliente onde foi instalada</label>
+            <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList">
+            <datalist id="clientesList">
+                <?php foreach ($pdo->query("SELECT nome FROM clientes ORDER BY nome") as $c): ?>
+                <option value="<?= e($c['nome']) ?>"><?php endforeach; ?>
+            </datalist>
+        </div>
+        <script>
+            const selEstado = document.querySelector('[name=estado]');
+            function toggleCliente(){
+                document.getElementById('campoCliente').style.display =
+                    (selEstado.value === 'Cliente') ? 'block' : 'none';
+            }
+            selEstado && selEstado.addEventListener('change', toggleCliente); toggleCliente();
+        </script>
 
       <div>
         <label>Número de Série (S_Number):*</label>
@@ -6481,6 +6585,99 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     <!-- ════════════════════════════════════════════
          FIM VISTA: LISTA DE PATs
     ════════════════════════════════════════════ -->
+
+<?php elseif ($page === 'relatorios'): ?>
+
+    <?php
+    $verId = (int)($_GET['ver'] ?? 0);
+
+    // Lista
+    $lista = $pdo->query("SELECT id, ficheiro_nome, fonte, pat_numero, cliente_detect, estado, criado_em
+                            FROM relatorios ORDER BY criado_em DESC LIMIT 200")->fetchAll();
+
+    // Detalhe (se ?ver=)
+    $det = null; $linhas = [];
+    if ($verId) {
+        $s = $pdo->prepare("SELECT * FROM relatorios WHERE id=?"); $s->execute([$verId]);
+        $det = $s->fetch();
+        if ($det) {
+            $sl = $pdo->prepare("SELECT * FROM relatorios_pecas WHERE relatorio_id=?");
+            $sl->execute([$verId]); $linhas = $sl->fetchAll();
+        }
+    }
+    ?>
+
+    <!-- Upload manual -->
+    <div class="card" style="margin-bottom:18px">
+        <form method="post" enctype="multipart/form-data" action="app.php?page=relatorios">
+            <input type="hidden" name="action" value="relatorio_upload">
+            <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+            <input type="file" name="relatorio" accept=".pdf,.eml" required>
+            <button class="btn btn-teal" type="submit">Importar relatório</button>
+        </form>
+    </div>
+
+    <?php if ($det): ?>
+        <!-- NOTIFICAÇÃO DE APROVAÇÃO (curta, só o essencial) -->
+        <div class="card" style="margin-bottom:18px">
+            <h3>Relatório <?= e($det['pat_numero'] ?: '(sem PAT)') ?>
+                <?= $det['cliente_detect'] ? '— ' . e($det['cliente_detect']) : '' ?></h3>
+            <ul>
+                <li>PAT → estado "Resolvido", resolução preenchida
+                    <?= $det['pat_id'] ? '' : '<strong>(PAT não encontrado — revisão manual)</strong>' ?></li>
+                <li><?= count(array_filter($linhas, fn($l)=>$l['acao']==='modificar')) ?> peça(s) a modificar ·
+                    <?= count(array_filter($linhas, fn($l)=>$l['acao']==='rever')) ?> a rever</li>
+            </ul>
+
+            <?php if ($det['estado'] === 'por_confirmar' || $det['estado'] === 'revisao_manual'): ?>
+                <form method="post" action="app.php?page=relatorios">
+                    <input type="hidden" name="action" value="relatorio_decidir">
+                    <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+                    <input type="hidden" name="relatorio_id" value="<?= (int)$det['id'] ?>">
+
+                    <!-- Linhas que precisam de decisão (SN inexistente / conflito) -->
+                    <?php foreach ($linhas as $l): if ($l['acao'] !== 'rever') continue; ?>
+                        <div style="border:1px solid #ddd;padding:8px;margin:6px 0">
+                            <div>SN <strong><?= e($l['sn']) ?></strong> → <?= e($l['estado_destino']) ?></div>
+                            <select name="decisoes[<?= (int)$l['id'] ?>][acao]">
+                                <option value="ignorar">Ignorar</option>
+                                <option value="criar">Criar peça nova</option>
+                                <option value="modificar">Modificar existente</option>
+                            </select>
+                            <?php if ($l['estado_destino'] === 'Cliente'): ?>
+                                <input type="text" name="decisoes[<?= (int)$l['id'] ?>][cliente]"
+                                       placeholder="Cliente onde foi instalada">
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+
+                    <button class="btn btn-green" name="decisao" value="aprovar">Aprovar</button>
+                    <button class="btn" name="decisao" value="rejeitar">Rejeitar</button>
+                </form>
+            <?php else: ?>
+                <p>Estado: <strong><?= e($det['estado']) ?></strong>
+                    <?= $det['aprovado_por'] ? '(' . e($det['aprovado_por']) . ')' : '' ?></p>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
+    <!-- Lista de relatórios -->
+    <table class="tabela">
+        <thead><tr><th>Ficheiro</th><th>Fonte</th><th>PAT</th><th>Cliente</th><th>Estado</th><th>Data</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($lista as $r): ?>
+            <tr>
+                <td><?= e($r['ficheiro_nome']) ?></td>
+                <td><?= e($r['fonte']) ?></td>
+                <td><?= e($r['pat_numero']) ?></td>
+                <td><?= e($r['cliente_detect']) ?></td>
+                <td><?= e($r['estado']) ?></td>
+                <td><?= e($r['criado_em']) ?></td>
+                <td><a href="app.php?page=relatorios&ver=<?= (int)$r['id'] ?>">Ver</a></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
 
 <?php elseif ($page === 'categorias'): ?>
 

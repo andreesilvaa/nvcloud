@@ -1,4 +1,7 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
+
 // ══════════════════════════════════════════════
 // workorder.php — Folha de Obra (impressão)
 // Requer: sessão ativa e ID do PAT via GET

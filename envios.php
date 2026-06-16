@@ -1,4 +1,7 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
+
 session_start();
 
 $session_timeout = 8 * 60 * 60;
@@ -49,6 +52,16 @@ $parceirosDb = $pdoEnvios->query(
     "SELECT empresa FROM parceiros ORDER BY empresa ASC"
 )->fetchAll(PDO::FETCH_COLUMN);
 
+// Prefixos de SN (ordenados do mais longo para o mais curto — maior especificidade primeiro)
+$prefixosDb = [];
+try {
+    $prefixosDb = $pdoEnvios->query(
+        "SELECT prefixo, categoria, produto FROM produto_sn_prefixos ORDER BY LENGTH(prefixo) DESC"
+    )->fetchAll();
+} catch (Exception $e) {
+    // Tabela ainda não existe — corre primeiro o nvcloud_catalogo.sql
+}
+
 $erro = '';
 $sucesso = '';
 $paginasGeradas = [];
@@ -78,6 +91,29 @@ function normalizarTextoPdf($texto) {
     $texto = str_replace("\t", ' ', $texto);
     $texto = preg_replace('/[ ]{2,}/u', ' ', $texto);
     return trim($texto);
+}
+
+/**
+ * Identifica produto e categoria pelo prefixo do Nº de Série.
+ * Os prefixos já vêm ordenados do mais longo para o mais curto,
+ * garantindo que o match mais específico ganha.
+ * Devolve ['categoria'=>string, 'produto'=>string, 'matched'=>bool].
+ */
+function matchProdutoPorSN(string $sn, array $prefixos): array {
+    $resultado = ['categoria' => '', 'produto' => '', 'matched' => false];
+    if ($sn === '' || empty($prefixos)) return $resultado;
+    $snUpper = strtoupper(trim($sn));
+    foreach ($prefixos as $p) {
+        $pref = strtoupper(trim($p['prefixo']));
+        if ($pref !== '' && strpos($snUpper, $pref) === 0) {
+            return [
+                'categoria' => $p['categoria'] ?? '',
+                'produto'   => $p['produto']   ?? '',
+                'matched'   => true,
+            ];
+        }
+    }
+    return $resultado;
 }
 
 /**
@@ -191,14 +227,14 @@ function extrairCabecalhoGuia($texto) {
     // ── Tipo de documento ────────────────────────────────
     if (preg_match('/G\.\s*Transp\s*\(said\s*fornec\)/iu', $texto)) {
         $dados['documento'] = 'G. Transp (said fornec)';
-    } elseif (preg_match('/G\.\s*Transp\s*\(said\s*client\)/iu', $texto)) {
-        $dados['documento'] = 'G. Transp (said client)';
+    } elseif (preg_match('/G\.\s*Transp\s*\(said\s*cli\b/iu', $texto)) {
+        $dados['documento'] = 'G. Transp (said cli)';
     } elseif (preg_match('/Guia\s+de\s+transporte/iu', $texto)) {
         $dados['documento'] = 'Guia de Transporte';
     }
 
     // ── Número e data do documento ────────────────────────
-    if (preg_match('/G\.\s*Transp\s*\(said\s*(?:fornec|client)\)\s+(\d{1,6})\s+(\d{4}-\d{2}-\d{2})/iu', $texto, $m)) {
+    if (preg_match('/G\.\s*Transp\s*\(said\s*(?:fornec|cli\b)[^)]*\)\s+(\d{1,6})\s+(\d{4}-\d{2}-\d{2})/iu', $texto, $m)) {
         $dados['numero_documento'] = $m[1];
         $dados['data_documento']   = $m[2];
     } else {
@@ -221,16 +257,36 @@ function extrairCabecalhoGuia($texto) {
         '/Exmo\(s\)\s+Senhor\(es\).*?\n+\s*([^\n]{8,}(?:LDA|S\.?\s*A\.?|SRL|UNIPESSOAL|COOPERATIVA)[^\n]*)/isu',
         $texto, $m
     )) {
-        $dados['destinatario_nome'] = limparTexto($m[1]);
+        $cand = limparTexto($m[1]);
+        // Rejeitar se começa com referência de documento (GT 2026...)
+        if (!preg_match('/^GT\s+\d/i', $cand)) {
+            $dados['destinatario_nome'] = $cand;
+        }
     }
-    // Padrão 2: mesma linha (layout com colunas sobrepostas)
+    // Padrão 2: KONICA-type — empresa numa linha, UNIP./LDA na linha seguinte (com GT)
+    if ($dados['destinatario_nome'] === '') {
+        if (preg_match(
+            '/Exmo\(s\)\s+Senhor\(es\)\s*\n+\s*([^\n]{8,})\n+([^\n]*(?:LDA|S\.?\s*A\.?|UNIPESSOAL|SRL|COOPERATIVA)[^\n]*)/isu',
+            $texto, $m
+        )) {
+            $partA = limparTexto($m[1]);
+            $partB = limparTexto($m[2]);
+            if (!preg_match('/^GT\s+\d|^Guia de|^ATCUD/i', $partA)) {
+                // Remover referência GT da linha do sufixo (ex: "GT 2026BO91/131 UNIP. LDA" → "UNIP. LDA")
+                $suffix = preg_replace('/^GT\s+[A-Z0-9\/\.]+\s*/i', '', $partB);
+                $suffix = limparTexto($suffix);
+                $dados['destinatario_nome'] = $suffix !== '' ? limparTexto($partA . ' ' . $suffix) : $partA;
+            }
+        }
+    }
+    // Padrão 3: mesma linha que Exmo(s) (layout com colunas sobrepostas)
     if ($dados['destinatario_nome'] === '' &&
         preg_match('/Exmo\(s\)\s+Senhor\(es\)\s+([^\n]{8,})/iu', $texto, $m)) {
         $cand = limparTexto($m[1]);
         if (!preg_match('/^(?:Documento|N[\xba\xb0o]|Via\s+do)/iu', $cand))
             $dados['destinatario_nome'] = $cand;
     }
-    // Padrão 3: qualquer linha com sufixo societário
+    // Padrão 4: qualquer linha com sufixo societário
     if ($dados['destinatario_nome'] === '' &&
         preg_match('/^([A-Z\xc0-\xff\-][^\n]{8,}(?:LDA|S\.?A\.|UNIPESSOAL|COOPERATIVA)[^\n]*)/mu', $texto, $m)) {
         $dados['destinatario_nome'] = limparTexto($m[1]);
@@ -296,7 +352,7 @@ function ehSnValido($token) {
     $token = strtoupper(trim($token));
     if ($token === '') return false;
     if (ehPat($token)) return false;
-    if (strlen($token) < 8) return false;
+    if (strlen($token) < 7) return false;
     if (preg_match('/\s/', $token)) return false;
     if (!preg_match('/[A-Z]/', $token)) return false;
     if (!preg_match('/\d/', $token)) return false;
@@ -856,10 +912,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['guia_pdf'])) {
                 // ── Pós-processamento: matching de produto/categoria e parceiro ──
                 if (!empty($itensExtraidos)) {
                     foreach ($itensExtraidos as &$itemPP) {
-                        $tipoExtraido = $itemPP['tipo'] ?? '';
-                        $match = matchProduto($tipoExtraido, $catalogoDb);
-                        $itemPP['nome_peca'] = $match['produto'];
-                        $itemPP['categoria'] = $match['categoria'];
+                        $sn           = $itemPP['sn']   ?? '';
+                        $tipoExtraido = $itemPP['tipo']  ?? '';
+
+                        // Prioridade 1 — Prefixo do SN (identifica mesmo peças nunca vistas)
+                        $matchSN = matchProdutoPorSN($sn, $prefixosDb);
+                        if ($matchSN['matched']) {
+                            $itemPP['categoria'] = $matchSN['categoria'];
+                            if ($matchSN['produto'] !== '') {
+                                // Prefixo identifica produto exacto
+                                $itemPP['nome_peca'] = $matchSN['produto'];
+                            } else {
+                                // Prefixo só identifica categoria (ex: todas as Proxima)
+                                // usa texto da guia para determinar produto específico
+                                $matchTxt = matchProduto($tipoExtraido, $catalogoDb);
+                                $itemPP['nome_peca'] = $matchTxt['produto'] ?: $tipoExtraido;
+                            }
+                        } else {
+                            // Prioridade 2 — Texto da designação na guia
+                            $matchTxt = matchProduto($tipoExtraido, $catalogoDb);
+                            $itemPP['nome_peca'] = $matchTxt['produto'];
+                            $itemPP['categoria'] = $matchTxt['categoria'];
+                        }
                     }
                     unset($itemPP);
                 }
