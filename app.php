@@ -5172,8 +5172,8 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
             <label>Cliente onde foi instalada</label>
             <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList">
             <datalist id="clientesList">
-                <?php foreach ($pdo->query("SELECT nome FROM clientes ORDER BY nome") as $c): ?>
-                <option value="<?= e($c['nome']) ?>"><?php endforeach; ?>
+                <?php foreach ($pdo->query("SELECT account_name FROM clientes ORDER BY account_name") as $c): ?>
+                <option value="<?= e($c['account_name']) ?>"><?php endforeach; ?>
             </datalist>
         </div>
         <script>

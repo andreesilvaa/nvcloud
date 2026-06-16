@@ -41,11 +41,21 @@ function nvAplicarRelatorio(PDO $pdo, int $relId, array $decisoes, string $utili
 			$sn = $lp['sn'];
 
 			// cliente (só relevante quando destino = "Cliente")
+			// Na importação fazemos apenas MATCH contra a lista oficial — nunca criamos
+			// contas novas a partir de parsing. Se não houver match, fica pendente.
+			// Exceção: se o utilizador escreveu/confirmou o nome no ecrã "Rever"
+			// ($d['cliente']), aí sim pode criar via nvObterOuCriarCliente.
 			$clienteId = null; $clientePendente = 0;
 			if ($destino === 'Cliente') {
-				$nomeCliente = $d['cliente'] ?? ($rel['cliente_detect'] ?? '');
-				if (trim($nomeCliente) !== '') {
-					$clienteId = nvObterOuCriarCliente($pdo, $nomeCliente);
+				$nomeConfirmado = trim($d['cliente'] ?? '');
+				$nomeDetetado   = trim($rel['cliente_detect'] ?? '');
+				if ($nomeConfirmado !== '') {
+					// utilizador confirmou explicitamente -> pode criar
+					$clienteId = nvObterOuCriarCliente($pdo, $nomeConfirmado);
+				} elseif ($nomeDetetado !== '') {
+					// veio do relatório -> só match; se falhar, fica pendente
+					$clienteId = nvMatchCliente($pdo, $nomeDetetado);
+					if (!$clienteId) $clientePendente = 1;
 				} else {
 					$clientePendente = 1; // "Cliente — por identificar"
 				}
