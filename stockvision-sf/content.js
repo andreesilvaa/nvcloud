@@ -2,7 +2,7 @@
 // content.js v3 — Leitura cirúrgica do DOM Salesforce
 // ══════════════════════════════════════════════════════════
 
-chrome.runtime.onMessage.addListener(function (msg, sender, senResponse) {
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.tipo === 'verificar_pagina') {
     sendResponse(verificarPagina());
     return;

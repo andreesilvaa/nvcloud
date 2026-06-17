@@ -20,9 +20,9 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 
 
 $_SESSION['LAST_ACTIVITY'] = time();
 
-$tesseract = '"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"';
-$pdftoppm  = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftoppm.exe"';
-$pdftotext = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftotext.exe"';
+$tesseract = '"' . TESSERACT_BIN . '"';
+$pdftoppm  = '"' . PDFTOPPM_BIN  . '"';
+$pdftotext = '"' . PDFTOTEXT_BIN . '"';
 
 // ── Ligação à Base de Dados ───────────────────────────────────
 require_once __DIR__ . '/config.php';

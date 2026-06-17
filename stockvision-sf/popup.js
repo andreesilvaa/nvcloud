@@ -39,16 +39,14 @@ function iniciar() {
 
     chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
       if (chrome.runtime.lastError) {
-        mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.messge);
-        return;
-      }
+        // O content script ainda não está injetado nesta aba: injeta e volta a verificar
         chrome.scripting.executeScript(
           { target: { tabId: tabId }, files: ['content.js'] },
           function () { setTimeout(function () { verificarELer(tabId); }, 500); }
         );
         return;
       }
-      if (!resp.eWorkOrder) {
+      if (!resp || !resp.eWorkOrder) {
         badge('—', '#555');
         mostrarEstado('stateNotWO');
         return;

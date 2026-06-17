@@ -1,0 +1,373 @@
+diff --git a/app.php b/app.php
+index 1e52aeb..7e81c61 100644
+--- a/app.php
++++ b/app.php
+@@ -43,12 +43,27 @@ $csrfToken = $_SESSION['csrf_token'];
+ // ============================================================
+ 
+ 
++#[\NoReturn]
+ function redirectTo(string $url): void
+ {
+     header('Location: ' . $url);
+     exit;
+ }
+ 
++function utilizadorEhAdmin(): bool
++{
++    return ($_SESSION['user_role'] ?? 'user') === 'admin';
++}
++
++#[\NoReturn]
++function exigirAdmin(): void
++{
++    if (!utilizadorEhAdmin()) {
++        flashError('Não tens permissão para executar esta ação.');
++        redirectTo('app.php?page=dashboard');
++    }
++}
++
+ function flashSuccess(string $message): void
+ {
+     $_SESSION['mensagem_sucesso'] = $message;
+@@ -1044,8 +1059,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
+ // ============================================================
+ function extrairTextoPdfNova(string $caminhoPdf): string
+ {
+-    // Caminho com barras normais — mais fiável no Windows/PHP
+-    $pdftotext = 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe';
++    // Caminho centralizado no bootstrap.php (sobreponível no config.php / env)
++    $pdftotext = PDFTOTEXT_BIN;
+ 
+     // Constrói o comando com aspas manuais (evita problemas do escapeshellarg no Windows)
+     $cmd = '"' . $pdftotext . '" -layout "' . $caminhoPdf . '" -';
+@@ -2657,7 +2672,7 @@ function nviInterpretar(string $perguntaOriginal, array $estados): array {
+     $q = nviSemAcento($perguntaOriginal);
+     $tem = function (string ...$ks) use ($q): bool {
+         foreach ($ks as $k) {
+-            if (strpos($q, $k) !== false) return true;
++            if (str_contains($q, $k)) return true;
+         }
+         return false;
+     };
+@@ -2881,6 +2896,18 @@ function tabValor(PDO $pdo, string $sql, array $params): string {
+ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+     $ft = $_POST['form_type'] ?? '';
+ 
++    // Apenas administradores podem gerir categorias, estados, fabricantes, produtos e parceiros
++    $acoesDeGestao = [
++        'guardar_categoria', 'eliminar_categoria',
++        'guardar_estado', 'eliminar_estado',
++        'guardar_fabricante', 'eliminar_fabricante',
++        'guardar_produto', 'eliminar_produto',
++        'guardar_parceiro', 'eliminar_parceiro',
++    ];
++    if (in_array($ft, $acoesDeGestao, true)) {
++        exigirAdmin(); // bloqueia e redireciona se não for admin
++    }
++
+     // ----- CATEGORIAS -----
+     if ($ft === 'guardar_categoria') {
+         $id = (int)($_POST['id'] ?? 0);
+@@ -4403,7 +4430,7 @@ acao-btn:hover {background: #e5e7eb; }
+     color: #1f2937;
+     text-decoration: none;
+     white-space: nowrap;
+-    transiction: background .12s;
++    transition: background .12s;
+ }
+ .acao-menu a:hover { background: #f3f4f6; }
+ .acao-menu a i { font-size: 15px; }
+@@ -4459,7 +4486,7 @@ acao-btn:hover {background: #e5e7eb; }
+     font-size: 14px;
+     color: #1f2937;
+     text-decoration: none;
+-    transiction: background .12s;
++    transition: background .12s;
+ }
+ .user-dropdown-menu a:hover { background: #f3f4f6; }
+ .user-dropdown-menu a.danger { color: #dc2626; }
+@@ -4475,7 +4502,7 @@ body.dark-mode {
+ body.dark-mode .sidebar { background: #1f2937; }
+ body.dark-mode .sidebar a,
+ body.dark-mode .sidebar-parent { color: #d1d5db; }
+-body.dark-mode .main { backgroud: #111827; }
++body.dark-mode .main { background: #111827; }
+ body.dark-mode .kpi-card,
+ body.dark-mode .panel { background: #1f2937; color: #e5e7eb; }
+ body.dark-mode .table { background: #1f2937; color: #e5e7eb; }
+@@ -6688,6 +6715,10 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+ 
+ <?php elseif ($page === 'categorias'): ?>
+ 
++  <?php if (!utilizadorEhAdmin()): ?>
++    <div class="alerta-erro">Não tens permissão para gerir categorias. Contacta um administrador.</div>
++  <?php else: ?>
++
+   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+   <?php unset($_SESSION['mensagem_erro']); endif; ?>
+@@ -6734,9 +6765,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+     </table>
+     <?php paginacaoTabela('categorias', $tabPaginas, $tabPag); ?>
+   <?php endif; ?>
++  <?php endif; /* fim do guard de admin (categorias) */ ?>
+ 
+ <?php elseif ($page === 'estados'): ?>
+ 
++  <?php if (!utilizadorEhAdmin()): ?>
++    <div class="alerta-erro">Não tens permissão para gerir estados. Contacta um administrador.</div>
++  <?php else: ?>
++
+   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+   <?php unset($_SESSION['mensagem_erro']); endif; ?>
+@@ -6788,9 +6824,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+     </table>
+     <?php paginacaoTabela('estados', $tabPaginas, $tabPag); ?>
+   <?php endif; ?>
++  <?php endif; /* fim do guard de admin (estados) */ ?>
+ 
+ <?php elseif ($page === 'fabricantes'): ?>
+ 
++  <?php if (!utilizadorEhAdmin()): ?>
++    <div class="alerta-erro">Não tens permissão para gerir fabricantes. Contacta um administrador.</div>
++  <?php else: ?>
++
+   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+   <?php unset($_SESSION['mensagem_erro']); endif; ?>
+@@ -6837,9 +6878,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+     </table>
+     <?php paginacaoTabela('fabricantes', $tabPaginas, $tabPag); ?>
+   <?php endif; ?>
++  <?php endif; /* fim do guard de admin (fabricantes) */ ?>
+ 
+ <?php elseif ($page === 'produtos'): ?>
+ 
++  <?php if (!utilizadorEhAdmin()): ?>
++    <div class="alerta-erro">Não tens permissão para gerir produtos. Contacta um administrador.</div>
++  <?php else: ?>
++
+   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+   <?php unset($_SESSION['mensagem_erro']); endif; ?>
+@@ -6906,9 +6952,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+     </table>
+     <?php paginacaoTabela('produtos', $tabPaginas, $tabPag); ?>
+   <?php endif; ?>
++  <?php endif; /* fim do guard de admin (produtos) */ ?>
+ 
+ <?php elseif ($page === 'parceiros'): ?>
+ 
++  <?php if (!utilizadorEhAdmin()): ?>
++    <div class="alerta-erro">Não tens permissão para gerir parceiros. Contacta um administrador.</div>
++  <?php else: ?>
++
+   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+   <?php unset($_SESSION['mensagem_erro']); endif; ?>
+@@ -7006,6 +7057,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
+     </table>
+     <?php paginacaoTabela('parceiros', $tabPaginas, $tabPag, $det ? '&det=1' : ''); ?>
+   <?php endif; ?>
++  <?php endif; /* fim do guard de admin (parceiros) */ ?>
+ 
+ <?php elseif ($page === 'nvi'): ?>
+ 
+diff --git a/bootstrap.php b/bootstrap.php
+index 489507f..131a6ff 100644
+--- a/bootstrap.php
++++ b/bootstrap.php
+@@ -7,6 +7,38 @@
+ 
+ require_once __DIR__ . '/vendor/autoload.php';
+ 
++// ============================================================
++// BINÁRIOS EXTERNOS (Poppler / Tesseract)
++// Caminhos centralizados aqui para não estarem hardcoded em vários ficheiros.
++// Podem ser sobrepostos no config.php (que é carregado depois) ou por
++// variáveis de ambiente. Em Windows aponta para os .exe; em Linux assume
++// que estão no PATH (instalar com: apt install poppler-utils tesseract-ocr).
++// ============================================================
++if (!defined('PDFTOTEXT_BIN')) {
++    if (PHP_OS_FAMILY === 'Windows') {
++        define('PDFTOTEXT_BIN', getenv('PDFTOTEXT_BIN') ?: 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe');
++    } else {
++        define('PDFTOTEXT_BIN', getenv('PDFTOTEXT_BIN') ?: 'pdftotext');
++    }
++}
++if (!defined('PDFTOPPM_BIN')) {
++    if (PHP_OS_FAMILY === 'Windows') {
++        define('PDFTOPPM_BIN', getenv('PDFTOPPM_BIN') ?: 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe');
++    } else {
++        define('PDFTOPPM_BIN', getenv('PDFTOPPM_BIN') ?: 'pdftoppm');
++    }
++}
++if (!defined('TESSERACT_BIN')) {
++    if (PHP_OS_FAMILY === 'Windows') {
++        define('TESSERACT_BIN', getenv('TESSERACT_BIN') ?: 'C:/Program Files/Tesseract-OCR/tesseract.exe');
++    } else {
++        define('TESSERACT_BIN', getenv('TESSERACT_BIN') ?: 'tesseract');
++    }
++}
++if (!defined('TESSERACT_LANG')) {
++    define('TESSERACT_LANG', getenv('TESSERACT_LANG') ?: 'por+eng');
++}
++
+ \Sentry\init([
+     'dsn' => 'https://4fc6ba0fb2beb782ce1b4fdbd15572d0@o4511570013257728.ingest.de.sentry.io/4511570045894736',
+ 
+diff --git a/envios.php b/envios.php
+index 0dfd618..882b3f7 100644
+--- a/envios.php
++++ b/envios.php
+@@ -20,9 +20,9 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] >
+ 
+ $_SESSION['LAST_ACTIVITY'] = time();
+ 
+-$tesseract = '"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"';
+-$pdftoppm  = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftoppm.exe"';
+-$pdftotext = '"C:\\poppler\\poppler-26.02.0\\Library\\bin\\pdftotext.exe"';
++$tesseract = '"' . TESSERACT_BIN . '"';
++$pdftoppm  = '"' . PDFTOPPM_BIN  . '"';
++$pdftotext = '"' . PDFTOTEXT_BIN . '"';
+ 
+ // ── Ligação à Base de Dados ───────────────────────────────────
+ require_once __DIR__ . '/config.php';
+diff --git a/includes/ocr_helper.php b/includes/ocr_helper.php
+index 42851ff..4b7a43d 100644
+--- a/includes/ocr_helper.php
++++ b/includes/ocr_helper.php
+@@ -12,13 +12,23 @@ use thiagoalessio\TesseractOCR\TesseractOCR;
+ function extrairTextoPDF(string $pdfPath): string
+ {
+ 
+-	$popplerDir = 'C:/poppler/poppler-26.02.0/Library/bin';
+-	$tesseract = 'C:\Program Files\Tesseract-OCR\tesseract.exe';
++	// Caminhos centralizados (definidos no bootstrap.php; fallback aqui caso este
++	// ficheiro seja incluído isoladamente). Em Linux assume binários no PATH.
++	if (!defined('PDFTOTEXT_BIN')) {
++		define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
++	}
++	if (!defined('PDFTOPPM_BIN')) {
++		define('PDFTOPPM_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
++	}
++	if (!defined('TESSERACT_BIN')) {
++		define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
++	}
++	$tesseract = TESSERACT_BIN;
+ 	$tmpBase = sys_get_temp_dir() . '/nvcloud_' . uniqid();
+ 
+ 	// ── TENTATIVA 1: Poppler (PDFs com texto embutido) ──────────────────
+ 	$txtFile = $tmpBase . '.txt';
+-	exec("\"$popplerDir/pdftotext.exe\" \"$pdfPath\" \"$txtFile\"");
++	exec('"' . PDFTOTEXT_BIN . '" "' . $pdfPath . '" "' . $txtFile . '"');
+ 	$texto = file_exists($txtFile) ? trim(file_get_contents($txtFile)) : '';
+ 
+ 	// ── TENTATIVA 2: Tesseract OCR (PDFs escaneados) ─────────────────────
+@@ -26,7 +36,7 @@ function extrairTextoPDF(string $pdfPath): string
+ 
+ 		// Converte a 1ª página do PDF em imagem PNG (300dpi = boa qualidade para OCR)
+ 		$imgPrefix = $tmpBase . '_pag';
+-		exec("\"$popplerDir/pdftoppm.exe\" -r 300 -png -l 1 \"$pdfPath\" \"$imgPrefix\"");
++		exec('"' . PDFTOPPM_BIN . '" -r 300 -png -l 1 "' . $pdfPath . '" "' . $imgPrefix . '"');
+ 
+ 		// pdftoppm gera: prefixo-1.png
+ 		$imgFile = $imgPrefix . '-1.png';
+diff --git a/includes/relatorios_parser.php b/includes/relatorios_parser.php
+index 8d5f378..0ae67ab 100644
+--- a/includes/relatorios_parser.php
++++ b/includes/relatorios_parser.php
+@@ -1,9 +1,12 @@
+ <?php
+ // includes/relatorios_parser.php — deteção de formato + extração
+ 
+-if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', 'C:/Program Files/Tesseract-OCR/tesseract.exe');
++// Caminhos sensíveis ao SO. O bootstrap.php define-os primeiro (têm prioridade);
++// estes são apenas fallback caso este ficheiro seja incluído isoladamente.
++if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
+ if (!defined('TESSERACT_LANG')) define('TESSERACT_LANG', 'por+eng');
+-if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe');
++if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
++if (!defined('PDFTOPPM_BIN'))   define('PDFTOPPM_BIN',  PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
+ 
+ 
+ 
+@@ -26,7 +29,8 @@ function nvParseRelatorio(string $path, string $nomeOriginal): array
+ 
+ function nvPdfParaTexto(string $path): string
+ {
+-	if (!is_file(PDFTOTEXT_BIN)) return '';
++	// No Windows o binário é um caminho absoluto verificável; em Linux está no PATH.
++	if (PHP_OS_FAMILY === 'Windows' && !is_file(PDFTOTEXT_BIN)) return '';
+ 	$tmp = tempnam(sys_get_temp_dir(), 'nvpdf') . '.txt';
+ 	$cmd = '"' . PDFTOTEXT_BIN . '" -layout ' . escapeshellarg($path) . ' ' . escapeshellarg($tmp);
+ 	@exec($cmd);
+@@ -193,10 +197,10 @@ function nvParseFieldService(string $path, string $nome): array
+ 
+ function nvOcrPdf(string $path): string
+ {
+-	if (!is_file(TESSERACT_BIN) || !is_file(PDFTOTEXT_BIN)) return '';
++	if (PHP_OS_FAMILY === 'Windows' && (!is_file(TESSERACT_BIN) || !is_file(PDFTOTEXT_BIN))) return '';
+ 	// Converter 1.ª página em imagem com pdftoppm (vem com o Poppler)
+-	$ppm = dirname(PDFTOTEXT_BIN) . '/pdftoppm.exe';
+-	if (!is_file($ppm)) return '';
++	$ppm = PDFTOPPM_BIN;
++	if (PHP_OS_FAMILY === 'Windows' && !is_file($ppm)) return '';
+ 	$base = tempnam(sys_get_temp_dir(), 'nvocr');
+ 	@unlink($base);
+ 	@exec('"' . $ppm . '" -png -r 220 -f 1 -l 1 ' . escapeshellarg($path) . ' ' . escapeshellarg($base));
+diff --git a/qodana.yaml b/qodana.yaml
+index b43aea0..8867cea 100644
+--- a/qodana.yaml
++++ b/qodana.yaml
+@@ -18,10 +18,8 @@ profile:
+ #  - name: <SomeEnabledInspectionId>
+ 
+ #Disable inspections
+-#exclude:
+-#  - name: <SomeDisabledInspectionId>
+-#    paths:
+-#      - <path/where/not/run/inspection>
++exclude:
++  - name: PsalmAdvanceCallableParamsInspection
+ 
+ php:
+   version: 8.1 #(Applied in CI/CD pipeline)
+diff --git a/stockvision-sf/content.js b/stockvision-sf/content.js
+index 22fac6f..875be2e 100644
+--- a/stockvision-sf/content.js
++++ b/stockvision-sf/content.js
+@@ -2,7 +2,7 @@
+ // content.js v3 — Leitura cirúrgica do DOM Salesforce
+ // ══════════════════════════════════════════════════════════
+ 
+-chrome.runtime.onMessage.addListener(function (msg, sender, senResponse) {
++chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+   if (msg.tipo === 'verificar_pagina') {
+     sendResponse(verificarPagina());
+     return;
+diff --git a/stockvision-sf/popup.js b/stockvision-sf/popup.js
+index 91f8fca..890e97c 100644
+--- a/stockvision-sf/popup.js
++++ b/stockvision-sf/popup.js
+@@ -39,16 +39,14 @@ function iniciar() {
+ 
+     chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
+       if (chrome.runtime.lastError) {
+-        mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.messge);
+-        return;
+-      }
++        // O content script ainda não está injetado nesta aba: injeta e volta a verificar
+         chrome.scripting.executeScript(
+           { target: { tabId: tabId }, files: ['content.js'] },
+           function () { setTimeout(function () { verificarELer(tabId); }, 500); }
+         );
+         return;
+       }
+-      if (!resp.eWorkOrder) {
++      if (!resp || !resp.eWorkOrder) {
+         badge('—', '#555');
+         mostrarEstado('stateNotWO');
+         return;

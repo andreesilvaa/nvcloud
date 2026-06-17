@@ -12,13 +12,23 @@ use thiagoalessio\TesseractOCR\TesseractOCR;
 function extrairTextoPDF(string $pdfPath): string
 {
 
-	$popplerDir = 'C:/poppler/poppler-26.02.0/Library/bin';
-	$tesseract = 'C:\Program Files\Tesseract-OCR\tesseract.exe';
+	// Caminhos centralizados (definidos no bootstrap.php; fallback aqui caso este
+	// ficheiro seja incluído isoladamente). Em Linux assume binários no PATH.
+	if (!defined('PDFTOTEXT_BIN')) {
+		define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
+	}
+	if (!defined('PDFTOPPM_BIN')) {
+		define('PDFTOPPM_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
+	}
+	if (!defined('TESSERACT_BIN')) {
+		define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
+	}
+	$tesseract = TESSERACT_BIN;
 	$tmpBase = sys_get_temp_dir() . '/nvcloud_' . uniqid();
 
 	// ── TENTATIVA 1: Poppler (PDFs com texto embutido) ──────────────────
 	$txtFile = $tmpBase . '.txt';
-	exec("\"$popplerDir/pdftotext.exe\" \"$pdfPath\" \"$txtFile\"");
+	exec('"' . PDFTOTEXT_BIN . '" "' . $pdfPath . '" "' . $txtFile . '"');
 	$texto = file_exists($txtFile) ? trim(file_get_contents($txtFile)) : '';
 
 	// ── TENTATIVA 2: Tesseract OCR (PDFs escaneados) ─────────────────────
@@ -26,7 +36,7 @@ function extrairTextoPDF(string $pdfPath): string
 
 		// Converte a 1ª página do PDF em imagem PNG (300dpi = boa qualidade para OCR)
 		$imgPrefix = $tmpBase . '_pag';
-		exec("\"$popplerDir/pdftoppm.exe\" -r 300 -png -l 1 \"$pdfPath\" \"$imgPrefix\"");
+		exec('"' . PDFTOPPM_BIN . '" -r 300 -png -l 1 "' . $pdfPath . '" "' . $imgPrefix . '"');
 
 		// pdftoppm gera: prefixo-1.png
 		$imgFile = $imgPrefix . '-1.png';

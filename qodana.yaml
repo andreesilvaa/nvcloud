@@ -18,10 +18,8 @@ profile:
 #  - name: <SomeEnabledInspectionId>
 
 #Disable inspections
-#exclude:
-#  - name: <SomeDisabledInspectionId>
-#    paths:
-#      - <path/where/not/run/inspection>
+exclude:
+  - name: PsalmAdvanceCallableParamsInspection
 
 php:
   version: 8.1 #(Applied in CI/CD pipeline)

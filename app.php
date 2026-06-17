@@ -43,10 +43,25 @@ $csrfToken = $_SESSION['csrf_token'];
 // ============================================================
 
 
+#[\NoReturn]
 function redirectTo(string $url): void
 {
     header('Location: ' . $url);
     exit;
+}
+
+function utilizadorEhAdmin(): bool
+{
+    return ($_SESSION['user_role'] ?? 'user') === 'admin';
+}
+
+#[\NoReturn]
+function exigirAdmin(): void
+{
+    if (!utilizadorEhAdmin()) {
+        flashError('Não tens permissão para executar esta ação.');
+        redirectTo('app.php?page=dashboard');
+    }
 }
 
 function flashSuccess(string $message): void
@@ -1044,8 +1059,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
 // ============================================================
 function extrairTextoPdfNova(string $caminhoPdf): string
 {
-    // Caminho com barras normais — mais fiável no Windows/PHP
-    $pdftotext = 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe';
+    // Caminho centralizado no bootstrap.php (sobreponível no config.php / env)
+    $pdftotext = PDFTOTEXT_BIN;
 
     // Constrói o comando com aspas manuais (evita problemas do escapeshellarg no Windows)
     $cmd = '"' . $pdftotext . '" -layout "' . $caminhoPdf . '" -';
@@ -2657,7 +2672,7 @@ function nviInterpretar(string $perguntaOriginal, array $estados): array {
     $q = nviSemAcento($perguntaOriginal);
     $tem = function (string ...$ks) use ($q): bool {
         foreach ($ks as $k) {
-            if (strpos($q, $k) !== false) return true;
+            if (str_contains($q, $k)) return true;
         }
         return false;
     };
@@ -2880,6 +2895,18 @@ function tabValor(PDO $pdo, string $sql, array $params): string {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ft = $_POST['form_type'] ?? '';
+
+    // Apenas administradores podem gerir categorias, estados, fabricantes, produtos e parceiros
+    $acoesDeGestao = [
+        'guardar_categoria', 'eliminar_categoria',
+        'guardar_estado', 'eliminar_estado',
+        'guardar_fabricante', 'eliminar_fabricante',
+        'guardar_produto', 'eliminar_produto',
+        'guardar_parceiro', 'eliminar_parceiro',
+    ];
+    if (in_array($ft, $acoesDeGestao, true)) {
+        exigirAdmin(); // bloqueia e redireciona se não for admin
+    }
 
     // ----- CATEGORIAS -----
     if ($ft === 'guardar_categoria') {
@@ -4403,7 +4430,7 @@ acao-btn:hover {background: #e5e7eb; }
     color: #1f2937;
     text-decoration: none;
     white-space: nowrap;
-    transiction: background .12s;
+    transition: background .12s;
 }
 .acao-menu a:hover { background: #f3f4f6; }
 .acao-menu a i { font-size: 15px; }
@@ -4459,7 +4486,7 @@ acao-btn:hover {background: #e5e7eb; }
     font-size: 14px;
     color: #1f2937;
     text-decoration: none;
-    transiction: background .12s;
+    transition: background .12s;
 }
 .user-dropdown-menu a:hover { background: #f3f4f6; }
 .user-dropdown-menu a.danger { color: #dc2626; }
@@ -4475,7 +4502,7 @@ body.dark-mode {
 body.dark-mode .sidebar { background: #1f2937; }
 body.dark-mode .sidebar a,
 body.dark-mode .sidebar-parent { color: #d1d5db; }
-body.dark-mode .main { backgroud: #111827; }
+body.dark-mode .main { background: #111827; }
 body.dark-mode .kpi-card,
 body.dark-mode .panel { background: #1f2937; color: #e5e7eb; }
 body.dark-mode .table { background: #1f2937; color: #e5e7eb; }
@@ -6688,6 +6715,10 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
 
 <?php elseif ($page === 'categorias'): ?>
 
+  <?php if (!utilizadorEhAdmin()): ?>
+    <div class="alerta-erro">Não tens permissão para gerir categorias. Contacta um administrador.</div>
+  <?php else: ?>
+
   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
   <?php unset($_SESSION['mensagem_erro']); endif; ?>
@@ -6734,8 +6765,13 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </table>
     <?php paginacaoTabela('categorias', $tabPaginas, $tabPag); ?>
   <?php endif; ?>
+  <?php endif; /* fim do guard de admin (categorias) */ ?>
 
 <?php elseif ($page === 'estados'): ?>
+
+  <?php if (!utilizadorEhAdmin()): ?>
+    <div class="alerta-erro">Não tens permissão para gerir estados. Contacta um administrador.</div>
+  <?php else: ?>
 
   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
@@ -6788,8 +6824,13 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </table>
     <?php paginacaoTabela('estados', $tabPaginas, $tabPag); ?>
   <?php endif; ?>
+  <?php endif; /* fim do guard de admin (estados) */ ?>
 
 <?php elseif ($page === 'fabricantes'): ?>
+
+  <?php if (!utilizadorEhAdmin()): ?>
+    <div class="alerta-erro">Não tens permissão para gerir fabricantes. Contacta um administrador.</div>
+  <?php else: ?>
 
   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
@@ -6837,8 +6878,13 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </table>
     <?php paginacaoTabela('fabricantes', $tabPaginas, $tabPag); ?>
   <?php endif; ?>
+  <?php endif; /* fim do guard de admin (fabricantes) */ ?>
 
 <?php elseif ($page === 'produtos'): ?>
+
+  <?php if (!utilizadorEhAdmin()): ?>
+    <div class="alerta-erro">Não tens permissão para gerir produtos. Contacta um administrador.</div>
+  <?php else: ?>
 
   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
@@ -6906,8 +6952,13 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </table>
     <?php paginacaoTabela('produtos', $tabPaginas, $tabPag); ?>
   <?php endif; ?>
+  <?php endif; /* fim do guard de admin (produtos) */ ?>
 
 <?php elseif ($page === 'parceiros'): ?>
+
+  <?php if (!utilizadorEhAdmin()): ?>
+    <div class="alerta-erro">Não tens permissão para gerir parceiros. Contacta um administrador.</div>
+  <?php else: ?>
 
   <?php if (!empty($_SESSION['mensagem_erro'])): ?>
     <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
@@ -7006,6 +7057,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </table>
     <?php paginacaoTabela('parceiros', $tabPaginas, $tabPag, $det ? '&det=1' : ''); ?>
   <?php endif; ?>
+  <?php endif; /* fim do guard de admin (parceiros) */ ?>
 
 <?php elseif ($page === 'nvi'): ?>
 

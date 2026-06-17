@@ -1,9 +1,12 @@
 <?php
 // includes/relatorios_parser.php — deteção de formato + extração
 
-if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', 'C:/Program Files/Tesseract-OCR/tesseract.exe');
+// Caminhos sensíveis ao SO. O bootstrap.php define-os primeiro (têm prioridade);
+// estes são apenas fallback caso este ficheiro seja incluído isoladamente.
+if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
 if (!defined('TESSERACT_LANG')) define('TESSERACT_LANG', 'por+eng');
-if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe');
+if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
+if (!defined('PDFTOPPM_BIN'))   define('PDFTOPPM_BIN',  PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
 
 
 
@@ -26,7 +29,8 @@ function nvParseRelatorio(string $path, string $nomeOriginal): array
 
 function nvPdfParaTexto(string $path): string
 {
-	if (!is_file(PDFTOTEXT_BIN)) return '';
+	// No Windows o binário é um caminho absoluto verificável; em Linux está no PATH.
+	if (PHP_OS_FAMILY === 'Windows' && !is_file(PDFTOTEXT_BIN)) return '';
 	$tmp = tempnam(sys_get_temp_dir(), 'nvpdf') . '.txt';
 	$cmd = '"' . PDFTOTEXT_BIN . '" -layout ' . escapeshellarg($path) . ' ' . escapeshellarg($tmp);
 	@exec($cmd);
@@ -193,10 +197,10 @@ function nvParseFieldService(string $path, string $nome): array
 
 function nvOcrPdf(string $path): string
 {
-	if (!is_file(TESSERACT_BIN) || !is_file(PDFTOTEXT_BIN)) return '';
+	if (PHP_OS_FAMILY === 'Windows' && (!is_file(TESSERACT_BIN) || !is_file(PDFTOTEXT_BIN))) return '';
 	// Converter 1.ª página em imagem com pdftoppm (vem com o Poppler)
-	$ppm = dirname(PDFTOTEXT_BIN) . '/pdftoppm.exe';
-	if (!is_file($ppm)) return '';
+	$ppm = PDFTOPPM_BIN;
+	if (PHP_OS_FAMILY === 'Windows' && !is_file($ppm)) return '';
 	$base = tempnam(sys_get_temp_dir(), 'nvocr');
 	@unlink($base);
 	@exec('"' . $ppm . '" -png -r 220 -f 1 -l 1 ' . escapeshellarg($path) . ' ' . escapeshellarg($base));
