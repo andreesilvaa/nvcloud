@@ -27,7 +27,14 @@ $_SESSION['LAST_ACTIVITY'] = time();
 
 // Token CSRF para ações sensíveis
 if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    try {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    } catch (\Random\RandomException $e) {
+        error_log('[nvcloud] Falha ao gerar token CSRF: ' . $e->getMessage());
+        http_response_code(500);
+        die('Erro de segurança ao iniciar a sessão. Tentar novamente.');
+    }
+
 }
 $csrfToken = $_SESSION['csrf_token'];
 

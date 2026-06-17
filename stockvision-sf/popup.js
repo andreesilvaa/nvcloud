@@ -38,7 +38,10 @@ function iniciar() {
     var tabId = tabs[0].id;
 
     chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
-      if (chrome.runtime.lastError || !resp) {
+      if (chrome.runtime.lastError) {
+        mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.messge);
+        return;
+      }
         chrome.scripting.executeScript(
           { target: { tabId: tabId }, files: ['content.js'] },
           function () { setTimeout(function () { verificarELer(tabId); }, 500); }
@@ -57,15 +60,18 @@ function iniciar() {
 
 function verificarELer(tabId) {
   chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
-    if (!resp || !resp.eWorkOrder) { mostrarEstado('stateNotWO'); return; }
+    if (chrome.runtime.lastError) {
+        mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message);
+        return;
+    }
     lerDados(tabId);
   });
 }
 
 function lerDados(tabId) {
   chrome.tabs.sendMessage(tabId, { tipo: 'ler_workorder' }, function (resp) {
-    if (chrome.runtime.lastError || !resp) {
-      mostrarErro('Não foi possível comunicar com a página.\nRecarga a página e tenta novamente.');
+    if (chrome.runtime.lastError) {
+      mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message);
       return;
     }
     if (!resp.ok) { mostrarErro(resp.erro); return; }

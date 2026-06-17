@@ -3,7 +3,7 @@
         'name' => 'newvision/nvcloud',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'f89ffb2a2a62a3a94469e4e196044f1ce87342a6',
+        'reference' => '79b9ce4890e53100ab26d1d350055a5454f80ef5',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -31,7 +31,7 @@
         'newvision/nvcloud' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'f89ffb2a2a62a3a94469e4e196044f1ce87342a6',
+            'reference' => '79b9ce4890e53100ab26d1d350055a5454f80ef5',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

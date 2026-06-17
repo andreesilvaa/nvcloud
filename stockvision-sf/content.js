@@ -2,15 +2,16 @@
 // content.js v3 — Leitura cirúrgica do DOM Salesforce
 // ══════════════════════════════════════════════════════════
 
-chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function (msg, sender, senResponse) {
   if (msg.tipo === 'verificar_pagina') {
     sendResponse(verificarPagina());
+    return;
   }
   if (msg.tipo === 'ler_workorder') {
-    lerWorkOrder().then(sendResponse).catch(function (err) {
-      sendResponse({ ok: false, erro: err.message });
-    });
-    return true;
+      lerWorkOrder()
+          .then(sendResponse)
+          .catch(function (err) { sendResponse({ erro: err.message }); });
+      return true;
   }
 });
 
