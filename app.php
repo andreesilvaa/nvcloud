@@ -1921,18 +1921,7 @@ $patModulos = [];
 $patComp = [];
 $patAcao = $_GET['acao'] ?? '';
 $patVerId = isset($_GET['ver']) ? (int)$_GET['ver'] : 0;
-// Ciclo de vida: estado atual (no inventário) de cada peça referida no PAT
-$stmtCiclo = $pdo->prepare("
-    SELECT c.sn_removido, c.sn_colocado,
-           pr.estado AS estado_removido, pr.estado_desde AS desde_removido,
-           pc.estado AS estado_colocado, pc.estado_desde AS desde_colocado
-    FROM pats_componentes c
-    LEFT JOIN pecas pr ON pr.sn = c.sn_removido
-    LEFT JOIN pecas pc ON pc.sn = c.sn_colocado
-    WHERE c.pat_id = ?
-");
-$stmtCiclo->execute([(int)$patDetalhe['id']]);
-$cicloVida = $stmtCiclo->fetchAll();
+$cicloVida = [];
 
 if ($page === 'pats') {
 
@@ -1985,6 +1974,19 @@ if ($page === 'pats') {
             $sc = $pdo->prepare("SELECT * FROM pats_componentes WHERE pat_id = ? ORDER BY id");
             $sc->execute([$patVerId]);
             $patComp = $sc->fetchAll();
+
+            // Ciclo de vida: estado atual (no inventário) de cada peça referida no PAT
+            $stmtCiclo = $pdo->prepare("
+                SELECT c.sn_removido, c.sn_colocado,
+                       pr.estado AS estado_removido, pr.estado_desde AS desde_removido,
+                       pc.estado AS estado_colocado, pc.estado_desde AS desde_colocado
+                FROM pats_componentes c
+                LEFT JOIN pecas pr ON pr.sn COLLATE utf8mb4_unicode_ci = c.sn_removido COLLATE utf8mb4_unicode_ci
+                LEFT JOIN pecas pc ON pc.sn COLLATE utf8mb4_unicode_ci = c.sn_colocado COLLATE utf8mb4_unicode_ci
+                WHERE c.pat_id = ?
+            ");
+            $stmtCiclo->execute([(int)$patDetalhe['id']]);
+            $cicloVida = $stmtCiclo->fetchAll();
         }
     }
 }
@@ -2769,7 +2771,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 're
                 ->execute([$decisao, $nota, $utilizador, $revId]);
         $_SESSION['mensagem_sucesso'] = 'Peça revista.';
     }
-    header('Location: app.php?page=revisao');
+    $mesPar = preg_match('/^\d{4}-\d{2}$/', $_GET['mes'] ?? '') ? '&mes=' . $_GET['mes'] : '';
+    header('Location: app.php?page=revisao' . $mesPar);
     exit;
 }
 

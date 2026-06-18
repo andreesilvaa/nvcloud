@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/includes/auth.php';            // exige sessão
+require __DIR__ . '/auth.php';            // exige sessão
 if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 // includes/relatorios_aplicar.php — aplica o plano aprovado (transação)
 
