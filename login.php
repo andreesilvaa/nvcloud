@@ -55,6 +55,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
+    $pecasLab = nvPecasSuspeitas($pdo, ['apenas_estado' => 'Laboratório', 'dias' => 15]);
+    if ($pecasLab) {
+        // RENDERIZA BANNER FIXO - "Nº DE PEÇAS NO LABORÁTORIO POR REVER HÁ +15 DIAS"
+        // COM LINK PARA app.php?page=revisao&area=lab
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="pt">

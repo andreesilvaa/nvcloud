@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/includes/auth.php';
+if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 // Ficheiro removido por segurança
 header('HTTP/1.1 404 Not Found');
 exit;

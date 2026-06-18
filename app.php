@@ -178,6 +178,20 @@ try {
 // ============================================================
 
 $page = $_GET['page'] ?? 'dashboard';
+// "Obriga" suave: 1.ª visita do mês leva os utilizadores de escritório à revisão.
+$areasObrigadas = ['Escritorio','TI'];
+if (in_array($_SESSION['user_area'] ?? '', $areasObrigadas, true)
+        && $page !== 'revisao'
+        && ($_SESSION['rev_lembrete_mes'] ?? '') !== date('Y-m')
+        && empty($_GET['adiar'])) {
+    require_once __DIR__ . '/includes/revisoes.php';
+    nvGerarRevisoesDoMes($pdo, 30);
+    if (nvRevisoesPendentes($pdo) > 0) {
+        $_SESSION['rev_lembrete_mes'] = date('Y-m');   // só lembra uma vez por mês
+        header('Location: app.php?page=revisao&from=auto');
+        exit;
+    }
+}
 $action = $_GET['action'] ?? '';
 if (
     (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder')
@@ -512,6 +526,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
             $clientePendente = 1; // permite gravar como "por identificar"
         }
     }
+    // Reforça o fluxo apenas para utilizadores não-admin (o admin pode corrigir tudo)
+    if ($editId > 0 && isset($pecaAntes) && ($_SESSION['user_role'] ?? '') !== 'admin') {
+        if (!nvTransicaoValida((string)$pecaAntes['estado'], $estado)) {
+            $_SESSION['mensagem_erro'] = 'Transição de estado não permitida: '
+                    . e($pecaAntes['estado']) . ' → ' . e($estado);
+            $_SESSION['form_nova_peca'] = $_POST;
+            header('Location: app.php?page=nova_peca&edit=' . $editId);
+            exit;
+        }
+    }
+    if ($parceiro !== '' && !in_array($parceiro, $parceiros, true)) {
+      $_SESSION['mensagem_erro'] = 'O parceiro selecionado não é válido.';
+      $_SESSION['form_nova_peca'] = $_POST;
+      header('Location: app.php?page=nova_peca' . ($editId > 0 ? '&edit=' . $editId : ''));
+      exit;
+    }
       if (!in_array($estado, $estados, true)){
         $_SESSION['mensagem_erro'] = 'O estado selecionado não é válido.';
         $_SESSION['form_nova_peca'] = $_POST;
@@ -562,7 +592,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
             die('Peça não encontrada para atualizar.');
         }
 
-        $stmt = $pdo->prepare("UPDATE pecas SET categoria = ?, produto = ?, sn = ?, cod_barras = ?, parceiro = ?, estado = ? WHERE id = ?");
+        $estadoMudou = ((string)($pecaAntes['estado'] ?? '') !== (string)$estado);
+        $sqlUpd = "UPDATE pecas SET categoria = ?, produto = ?, sn = ?, cod_barras = ?, parceiro = ?, estado = ?"
+                . ($estadoMudou ? ", estado_desde = NOW()" : "")
+                . " WHERE id = ?";
+        $stmt = $pdo->prepare($sqlUpd);
         $stmt->execute([
             $categoria,
             $produto,
@@ -604,7 +638,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         }
 
  } else {
- $stmt = $pdo->prepare("INSERT INTO pecas (categoria, produto, sn, cod_barras, parceiro, estado, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+ $stmt = $pdo->prepare("INSERT INTO pecas (categoria, produto, sn, cod_barras, parceiro, estado, created_at, estado_desde) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())");
  $stmt->execute([
        $categoria,
        $produto,
@@ -1488,7 +1522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'co
             $estadoAntigo   = $peca['estado'];
             $parceiroAntigo = $peca['parceiro'];
 
-            $pdo->prepare("UPDATE pecas SET estado = ?, parceiro = ? WHERE id = ?")->execute([
+            $pdo->prepare("UPDATE pecas SET estado = ?, parceiro = ?, estado_desde = NOW() WHERE id = ?")->execute([
                 $novoEstadoPeca,
                 $novoParceiroPeca,
                 $peca['id']
@@ -1674,7 +1708,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['form_type'] ?? '',
     $dataFim = $normDt(trim($_POST['data_fim'] ?? ''));
     $tecnicos = trim($_POST['tecnicos_presentes'] ?? '');
     $prioridade = in_array($_POST['prioridade'] ?? '', ['Normal','Urgente']) ? $_POST['prioridade'] : 'Normal';
-    $estado = in_array($_POST['estado'] ?? '', ['Aberto','Em Curso','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
+    $estado = in_array($_POST['estado'] ?? '', ['Aberto','Em Curso','Resolvido','Concluído','Cancelado']) ? $_POST['estado'] : 'Aberto';
 
     // Garantir UTF-8 válido em todos os campos de texto. Sob STRICT_TRANS_TABLES
     // qualquer byte inválido (ex.: dados lidos do DOM do Salesforce pela extensão)
@@ -1810,7 +1844,7 @@ function countQuery(\PDO $pdo, string $sql): int {
 
 $totalPecas = countQuery($pdo, "SELECT COUNT(*) FROM pecas");
 
-$patsAtivos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Ativo'");
+$patsAtivos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado NOT IN ('Resolvido','Concluído','Cancelado')");
 
 $ordensAtivas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Ativa'");
 
@@ -1826,7 +1860,7 @@ $notificacoes = [];
 $stmtUrg = $pdo->query("
     SELECT id, numero_pat, revisao, entidade
     FROM pats
-    WHERE prioridade = 'Urgente' AND estado NOT IN ('Concluído','Cancelado')
+    WHERE prioridade = 'Urgente' AND estado NOT IN ('Resolvido','Concluído','Cancelado')
     ORDER BY created_at DESC LIMIT 10
 ");
 foreach ($stmtUrg->fetchAll() as $p) {
@@ -1842,7 +1876,7 @@ $stmtPrazo = $pdo->query("
     FROM pats
     WHERE data_limite IS NOT NULL
       AND data_limite BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)
-      AND estado NOT IN ('Concluído','Cancelado')
+      AND estado NOT IN ('Resolvido','Concluído','Cancelado')
     ORDER BY data_limite ASC LIMIT 10
 ");
 foreach ($stmtPrazo->fetchAll() as $p) {
@@ -1850,6 +1884,28 @@ foreach ($stmtPrazo->fetchAll() as $p) {
        'tipo' => 'prazo',
        'msg' => 'Prazo a expirar: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — ' . date('d/m/Y', strtotime($p['data_limite'])),
        'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+    ];
+}
+
+// PEÇAS SUSPEITAS (estado "em curso" parado há muito tempo)
+require_once __DIR__ . '/includes/pecas_suspeitas.php';
+$pecasSuspeitas = nvPecasSuspeitas($pdo, ['dias' => 30]);
+if (count($pecasSuspeitas) > 0) {
+    $notificacoes[] = [
+        'tipo' => 'suspeita',
+        'msg' => count($pecasSuspeitas) . ' peça(s) por rever - estado parado há +30 dias',
+        'link' => 'app.php?page=revisao',
+    ];
+}
+
+require_once __DIR__ . '/includes/revisoes.php';
+nvGerarRevisoesDoMes($pdo, 30);
+$revPendentes = nvRevisoesPendentes($pdo);
+if ($revPendentes > 0) {
+    $notificacoes[] = [
+            'tipo' => 'suspeita',
+            'msg'  => $revPendentes . ' peça(s) por rever este mês',
+            'link' => 'app.php?page=revisao',
     ];
 }
 
@@ -1864,6 +1920,18 @@ $patModulos = [];
 $patComp = [];
 $patAcao = $_GET['acao'] ?? '';
 $patVerId = isset($_GET['ver']) ? (int)$_GET['ver'] : 0;
+// Ciclo de vida: estado atual (no inventário) de cada peça referida no PAT
+$stmtCiclo = $pdo->prepare("
+    SELECT c.sn_removido, c.sn_colocado,
+           pr.estado AS estado_removido, pr.estado_desde AS desde_removido,
+           pc.estado AS estado_colocado, pc.estado_desde AS desde_colocado
+    FROM pats_componentes c
+    LEFT JOIN pecas pr ON pr.sn = c.sn_removido
+    LEFT JOIN pecas pc ON pc.sn = c.sn_colocado
+    WHERE c.pat_id = ?
+");
+$stmtCiclo->execute([(int)$patDetalhe['id']]);
+$cicloVida = $stmtCiclo->fetchAll();
 
 if ($page === 'pats') {
 
@@ -2002,7 +2070,20 @@ if ($filters['produto']) {
     $params[] = $filters['produto']; 
     }
 
-$sql = "SELECT * FROM pecas" . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . " ORDER BY id DESC";
+$whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+// total para calcular páginas
+$stmtCntInv = $pdo->prepare("SELECT COUNT(*) FROM pecas" . $whereSql);
+$stmtCntInv->execute($params);
+$invTotal   = (int)$stmtCntInv->fetchColumn();
+
+$invPorPag = 50;
+$invPag    = max(1, (int)($_GET['p'] ?? 1));
+$invPaginas = max(1, (int)ceil($invTotal / $invPorPag));
+if ($invPag > $invPaginas) { $invPag = $invPaginas; }
+$invOffset = ($invPag - 1) * $invPorPag;
+
+$sql = "SELECT * FROM pecas" . $whereSql . " ORDER BY id DESC LIMIT $invPorPag OFFSET $invOffset";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $pecas = $stmt->fetchAll();
@@ -2651,6 +2732,66 @@ function contactoCelula(array $map, string $nome): string {
         : '';
     return '<div style="font-size:12px; line-height:1.5; max-width:340px; word-break:break-word;">'
         . implode('<br>', $linhas) . '</div>' . $extra;
+}
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'rever_peca') {
+    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) { exit('Ação inválida.'); }
+    $revId   = (int)($_POST['rev_id'] ?? 0);
+    $decisao = in_array($_POST['decisao'] ?? '', ['mantido','corrigido','abatido'], true) ? $_POST['decisao'] : '';
+    $novoEstado = trim($_POST['novo_estado'] ?? '');
+    $nota = trim($_POST['nota'] ?? '');
+    $utilizador = $_SESSION['user_nome'] ?? 'Sistema';
+
+    if ($revId > 0 && $decisao !== '') {
+        // carregar a peça associada
+        $st = $pdo->prepare("SELECT peca_id FROM revisoes_peca WHERE id = ?");
+        $st->execute([$revId]);
+        $pecaId = (int)$st->fetchColumn();
+
+        // se corrigiu/abateu e escolheu novo estado válido, aplica-o à peça
+        if (in_array($decisao, ['corrigido','abatido'], true) && $pecaId > 0
+                && in_array($novoEstado, $estados, true)) {
+            $stAnt = $pdo->prepare("SELECT estado FROM pecas WHERE id = ?");
+            $stAnt->execute([$pecaId]);
+            $estadoAntigo = (string)$stAnt->fetchColumn();
+            $pdo->prepare("UPDATE pecas SET estado = ?, estado_desde = NOW() WHERE id = ?")
+                    ->execute([$novoEstado, $pecaId]);
+            $pdo->prepare("INSERT INTO historico (peca_id,campo,antes,depois,utilizador,data_alteracao)
+                           VALUES (?, 'estado', ?, ?, ?, NOW())")
+                    ->execute([$pecaId, $estadoAntigo, $novoEstado, $utilizador]);
+        }
+
+        $pdo->prepare("UPDATE revisoes_peca
+                       SET decisao = ?, nota = ?, revisto_por = ?, revisto_em = NOW()
+                       WHERE id = ?")
+                ->execute([$decisao, $nota, $utilizador, $revId]);
+        $_SESSION['mensagem_sucesso'] = 'Peça revista.';
+    }
+    header('Location: app.php?page=revisao');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lote_estado') {
+    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) { exit('Ação inválida.'); }
+    $ids = array_map('intval', $_POST['ids'] ?? []);
+    $novo = trim($_POST['novo_estado'] ?? '');
+    $utilizador = $_SESSION['user_nome'] ?? 'Sistema';
+
+    if ($ids && in_array($novo, $estados, true)) {
+        $upd  = $pdo->prepare("UPDATE pecas SET estado = ?, estado_desde = NOW() WHERE id = ?");
+        $hist = $pdo->prepare("INSERT INTO historico (peca_id,campo,antes,depois,utilizador,data_alteracao) VALUES (?, 'estado', ?, ?, ?, NOW())");
+        $sel  = $pdo->prepare("SELECT estado FROM pecas WHERE id = ?");
+        $pdo->beginTransaction();
+        foreach ($ids as $id) {
+            $sel->execute([$id]); $ant = (string)$sel->fetchColumn();
+            if ($ant !== $novo) { $upd->execute([$novo, $id]); $hist->execute([$id, $ant, $novo, $utilizador]); }
+        }
+        $pdo->commit();
+        $_SESSION['mensagem_sucesso'] = count($ids) . ' peça(s) atualizada(s).';
+    }
+    header('Location: app.php?page=inventario');
+    exit;
 }
 
 // ============================================================
@@ -5093,8 +5234,28 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     </div>
   </form>
 
+<form>
+    <form method="post" id="formLote">
+        <input type="hidden" name="form_type" value="lote_estado">
+        <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <select name="novo_estado">
+                <?php foreach ($estados as $estOpt): ?>
+                    <option value="<?= e($estOpt) ?>"><?= e($estOpt) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button class="btn btn-blue" type="submit">Aplicar aos selecionados</button>
+        </div>
+        <!-- ... a tua <table> fica AQUI dentro do form ... -->
+    </form>
+    <script>
+        document.getElementById('selAll')?.addEventListener('change', function(){
+            document.querySelectorAll('.rowChk').forEach(c => c.checked = this.checked);
+        });
+    </script>
   <table class="table">
     <thead><tr>
+      <th><input type="checkbox" id="selAll"</th>
       <th>ID</th>
       <th>Categoria</th>
       <th>Produto</th>
@@ -5106,22 +5267,22 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
       <th>Ações</th>
           </tr>
     </thead>
-
+</form>
 
   <tbody>
     <?php foreach($pecas as $p): ?>
       <tr>
         <td><?=$p['id']?></td>
-        <td><?=htmlspecialchars($p['categoria'])?></td>
-        <td><?=htmlspecialchars($p['produto'])?></td>
-        <td><?=htmlspecialchars($p['sn'])?></td>
-        <td><?=htmlspecialchars($p['cod_barras'])?></td>
+        <td><?=htmlspecialchars($p['categoria'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
+        <td><?=htmlspecialchars($p['produto'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
+        <td><?=htmlspecialchars($p['sn'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
+        <td><?=htmlspecialchars($p['cod_barras'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
         <td>N/A</td>
-        <td><?=htmlspecialchars($p['parceiro'])?></td>
-          <td><?= estadoBolha($p['estado']) ?></td>
+        <td><?=htmlspecialchars($p['parceiro'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
+          <td><?= estadoBolha($p['estado']) ?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar peça?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta peça? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_peca">
                 <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -5129,11 +5290,27 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
               <a class="btn btn-grey" href="app.php?page=historico&id=<?=$p['id']?>">Histórico</a>
             </td>
         </tr>
+</form>
 
       <?php endforeach; ?>
     </tbody>
   </table>
 
+    <?php if ($invPaginas > 1):
+        // preserva os filtros atuais na navegação
+        $qs = $_GET; unset($qs['p']);
+        $base = 'app.php?' . http_build_query(array_merge($qs, ['page'=>'inventario']));
+        ?>
+        <div class="paginacao" style="margin-top:14px;display:flex;gap:8px;align-items:center;">
+            <?php if ($invPag > 1): ?>
+                <a class="btn btn-grey" href="<?= e($base) ?>&p=<?= $invPag-1 ?>">‹ Anterior</a>
+            <?php endif; ?>
+            <span>Página <?= $invPag ?> de <?= $invPaginas ?> (<?= $invTotal ?> peças)</span>
+            <?php if ($invPag < $invPaginas): ?>
+                <a class="btn btn-grey" href="<?= e($base) ?>&p=<?= $invPag+1 ?>">Seguinte ›</a>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 
 
 <?php elseif ($page === 'nova_peca'): ?>
@@ -5708,7 +5885,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
       <td class="actions">
         <a class="btn btn-yellow" href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>">Editar</a>
       
-        <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar esta conta?');">
+        <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta conta? Esta ação é irreversível.');">
         <input type="hidden" name="form_type" value="eliminar_conta">
         <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
         <button type="submit" class="btn btn-red">Eliminar</button>
@@ -6060,7 +6237,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
   </h3>
   <span style="
     padding:3px 12px; border-radius:20px; font-size:12px; font-weight:600;
-    background:<?= $patDetalhe['estado']==='Aberto' ? '#dbeafe' : ($patDetalhe['estado']==='Em Curso' ? '#fef3c7' : ($patDetalhe['estado']==='Concluído' ? '#dcfce7' : '#f3f4f6')) ?>;
+    background:<?= $patDetalhe['estado']==='Aberto' ? '#dbeafe' : ($patDetalhe['estado']==='Em Curso' ? '#fef3c7' : ($patDetalhe['estado']==='Resolvido' ? '#e0e7ff' : ($patDetalhe['estado']==='Concluído' ? '#dcfce7' : '#f3f4f6'))) ?>;
     color:<?= $patDetalhe['estado']==='Aberto' ? '#1d4ed8' : ($patDetalhe['estado']==='Em Curso' ? '#92400e' : ($patDetalhe['estado']==='Concluído' ? '#15803d' : '#374151')) ?>;">
     <?= htmlspecialchars($patDetalhe['estado']) ?>
   </span>
@@ -6179,7 +6356,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         <label>Estado</label>
           <label>
               <select name="estado">
-                <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+                <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
                   <option value="<?= $est ?>" <?= $patDetalhe['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
                 <?php endforeach; ?>
               </select>
@@ -6258,6 +6435,29 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </div>
     <button type="button" class="btn btn-grey btn-add-comp">+ Linha</button>
   </div>
+
+    <div class="card" style="margin-top:18px;">
+        <h3>Ciclo de vida das peças</h3>
+        <table class="table">
+            <thead><tr>
+                <th>SN removido</th><th>Estado atual</th>
+                <th>SN colocado</th><th>Estado atual</th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($cicloVida as $cv): ?>
+                <tr>
+                    <td><?= e($cv['sn_removido']) ?></td>
+                    <td><?= $cv['sn_removido'] ? estadoBolha($cv['estado_removido'] ?? 'Desconhecido') : '—' ?></td>
+                    <td><?= e($cv['sn_colocado']) ?></td>
+                    <td><?= $cv['sn_colocado'] ? estadoBolha($cv['estado_colocado'] ?? 'Desconhecido') : '—' ?></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (!$cicloVida): ?>
+                <tr><td colspan="4">Sem componentes registados neste PAT.</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 
   <!-- Observações -->
   <div class="panel" style="margin-bottom:18px;">
@@ -6514,7 +6714,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                     <label>
                         <select name="estado">
                             <option value="">-- Todos --</option>
-                            <?php foreach (['Aberto','Em Curso','Concluído','Cancelado'] as $est): ?>
+                            <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
                             <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -6571,6 +6771,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 $estCores = [
                     'Aberto'    => ['bg'=>'#dbeafe','color'=>'#1d4ed8'],
                     'Em Curso'  => ['bg'=>'#fef3c7','color'=>'#92400e'],
+                    'Resolvido' => ['bg'=>'#e0e7ff','color'=>'#4338ca'],
                     'Concluído' => ['bg'=>'#dcfce7','color'=>'#15803d'],
                 ];
                 $estCor = $estCores[$pat['estado']] ?? ['bg'=>'#f3f4f6','color'=>'#374151'];
@@ -6752,7 +6953,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <td><?= htmlspecialchars($row['nome']) ?></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=categorias&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar esta categoria?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta conta? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_categoria">
                 <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -6811,7 +7012,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <td><?= htmlspecialchars($row['descricao'] ?? '') ?></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=estados&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este estado?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta estado? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_estado">
                 <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -6865,7 +7066,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <td><?= htmlspecialchars($row['nome']) ?></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=fabricantes&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este fabricante?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este fabricante? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_fabricante">
                 <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -6939,7 +7140,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <td><?= htmlspecialchars($row['fabricante_nome'] ?? '') ?></td>
             <td class="actions">
               <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este produto?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_produto">
                 <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -7044,7 +7245,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             <td class="actions">
               <a class="btn btn-blue" href="app.php?page=parceiros&ver=<?= (int)$row['id'] ?>">Ver +</a>
               <a class="btn btn-yellow" href="app.php?page=parceiros&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return confirm('Eliminar este parceiro?');">
+              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este Parceiro? Esta ação é irreversível.');">
                 <input type="hidden" name="form_type" value="eliminar_parceiro">
                 <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
                 <button type="submit" class="btn btn-red">Eliminar</button>
@@ -8003,6 +8204,35 @@ function toggleDark() {
 </script>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+
+<div id="confirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:22px;max-width:380px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.2);">
+        <p id="confirmMsg" style="margin:0 0 18px;font-size:15px;"></p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button type="button" class="btn btn-grey" id="confirmNo">Cancelar</button>
+            <button type="button" class="btn btn-red"  id="confirmYes">Confirmar</button>
+        </div>
+    </div>
+</div>
+<script>
+    let _formAConfirmar = null;
+    function nvConfirmar(form, msg){
+        _formAConfirmar = form;
+        document.getElementById('confirmMsg').textContent = msg || 'Tens a certeza?';
+        document.getElementById('confirmModal').style.display = 'flex';
+        return false; // impede o submit imediato
+    }
+    document.getElementById('confirmYes').addEventListener('click', () => {
+        document.getElementById('confirmModal').style.display = 'none';
+        if (_formAConfirmar) _formAConfirmar.submit();
+    });
+    document.getElementById('confirmNo').addEventListener('click', () => {
+        document.getElementById('confirmModal').style.display = 'none';
+        _formAConfirmar = null;
+    });
+</script>
+
 
 </body>
 </html>

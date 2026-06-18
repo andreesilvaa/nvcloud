@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/includes/auth.php';            // exige sessão
+if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 // includes/relatorios_reconciliar.php — gera o plano de alterações (não aplica)
 
 // Regra de negócio fechada:

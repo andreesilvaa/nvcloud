@@ -1,0 +1,3 @@
+<FilesMatch "^(executar_fix|verificar_catalogo|migrar_stocks|importar_.*|seed_.*)\.php$">
+    Require all denied
+</FilesMatch>

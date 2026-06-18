@@ -1,3 +1,10 @@
+<?php
+require __DIR__ . '/../includes/auth.php';
+if (($_SESSION['user_role'] ?? '') !== 'admin') {
+    http_response_code(403);
+exit('Acesso negado.');
+}
+
 -- ============================================================
 -- Tabelas de gestão (Categorias, Estados, Parceiros,
 -- Fabricantes, Produtos) - NVCloud

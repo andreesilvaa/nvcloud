@@ -1,4 +1,9 @@
 <?php
+require __DIR__ . '/../includes/auth.php';
+if (($_SESSION['user_role'] ?? '') !== 'admin') {
+	http_response_code(403);
+	exit('Acesso negado.');
+}
 /**
  * Migração (uso único) da app antiga (http://nvcloud/stocks/admin) para a stocks_db.
  * Lê o cookie de sessão de /tmp/nvck.txt (curl cookie jar), faz scraping das

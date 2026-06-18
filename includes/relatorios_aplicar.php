@@ -1,4 +1,6 @@
 <?php
+require __DIR__ . '/includes/auth.php';            // exige sessão
+if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 // includes/relatorios_aplicar.php — aplica o plano aprovado (transação)
 
 /**
@@ -65,7 +67,7 @@ function nvAplicarRelatorio(PDO $pdo, int $relId, array $decisoes, string $utili
 				$stAntes = $pdo->prepare("SELECT estado FROM pecas WHERE id = ?");
 				$stAntes->execute([$lp['match_peca_id']]);
 				$antes = $stAntes->fetchColumn();
-				$pdo->prepare("UPDATE pecas SET estado = ?, cliente_id = ?, cliente_pendente = ? WHERE id = ?")
+				$pdo->prepare("UPDATE pecas SET estado = ?, estado_desde = NOW(), cliente_id = ?, cliente_pendente = ? WHERE id = ?")
 					->execute([$destino, $clienteId, $clientePendente, $lp['match_peca_id']]);
 				$logHist->execute([$lp['match_peca_id'],'estado',$antes,$destino,$utilizador]);
 				$pdo->prepare("INSERT INTO relatorios_log (relatorio_id,tipo,alvo_id,detalhe) VALUES (?,?,?,?)")

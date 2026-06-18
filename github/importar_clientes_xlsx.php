@@ -1,4 +1,9 @@
 <?php
+require __DIR__ . '/../includes/auth.php';
+if (($_SESSION['user_role'] ?? '') !== 'admin') {
+	http_response_code(403);
+	exit('Acesso negado.');
+}
 /**
  * Importa o relatório de clientes em .xlsx (com coluna Type) para a tabela `clientes`.
  * Como o PHP não tem a extensão zip, o .xlsx tem de estar extraído (é um zip).
