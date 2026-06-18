@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email === '' || $password === '') {
         $erro = 'Preenche o email e a palavra-passe.';
     } else {
-        $stmt = $pdo->prepare("SELECT id, nome, email, password, fotografia, role FROM utilizadores WHERE email = ?");
+        $stmt = $pdo->prepare("SELECT id, nome, email, password, fotografia, role, area FROM utilizadores WHERE email = ?");
         $stmt->execute([$email]);
         $userData = $stmt->fetch();
 
@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_email'] = $userData['email'];
             $_SESSION['user_fotografia'] = $userData['fotografia'] ?? '';
             $_SESSION['user_role'] = $userData['role'] ?? 'user';
+            $_SESSION['user_area'] = $userData['area'] ?? '';
             $_SESSION['LAST_ACTIVITY'] = time();
 
             session_write_close();
@@ -56,13 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
-    $pecasLab = nvPecasSuspeitas($pdo, ['apenas_estado' => 'Laboratório', 'dias' => 15]);
-    if ($pecasLab) {
-        // RENDERIZA BANNER FIXO - "Nº DE PEÇAS NO LABORÁTORIO POR REVER HÁ +15 DIAS"
-        // COM LINK PARA app.php?page=revisao&area=lab
-    }
-}
+
 
 ?>
 <!DOCTYPE html>

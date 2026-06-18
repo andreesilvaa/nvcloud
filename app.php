@@ -159,6 +159,7 @@ require_once __DIR__ . '/includes/clientes.php';
 require_once __DIR__ . '/includes/relatorios_parser.php';
 require_once __DIR__ . '/includes/relatorios_reconciliar.php';
 require_once __DIR__ . '/includes/relatorios_aplicar.php';
+require_once __DIR__ . '/includes/fluxo_pecas.php';
 
 $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
 
@@ -4804,6 +4805,31 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     <i class="bi bi-cart"></i><span>Relatórios</span>
   </a>
 
+  <a class="<?=active('revisao',$page)?>" href="app.php?page=revisao">
+    <i class="bi bi-clipboard-check"></i><span>Revisão de Peças</span>
+  </a>
+
+  <div class="sidebar-group <?= in_array($page, ['resumo','movimentos','sla']) ? 'open' : '' ?>">
+  <button class="sidebar-parent" type="button" id="relatoriosToggle">
+    <span class="sidebar-parent-left">
+      <i class="bi bi-bar-chart"></i>
+      <span>Análises</span>
+    </span>
+    <i class="bi bi-chevron-down sidebar-arrow"></i>
+  </button>
+  <div class="sidebar-submenu">
+    <a class="submenu-link <?=active('resumo',$page)?>" href="app.php?page=resumo">
+      <span>Resumo Mensal</span>
+    </a>
+    <a class="submenu-link <?=active('movimentos',$page)?>" href="app.php?page=movimentos">
+      <span>Movimentos</span>
+    </a>
+    <a class="submenu-link <?=active('sla',$page)?>" href="app.php?page=sla">
+      <span>SLA</span>
+    </a>
+  </div>
+</div>
+
   <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
   <button class="sidebar-parent" type="button" id="tabelasToggle">
     <span class="sidebar-parent-left">
@@ -4946,6 +4972,20 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 </div>
 
 <div class="main">
+<?php
+// Banner do Laboratório: avisa os técnicos de peças paradas há +15 dias
+if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
+    require_once __DIR__ . '/includes/pecas_suspeitas.php';
+    $pecasLab = nvPecasSuspeitas($pdo, ['apenas_estado' => 'Laboratório', 'dias' => 15]);
+    if ($pecasLab) {
+        $n = count($pecasLab);
+        echo '<div class="alerta-erro" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">'
+           . '<span><strong>' . $n . ' peça(s)</strong> no Laboratório paradas há +15 dias.</span>'
+           . '<a href="app.php?page=revisao" style="color:inherit;font-weight:600;text-decoration:underline;">Rever agora →</a>'
+           . '</div>';
+    }
+}
+?>
 <?php if ($page === 'dashboard'): ?>
 
 <!-- Dashboard-Quadrados --> 
@@ -5598,7 +5638,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
                     <button type="submit" class="btn btn-green">✓ Confirmar e Guardar Envio</button>
                 </form>
                 <?php if (($envioAtual['estado'] ?? '') === 'Rascunho'): ?>
-                    <form method="post" style="margin:0;" onsubmit="return confirm('Tem a certeza que quer apagar a Guia?');">
+                    <form method="post" style="margin:0;" onsubmit="return nvConfirmar(this, 'Apagar esta Guia? Esta ação é irreversível.');">
                         <input type="hidden" name="form_type" value="apagar_envio">
                         <input type="hidden" name="envio_id" value="<?= (int)$envioAtual['id'] ?>">
                         <button type="submit" class="btn btn-red">Apagar Guia</button>
@@ -6215,7 +6255,7 @@ $kpiPatsTotal = countQuery($pdo, "SELECT COUNT(*) FROM pats");
 $kpiPatsAbertos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Aberto'");
 $kpiPatsEmCurso = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Em Curso'");
 $kpiPatsConcluidos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Concluído'");
-$kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade='Urgente' AND estado NOT IN ('Concluído','Cancelado')");
+$kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade='Urgente' AND estado NOT IN ('Resolvido','Concluído','Cancelado')");
 ?>
 
 <?php if (!empty($_SESSION['mensagem_erro'])): ?>
@@ -6238,7 +6278,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
   <span style="
     padding:3px 12px; border-radius:20px; font-size:12px; font-weight:600;
     background:<?= $patDetalhe['estado']==='Aberto' ? '#dbeafe' : ($patDetalhe['estado']==='Em Curso' ? '#fef3c7' : ($patDetalhe['estado']==='Resolvido' ? '#e0e7ff' : ($patDetalhe['estado']==='Concluído' ? '#dcfce7' : '#f3f4f6'))) ?>;
-    color:<?= $patDetalhe['estado']==='Aberto' ? '#1d4ed8' : ($patDetalhe['estado']==='Em Curso' ? '#92400e' : ($patDetalhe['estado']==='Concluído' ? '#15803d' : '#374151')) ?>;">
+    color:<?= $patDetalhe['estado']==='Aberto' ? '#1d4ed8' : ($patDetalhe['estado']==='Em Curso' ? '#92400e' : ($patDetalhe['estado']==='Resolvido' ? '#4338ca' : ($patDetalhe['estado']==='Concluído' ? '#15803d' : '#374151'))) ?>;">
     <?= htmlspecialchars($patDetalhe['estado']) ?>
   </span>
 <?php if ($patDetalhe['prioridade'] === 'Urgente'): ?>
@@ -6473,7 +6513,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     </div>
 </form>
 
-        <form method="post" style="margin:0;" onsubmit="return confirm('Apagar este PAT permanentemente?');">
+        <form method="post" style="margin:0;" onsubmit="return nvConfirmar(this, 'Apagar este PAT permanentemente? Esta ação é irreversível.');">
             <input type="hidden" name="form_type" value="apagar_pat">
             <input type="hidden" name="pat_id"    value="<?= (int)$patDetalhe['id'] ?>">
             <button type="submit" class="btn btn-red">Apagar PAT</button>
@@ -7322,6 +7362,41 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     function nviExemplo(t){ var ta=document.getElementById('nviPergunta'); if(ta){ ta.value=t; ta.form.submit(); } }
   </script>
 
+<?php elseif ($page === 'revisao'): ?>
+  <?php require __DIR__ . '/includes/pages/revisao.php'; ?>
+<?php elseif ($page === 'resumo'): ?>
+  <?php require __DIR__ . '/includes/pages/resumo.php'; ?>
+<?php elseif ($page === 'movimentos'): ?>
+  <?php require __DIR__ . '/includes/pages/movimentos.php'; ?>
+<?php elseif ($page === 'etiqueta'): ?>
+  <?php require __DIR__ . '/includes/pages/etiqueta.php'; ?>
+<?php elseif ($page === 'sla'): ?>
+  <?php
+  require_once __DIR__ . '/includes/sla.php';
+  $slaQuebras = nvSlaQuebras($pdo);
+  ?>
+  <div class="card">
+    <h2>Quebras de SLA</h2>
+    <?php if ($slaQuebras): ?>
+    <table class="table">
+      <thead><tr><th>Peça</th><th>SN</th><th>Estado</th><th>Parceiro</th><th>Dias</th><th>Limite</th></tr></thead>
+      <tbody>
+      <?php foreach ($slaQuebras as $sq): ?>
+        <tr>
+          <td><?= e($sq['produto']) ?></td>
+          <td><?= e($sq['sn']) ?></td>
+          <td><?= estadoBolha($sq['estado']) ?></td>
+          <td><?= e($sq['parceiro']) ?></td>
+          <td style="color:#dc2626;font-weight:700;"><?= (int)$sq['dias'] ?></td>
+          <td><?= (int)$sq['dias_limite'] ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?>
+      <p style="color:#6b7280;">Sem quebras de SLA neste momento.</p>
+    <?php endif; ?>
+  </div>
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>
   <div class="panel">Módulo em preparação.</div>

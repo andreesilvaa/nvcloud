@@ -1,0 +1,36 @@
+<?php
+/**
+ * Seed da equipa NewVision.
+ * Corre uma vez, depois apaga este ficheiro.
+ * Requer que a coluna `area` já exista na tabela `utilizadores`:
+ *   ALTER TABLE utilizadores ADD COLUMN area VARCHAR(50) NULL AFTER role;
+ */
+require __DIR__ . '/../includes/db.php';
+
+$tempPass = 'nv2026!';   // password temporária — pedir para trocar no 1.º acesso
+$hash = password_hash($tempPass, PASSWORD_DEFAULT);
+
+$equipa = [
+    // [nome, email, area, role]
+    ['Jorge Bouças',       'jorge.boucas@newvision.pt',       'Laboratorio', 'user'],
+    ['Artur Trindade',     'artur.trindade@newvision.pt',     'Laboratorio', 'user'],
+    ['Tiago Batista',      'tiago.batista@newvision.pt',      'Escritorio',  'user'],
+    ['Fernando Fernandes', 'fernando.fernandes@newvision.pt', 'Escritorio',  'user'],
+    ['António Pedroso',    'antonio.pedroso@newvision.pt',    'Escritorio',  'user'],
+    ['Carlos Gonçalves',   'carlos.goncalves@newvision.pt',   'Escritorio',  'user'],
+    ['João Souza',         'joao.souza@newvision.pt',         'TI',          'admin'],  // IT / responsável de desenvolvimento
+];
+
+$st = $pdo->prepare("
+    INSERT INTO utilizadores (nome, email, password, fotografia, role, area, created_at)
+    VALUES (?, ?, ?, '', ?, ?, NOW())
+    ON DUPLICATE KEY UPDATE area = VALUES(area), role = VALUES(role)
+");
+
+foreach ($equipa as [$nome, $email, $area, $role]) {
+    $st->execute([$nome, $email, $hash, $role, $area]);
+    echo "OK: $nome ($area / $role)<br>\n";
+}
+
+echo '<br><strong>Concluído.</strong> Password temporária: <code>' . htmlspecialchars($tempPass) . '</code><br>';
+echo '<em>Apaga este ficheiro após execução.</em>';
