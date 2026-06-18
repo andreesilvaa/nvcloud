@@ -4809,7 +4809,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
   </a>
 
   <a class="<?=active('revisao',$page)?>" href="app.php?page=revisao">
-    <i class="bi bi-clipboard-check"></i><span>Revisão de Peças</span>
+    <i class="bi bi-clipboard-check"></i><span>Revisão</span>
   </a>
 
   <div class="sidebar-group <?= in_array($page, ['resumo','movimentos','sla']) ? 'open' : '' ?>">
