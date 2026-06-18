@@ -349,6 +349,7 @@ $pageTitles = [
   'produtos' => 'Produtos',
   'nvi' => 'N-Vi',
   'configuracoes' => 'Configurações',
+  'revisao' => 'Revisão',
   ];
 
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
