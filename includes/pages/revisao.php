@@ -1,4 +1,42 @@
 <?php
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'rever_peca') {
+    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) { exit('Ação inválida.'); }
+    $revId   = (int)($_POST['rev_id'] ?? 0);
+    $decisao = in_array($_POST['decisao'] ?? '', ['mantido','corrigido','abatido'], true) ? $_POST['decisao'] : '';
+    $novoEstado = trim($_POST['novo_estado'] ?? '');
+    $nota = trim($_POST['nota'] ?? '');
+    $utilizador = $_SESSION['user_nome'] ?? 'Sistema';
+
+    if ($revId > 0 && $decisao !== '') {
+        // carregar a peça associada
+        $st = $pdo->prepare("SELECT peca_id FROM revisoes_peca WHERE id = ?");
+        $st->execute([$revId]);
+        $pecaId = (int)$st->fetchColumn();
+
+        // se corrigiu/abateu e escolheu novo estado válido, aplica-o à peça
+        if (in_array($decisao, ['corrigido','abatido'], true) && $pecaId > 0
+                && in_array($novoEstado, $estados, true)) {
+            $stAnt = $pdo->prepare("SELECT estado FROM pecas WHERE id = ?");
+            $stAnt->execute([$pecaId]);
+            $estadoAntigo = (string)$stAnt->fetchColumn();
+            $pdo->prepare("UPDATE pecas SET estado = ?, estado_desde = NOW() WHERE id = ?")
+                    ->execute([$novoEstado, $pecaId]);
+            $pdo->prepare("INSERT INTO historico (peca_id,campo,antes,depois,utilizador,data_alteracao)
+                           VALUES (?, 'estado', ?, ?, ?, NOW())")
+                    ->execute([$pecaId, $estadoAntigo, $novoEstado, $utilizador]);
+        }
+
+        $pdo->prepare("UPDATE revisoes_peca
+                       SET decisao = ?, nota = ?, revisto_por = ?, revisto_em = NOW()
+                       WHERE id = ?")
+                ->execute([$decisao, $nota, $utilizador, $revId]);
+        $_SESSION['mensagem_sucesso'] = 'Peça revista.';
+    }
+    $mesPar = preg_match('/^\d{4}-\d{2}$/', $_GET['mes'] ?? '') ? '&mes=' . $_GET['mes'] : '';
+    header('Location: app.php?page=revisao' . $mesPar);
+    exit;
+}
+
 /** @var PDO $pdo */
 /** @var string $csrfToken */
 /** @var array $estados */
