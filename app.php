@@ -4585,14 +4585,14 @@ acao-btn:hover {background: #e5e7eb; }
     display: flex;
     align-items: center;
     gap: 10px;
-    cursor: 10px;
+    cursor: pointer;
     background: none;
     border: none;
     color: #fff;
     font-size: 15px;
     padding: 6px 10px;
     border-radius: 8px;
-    transitions: background .15s;
+    transition: background .15s;
 }
 .user-trigger:hover { background: rgba(0,0,0,.15); }
 .user-dropdown-menu {
@@ -5503,7 +5503,7 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
 <?php elseif ($page === 'envios'): ?>
 
 <!-- == Linha Superior: Leitura Guia (Esquerda) + Formulario (Direita) == -->
-<div style="display="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
    <div class="panel" style="height:100%;">
       <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Leitura de Guia de Transporte</h4>
       <form method="post" enctype="multipart/form-data" autocomplete="off">

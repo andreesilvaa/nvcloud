@@ -1,4 +1,5 @@
 <?php
+/** @var PDO $pdo */
 // carrega a peça
 $stE = $pdo->prepare("SELECT id, produto, sn, cod_barras, categoria FROM pecas WHERE id = ?");
 $stE->execute([(int)($_GET['id'] ?? 0)]);

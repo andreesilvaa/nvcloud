@@ -1,7 +1,4 @@
 <?php
-<?php
-require __DIR__ . '/includes/auth.php';            // exige sessão
-if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 require_once __DIR__ . '/../config.php';
 
 $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;

@@ -1,4 +1,5 @@
 <?php // includes/pages/movimentos.php
+/** @var PDO $pdo */
 $entradasMes = $pdo->query("
   SELECT DATE_FORMAT(created_at,'%Y-%m') AS mes, COUNT(*) total
   FROM pecas

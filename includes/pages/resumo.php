@@ -1,4 +1,5 @@
 <?php // includes/pages/resumo.php
+/** @var PDO $pdo */
 $periodo = preg_match('/^\d{4}-\d{2}$/', $_GET['mes'] ?? '') ? $_GET['mes'] : date('Y-m');
 
 $kpi = function(PDO $pdo, string $sql, array $p = []) {

@@ -1,7 +1,4 @@
 <?php
-<?php
-require __DIR__ . '/includes/auth.php';            // exige sessão
-if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit('Acesso negado.'); }
 /**
  * DEVOLVE AS PEÇAS CUJO ESTADO "EM CURSO" ESTÁ PARADO HÁ DEMASIADO TEMPO.
  *

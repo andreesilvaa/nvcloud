@@ -6,6 +6,7 @@
  *   ALTER TABLE utilizadores ADD COLUMN area VARCHAR(50) NULL AFTER role;
  */
 require __DIR__ . '/../includes/db.php';
+/** @var PDO $pdo */
 
 $tempPass = 'nv2026!';   // password temporária — pedir para trocar no 1.º acesso
 $hash = password_hash($tempPass, PASSWORD_DEFAULT);

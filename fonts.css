@@ -196,7 +196,7 @@ footer {
 .top-bar {
     display: flex;
     justify-content: flex-end;
-    align-items: right;
+    align-items: flex-end;
     padding: 0px 30px;
     background-color: #9E9E9E;
     border-bottom: 1px solid #ddd;
