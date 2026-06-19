@@ -193,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     </div>
   </form>
 
+  <div class="table-responsive">
   <table class="table">
     <thead><tr>
       <th>ID</th>
@@ -231,6 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     <?php endforeach; ?>
   </tbody>
   </table>
+  </div>
 
     <?php if ($invPaginas > 1):
         // preserva os filtros atuais na navegação

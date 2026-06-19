@@ -806,7 +806,7 @@ body{
   gap: 14px;
   color: #fff;
   text-decoration: none;
-  padding: 14px 26px;
+  padding: 10px 26px;
   font-size: 15px;
   transition: all .25s ease;
   }
@@ -833,7 +833,7 @@ body{
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  padding:14px 26px;
+  padding:10px 26px;
   font-size:15px;
   cursor:pointer;
   text-align:left;
@@ -1022,7 +1022,7 @@ body{
   }
 
 .sidebar.collapsed a i{
-  font-size: 25px;
+  font-size: 20px;
   }
 
 .sidebar.collapsed .sidebar-parent{
@@ -1041,7 +1041,7 @@ body{
 }
 
 .sidebar.collapsed .sidebar-parent-left i{
-  font-size:25px;
+  font-size:20px;
 }
 
 .sidebar .footer-logo{
@@ -1094,7 +1094,7 @@ body{
 .kpi-row{
          display:grid;
          grid-template-columns:repeat(7, 1fr);
-         gap: 36px !important; 
+         gap: 16px !important;
          margin-bottom: 10px;
          align-items:start;
         }
@@ -1174,6 +1174,12 @@ body{
   max-width:100%;
   }
 
+.table-responsive{
+    width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+}
+
 .table{
         width:100%;
         border-collapse:collapse;
@@ -1181,9 +1187,10 @@ body{
       }
 .table th,.table td{
                       border:1px solid #e5e7eb;
-                      padding:12px;
+                      padding:8px 10px;
                       text-align:left;
                       vertical-align:middle;
+                      white-space:nowrap;
                     }
 .table th{
             background:#f6f7f9;
@@ -1312,7 +1319,7 @@ select{
 }
 
 @media (max-width: 1366px){
-  .kpi-row{gap:24px;}
+  .kpi-row{gap:14px;}
   .kpi-card{padding:8px;}
   .kpi-card i{font-size:26px !important;}
   .kpi-card .num{font-size:18px !important;}
@@ -1342,7 +1349,9 @@ select{
 .estado-chart-box{
   width:260px;
   display:flex;
-  justify-content:center;
+  justify-content:flex-end;
+  padding-right:12px;
+  box-sizing:border-box;
 }
 
 .estado-chart-box canvas{
@@ -1353,14 +1362,15 @@ select{
 .legend-container{
   width:100%;
   min-width:0;
+  display:flex;
+  justify-content:flex-end;
 }
 
 .legend-text{
   display:grid;
-  grid-template-columns:repeat(2, minmax(180px, 1fr));
-  column-gap:24px;
-  row-gap:14px;
-  width:100%;
+  grid-template-columns:repeat(2, minmax(140px, 170px));
+  column-gap:14px;
+  row-gap:10px;
   align-content:center;
 }
 
