@@ -1367,9 +1367,9 @@ select{
 
 .legend-text{
   display:grid;
-  grid-template-columns:repeat(2, minmax(150px, 190px));
-  column-gap:16px;
-  row-gap:10px;
+  grid-template-columns:repeat(2, minmax(150px, 240px));
+  column-gap:60px;
+  row-gap:4px;
   align-content:center;
 }
 

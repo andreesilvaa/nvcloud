@@ -1,15 +1,31 @@
 <?php
-$totalPecas = countQuery($pdo, "SELECT COUNT(*) FROM pecas");
+$totalPecas       = countQuery($pdo, "SELECT COUNT(*) FROM pecas");
+$pecasDisponiveis = countQuery($pdo, "SELECT COUNT(*) FROM pecas WHERE estado='Disponível'");
+$pecasLaboratorio = countQuery($pdo, "SELECT COUNT(*) FROM pecas WHERE estado='Laboratório'");
 
-$patsAtivos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado NOT IN ('Resolvido','Concluído','Cancelado')");
+// Peças por rever (revisões pendentes do mês atual)
+require_once __DIR__ . '/../revisoes.php';
+nvGerarRevisoesDoMes($pdo);
+$pecasPorRever = nvRevisoesPendentes($pdo);
 
-$ordensAtivas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Ativa'");
+$patsAbertos    = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Aberto'");
+$patsConcluidos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='Concluído'");
 
-$ordensCanceladas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Cancelada'");
+// Tempo médio PAT -> Execução: da receção (data_recepcao) ao início dos trabalhos (data_inicio)
+$mediaExecMin = $pdo->query("
+    SELECT AVG(TIMESTAMPDIFF(MINUTE, data_recepcao, data_inicio))
+    FROM pats
+    WHERE data_recepcao IS NOT NULL
+      AND data_inicio   IS NOT NULL
+      AND data_inicio >= data_recepcao
+")->fetchColumn();
 
-$ordensConcluidas = countQuery($pdo, "SELECT COUNT(*) FROM envios WHERE estado='Concluida'");
-
-$ultimoPat = $pdo->query("SELECT created_at FROM pats ORDER BY created_at DESC LIMIT 1")->fetchColumn() ?: null;
+if ($mediaExecMin === null || $mediaExecMin === false) {
+    $execLabel = '—';
+} else {
+    $h = (float)$mediaExecMin / 60;
+    $execLabel = $h < 24 ? round($h, 1) . 'h' : round($h / 24, 1) . 'd';
+}
 ?>
 
 <!-- Dashboard-Quadrados --> 
@@ -21,39 +37,39 @@ $ultimoPat = $pdo->query("SELECT created_at FROM pats ORDER BY created_at DESC L
     </div>
 
     <div class="kpi-card">
-      <i class="bi bi-clipboard"></i>
-        <div class="num"><?=$patsAtivos?></div>
-          <div>PATs Ativos</div>
+      <i class="bi bi-check2-square" style="color:#28a745"></i>
+        <div class="num"><?=$pecasDisponiveis?></div>
+          <div>Peças Disponíveis</div>
     </div>
 
     <div class="kpi-card">
-      <i class="bi bi-send"></i>
-        <div class="num"><?=$ordensAtivas?></div>
-          <div>Ordens Ativas</div>
+      <i class="bi bi-eyedropper" style="color:#2470dc"></i>
+        <div class="num"><?=$pecasLaboratorio?></div>
+          <div>Peças em Laboratório</div>
     </div>
 
     <div class="kpi-card">
-      <i class="bi bi-x-circle" style="color:#e05d57"></i>
-        <div class="num"><?=$ordensCanceladas?></div>
-          <div>Ordens Canceladas</div>
+      <i class="bi bi-hourglass-split" style="color:#f59e0b"></i>
+        <div class="num"><?=$pecasPorRever?></div>
+          <div>Peças por Rever</div>
     </div>
 
     <div class="kpi-card">
-      <i class="bi bi-check-circle" style="color:#2ca59a"></i>
-        <div class="num"><?=$ordensConcluidas?></div>
-          <div>Ordens Concluídas</div>
+      <i class="bi bi-folder2-open" style="color:#3d82c4"></i>
+        <div class="num"><?=$patsAbertos?></div>
+          <div>PAT's Abertos</div>
     </div>
 
     <div class="kpi-card">
       <i class="bi bi-stopwatch"></i>
-        <div class="num" style="font-size:24px;line-height:1.1">1.5h</div>
-          <div>~ PAT→Execução</div>
+        <div class="num" style="font-size:24px;line-height:1.1"><?= $execLabel ?></div>
+          <div>PAT→Execução</div>
     </div>
 
     <div class="kpi-card">
-      <i class="bi bi-calendar3"></i>
-        <div class="num" style="font-size:18px;line-height:1.1"><?= $ultimoPat ? date('d/m', strtotime($ultimoPat)) : '-' ?></div>
-          <div>Último PAT</div>    
+      <i class="bi bi-check-circle" style="color:#2ca59a"></i>
+        <div class="num"><?=$patsConcluidos?></div>
+          <div>PAT's Concluídos</div>
     </div>
   </div>
 

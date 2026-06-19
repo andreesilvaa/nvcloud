@@ -218,13 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
         <td><?=htmlspecialchars($p['parceiro'])?></td>
         <td><?= estadoBolha($p['estado']) ?></td>
         <td class="actions">
-          <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>">Editar</a>
+          <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
           <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta peça? Esta ação é irreversível.');">
             <input type="hidden" name="form_type" value="eliminar_peca">
             <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-            <button type="submit" class="btn btn-red">Eliminar</button>
+            <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
           </form>
-          <a class="btn btn-grey" href="app.php?page=historico&id=<?=$p['id']?>">Histórico</a>
+          <a class="btn btn-grey" href="app.php?page=historico&id=<?=$p['id']?>" title="Histórico" aria-label="Histórico"><i class="bi bi-clock-history"></i></a>
         </td>
       </tr>
     <?php endforeach; ?>
