@@ -112,10 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     exit;
 }
 ?>
-  <div style="margin-bottom:18px">
+  <div style="margin-bottom:18px; display:flex; align-items:center; gap:8px;">
     <a class="btn btn-teal" href="app.php?page=nova_peca">Adicionar Peça</a>
     <a class="btn btn-green" href="app.php?page=qrs">Ler</a>
-    <a href="exportar_inventario_csv.php" class="btn btn-green" style="padding:12px 16px;">
+    <a href="exportar_inventario_csv.php" class="btn btn-green" style="padding:12px 16px; margin-left:auto;">
         <i class="bi bi-download"></i> Exportar CSV
     </a>
   </div>

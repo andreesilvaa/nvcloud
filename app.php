@@ -315,7 +315,7 @@ $vista = $_GET['lista'] ?? '0';
 
 $pageTitles = [
   'dashboard' => 'Dashboard',
-  'alertas' => 'Clientes',
+  'clientes' => 'Clientes',
   'inventario' => 'Inventário',
   'inventory' => 'Inventário',
   'nova_peca' => 'Nova Peça',
@@ -1283,7 +1283,7 @@ select{
           grid-template-columns:1fr 1fr 1fr auto;
           gap:20px;
           align-items:end;
-          margin:18px 0;
+          margin:18px 0 8px;
         }
 .filters2{
             display:grid;
@@ -1341,10 +1341,10 @@ select{
 .estado-layout{
   display:flex;
   align-items:center;
-  justify-content:flex-end;
-  gap:50px;
+  justify-content:center;
+  gap:80px;
   width:100%;
-  padding-right:80px;
+  padding-right:0;
   box-sizing:border-box;
 }
 
@@ -2131,6 +2131,13 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     .topbar button span:not(.sr-only) { display: none; }
 }
 
+/* FILTROS DO INVENTÁRIO MAIS COMPACTOS */
+.filters .btn, .filters2 .btn { padding:8px 12px; font-size:13px; }
+.filters select,
+.filters2 select,
+.filters2 input { height:38px; padding:8px 12px; font-size:14px; }
+.filters label, .filters2 label { font-size:13px; margin-bottom:4px; }
+
 </style>
 </head>
 
@@ -2162,7 +2169,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
       <i class="bi bi-truck"></i><span>Envios</span>
   </a>
 
-  <a class="<?=active('alertas',$page)?>" href="app.php?page=alertas">
+  <a class="<?=active('clientes',$page)?>" href="app.php?page=clientes">
     <i class="bi bi-people"></i><span>Clientes</span>
   </a>
 
@@ -2371,8 +2378,8 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
   <?php require __DIR__ . '/includes/pages/contas.php'; ?>
 <?php elseif ($page === 'auditoria'): ?>
   <?php require __DIR__ . '/includes/pages/auditoria.php'; ?>
-<?php elseif ($page === 'alertas'): ?>
-  <?php require __DIR__ . '/includes/pages/alertas.php'; ?>
+<?php elseif ($page === 'clientes'): ?>
+  <?php require __DIR__ . '/includes/pages/clientes.php'; ?>
 <?php elseif ($page === 'pats'): ?>
   <?php require __DIR__ . '/includes/pages/pats.php'; ?>
 <?php elseif ($page === 'relatorios'): ?>

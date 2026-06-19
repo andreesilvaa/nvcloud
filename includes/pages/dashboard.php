@@ -143,7 +143,7 @@ $ultimoPat = $pdo->query("SELECT created_at FROM pats ORDER BY created_at DESC L
             Sem atividade registada.
         </div>
     <?php else: ?>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; max-height:230px; overflow:hidden;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; max-height:184px; overflow:hidden;">
             <?php foreach ($actividadeRecente as $a):
             $icons = [
                 'criação'    => ['bi-plus-circle-fill', '#22c55e'],
