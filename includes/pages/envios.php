@@ -66,7 +66,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
 
     try {
         $textoExtraido = extrairTextoPdfNova($caminhoPdf);
-        $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario, $catalogoProdutos);
+
+        // Catálogo de matching construído a partir da tabela `pecas` — a MESMA
+        // fonte usada pelas dropdowns de exibição (categoriasInventarioReal /
+        // catalogoInventarioReal). Garante que o Tipo e o Nome da Peça extraídos
+        // existem nas listas e ficam automaticamente selecionados no formulário.
+        $catalogoPecas = [];
+        foreach ($pdo->query(
+            "SELECT DISTINCT categoria, produto FROM pecas
+              WHERE categoria IS NOT NULL AND categoria <> ''
+                AND produto   IS NOT NULL AND produto   <> ''
+              ORDER BY categoria ASC, produto ASC"
+        ) as $rowCat) {
+            $catalogoPecas[$rowCat['categoria']][] = $rowCat['produto'];
+        }
+
+        $dados = extrairDadosGuiaTransporteNova($textoExtraido, $pdo, $parceirosInventario, $catalogoPecas);
 
 // Deteção de duplicados: se já existe rascunho com o mesmo Nº Documento, redireciona para ele
    if (($dados['num_documento'] ?? '') !== '') {
@@ -327,17 +342,31 @@ function extrairDadosGuiaTransporteNova(string $texto, PDO $pdo, array $parceiro
 
 
     // ── 1. Tipo de documento ──────────────────────────────────────────────────
-    // PDF: "G. Transp (said fornec)"  →  sistema: "G. Transp fornec"
-    // PDF: "G. Transp (said cliente)" →  sistema: "G. Transp cliente"
-    $documento = '';
-    foreach ($linhas as $linha) {
-        if (preg_match('/G\.\s*Transp.*said\s+fornec/i', $linha)) {
+    // Pesquisa linha-a-linha para evitar falsos positivos causados por "fornec"
+    // ou "clien" noutras partes da página (rodapé, morada, texto legal).
+    // Fallback: página inteira com âncora de linha (/m, sem dotall).
+    $documento  = '';
+    $paginaNorm = $norm($pagina);
+
+    // PDF usa abreviação "said cli" (não "cliente") e "said fornec" (não "fornecedor")
+    foreach ($linhas as $linhaTmp) {
+        $lNorm = $norm($linhaTmp);
+        if (preg_match('/g\.?\s*transp[^\n]*fornec/', $lNorm) ||
+            preg_match('/guia[^\n]*transp[^\n]*fornec/', $lNorm)) {
             $documento = 'G. Transp Fornec';
             break;
         }
-        if (preg_match('/G\.\s*Transp.*said\s+cliente/i', $linha)) {
+        if (preg_match('/g\.?\s*transp[^\n]*\bcli\b/', $lNorm) ||
+            preg_match('/guia[^\n]*transp[^\n]*\bcli\b/', $lNorm)) {
             $documento = 'G.Transp Cliente';
             break;
+        }
+    }
+    if ($documento === '') {
+        if (preg_match('/g\.?\s*transp[^\n]*fornec/m', $paginaNorm)) {
+            $documento = 'G. Transp Fornec';
+        } elseif (preg_match('/g\.?\s*transp[^\n]*\bcli\b/m', $paginaNorm)) {
+            $documento = 'G.Transp Cliente';
         }
     }
 
@@ -365,32 +394,52 @@ foreach ($linhas as $linha) {
 // Regra 1: Guia de Cliente → parceiro é sempre "Field Service"
 // Regra 2: Guia de Fornecedor → correspondência automática com os parceiros
 //          registados na página Inventário ($parceirosInventario)
-if ($documento === 'G. Transp cliente') {
+if ($documento === 'G.Transp Cliente') {
 
     $parceiro = 'Field Service';
 
 } else {
 
     $parceiro = '';
-    foreach ($linhas as $linha) {
-        $linhaNorm = $norm($linha);
-        foreach ($parceirosInventario as $p) {
-            $pNorm = $norm($p);
-            if (strlen($pNorm) < 4) continue;
 
-            if (str_contains($linhaNorm, $pNorm) || str_contains($pNorm, $linhaNorm)) {
-                $parceiro = $p;
-                break 2;
-            }
+    // 1.º — candidato pela linha a seguir a "Exmo(s) Senhor(es)" (destinatário da guia)
+    $candidato = '';
+    foreach ($linhas as $i => $linha) {
+        if (stripos($linha, 'Exmo') !== false && stripos($linha, 'Senhor') !== false) {
+            $candidato = trim($linhas[$i + 1] ?? '');
+            break;
         }
     }
 
-    // Fallback: linha a seguir a "Exmo(s) Senhor(es)" se nenhum parceiro correspondeu
-    if ($parceiro === '') {
-        foreach ($linhas as $i => $linha) {
-            if (stripos($linha, 'Exmo') !== false && stripos($linha, 'Senhor') !== false) {
-                $parceiro = $linhas[$i + 1] ?? '';
+    // Tenta casar o candidato com um parceiro registado no inventário
+    if ($candidato !== '') {
+        $candNorm = $norm($candidato);
+        foreach ($parceirosInventario as $p) {
+            $pNorm = $norm($p);
+            if (strlen($pNorm) < 4) continue;
+            if (str_contains($candNorm, $pNorm) || str_contains($pNorm, $candNorm)) {
+                $parceiro = $p;
                 break;
+            }
+        }
+        // Sem correspondência exata: usa o nome lido tal como aparece na guia
+        if ($parceiro === '') {
+            $parceiro = $candidato;
+        }
+    }
+
+    // 2.º — fallback: procura um parceiro do inventário em qualquer linha
+    //         (apenas correspondência direta: nome do parceiro contido na linha)
+    if ($parceiro === '') {
+        foreach ($linhas as $linha) {
+            $linhaNorm = $norm($linha);
+            foreach ($parceirosInventario as $p) {
+                $pNorm = $norm($p);
+                if (strlen($pNorm) < 4) continue;
+                if (str_contains($linhaNorm, $pNorm)) {
+                    $parceiro = $p;
+                    break 2;
+                }
             }
         }
     }
@@ -420,12 +469,17 @@ if ($documento === 'G. Transp cliente') {
                 if ($pNorm === '') continue;
 
                 if ($desNorm === $pNorm) {
-                    // Match exato — retorna imediatamente
                     return ['categoria' => $categoria, 'produto' => $produto];
                 }
 
+                // Designação contém o nome do produto (ex: "CABECOTE PROXIMA CGD" contém "proxima cgd")
                 if (str_contains($desNorm, $pNorm) && strlen($pNorm) > $score) {
                     $score  = strlen($pNorm);
+                    $melhor = ['categoria' => $categoria, 'produto' => $produto];
+                }
+                // Nome do produto contém a designação (ex: "Cabeçote Proxima CGD" contém "proxima")
+                elseif ($score === 0 && str_contains($pNorm, $desNorm) && strlen($desNorm) >= 4) {
+                    $score  = strlen($desNorm);
                     $melhor = ['categoria' => $categoria, 'produto' => $produto];
                 }
             }
@@ -444,8 +498,11 @@ if ($documento === 'G. Transp cliente') {
     $linhaNumSerie   = [];
 
     foreach ($linhas as $linha) {
+        // Formato fornecedor: "ASSISTENCIA designação / SN qtd"
+        // Formato cliente:    "designação / SN qtd"  (sem prefixo ASSISTENCIA)
+        // Aceita quantidade inteira (1) ou decimal (1,00 / 1.00)
         if (!preg_match(
-            '/^ASSISTENCIA\s+(.+?)\s*\/\s*([A-Z0-9]+)\s+([\d]+[,.][\d]+)\s*$/i',
+            '/^(?:ASSISTENCIA\s+)?(.+?)\s*\/\s*([A-Z0-9]{4,})\s+([\d]+(?:[,.][\d]+)?)\s*$/i',
             $linha, $m
         )) {
             continue;
@@ -468,11 +525,11 @@ if ($documento === 'G. Transp cliente') {
             }
         }
 
-        // PRIORIDADE 2: matching por nome (fallback)
-        if ($categoria === '') {
+        // PRIORIDADE 2: fallback por designação (categoria em falta OU produto em falta)
+        if ($categoria === '' || $produto === '') {
             $mapeamento = $mapearProduto($designacao);
-            $categoria  = $mapeamento['categoria'];
-            $produto    = $mapeamento['produto'];
+            if ($categoria === '') $categoria = $mapeamento['categoria'];
+            if ($produto   === '') $produto   = $mapeamento['produto'];
         }
 
         $linhaCategoria[]  = $categoria;
@@ -653,7 +710,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'co
     $linhas = $stmtLinhas->fetchAll();
 
     // Guia Cliente → peça fica com estado 'Cliente'; Guia Fornecedor → 'Parceiro'
-    $novoEstadoPeca  = ($envio['documento'] === 'G. Transp cliente') ? 'Cliente' : 'Parceiro';
+    $novoEstadoPeca  = ($envio['documento'] === 'G.Transp Cliente') ? 'Cliente' : 'Parceiro';
     $novoParceiroPeca = $envio['parceiro'];
     $utilizador      = $_SESSION['user_nome'] ?? 'Sistema';
 
@@ -888,10 +945,19 @@ if ($page === 'envios') {
                             </select>
                             <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
                         <?php else: ?>
-                            <select name="parceiro" required>
+                            <?php
+                            $parceiroAtual  = $envioAtual['parceiro'] ?? '';
+                            $parceiroNaLista = in_array($parceiroAtual, $parceirosInventario, true);
+                            ?>
+                            <select name="parceiro" id="parceiro_envio" required>
                                 <option value="">-- Selecione --</option>
+                                <?php if ($parceiroAtual !== '' && !$parceiroNaLista): ?>
+                                    <option value="<?= htmlspecialchars($parceiroAtual) ?>" selected>
+                                        <?= htmlspecialchars($parceiroAtual) ?>
+                                    </option>
+                                <?php endif; ?>
                                 <?php foreach ($parceirosInventario as $p): ?>
-                                    <option value="<?= htmlspecialchars($p) ?>" <?= (($envioAtual['parceiro'] ?? '') === $p) ? 'selected' : '' ?>>
+                                    <option value="<?= htmlspecialchars($p) ?>" <?= ($parceiroAtual === $p) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($p) ?>
                                     </option>
                                 <?php endforeach; ?>

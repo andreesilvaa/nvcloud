@@ -2962,12 +2962,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function aplicarRegraParceiro() {
         if (!documentoSelect || !parceiroSelect) return;
 
-        if (documentoSelect.value === 'G. Transp cliente') {
+        if (documentoSelect.value === 'G.Transp Cliente') {
             parceiroSelect.innerHTML = '<option value="Field Service" selected>Field Service</option>';
             parceiroSelect.value = 'Field Service';
             parceiroSelect.setAttribute('readonly', 'readonly');
             parceiroSelect.setAttribute('data-mode', 'cliente');
-        } else if (documentoSelect.value === 'G. Transp fornec') {
+        } else if (documentoSelect.value === 'G. Transp Fornec') {
             if (parceiroSelect.getAttribute('data-mode') === 'cliente') {
                 parceiroSelect.innerHTML = '<option value="">-- Selecione o Parceiro --</option>';
                 parceirosInventario.forEach(function (parceiro) {
