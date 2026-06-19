@@ -1186,12 +1186,12 @@ body{
         background:#fff;
       }
 .table th,.table td{
-                      border:1px solid #e5e7eb;
-                      padding:8px 10px;
-                      text-align:left;
-                      vertical-align:middle;
-                      white-space:nowrap;
-                    }
+      border:1px solid #e5e7eb;
+      padding:6px 8px;
+      text-align:left;
+      vertical-align:middle;
+      white-space:nowrap;
+}
 .table th{
             background:#f6f7f9;
           }
@@ -1307,9 +1307,9 @@ select{
                 display:inline-flex;
                 align-items:center;
                 justify-content:center;
-                padding:8px 12px;
-                font-size:14px;
-                margin-right:6px;
+                padding:5px 8px;
+                font-size:12px;
+                margin-right:4px;
                 margin-bottom:0;
                 white-space:nowrap;
               }
@@ -1339,19 +1339,20 @@ select{
 }
 
 .estado-layout{
-  display:grid;
-  grid-template-columns:260px 1fr;
-  column-gap:40px;
+  display:flex;
   align-items:center;
+  justify-content:flex-end;
+  gap:50px;
   width:100%;
+  padding-right:80px;
+  box-sizing:border-box;
 }
 
 .estado-chart-box{
   width:260px;
+  flex-shrink:0;
   display:flex;
-  justify-content:flex-end;
-  padding-right:12px;
-  box-sizing:border-box;
+  justify-content:center;
 }
 
 .estado-chart-box canvas{
@@ -1360,16 +1361,14 @@ select{
 }
 
 .legend-container{
-  width:100%;
+  width:auto;
   min-width:0;
-  display:flex;
-  justify-content:flex-end;
 }
 
 .legend-text{
   display:grid;
-  grid-template-columns:repeat(2, minmax(140px, 170px));
-  column-gap:14px;
+  grid-template-columns:repeat(2, minmax(150px, 190px));
+  column-gap:16px;
   row-gap:10px;
   align-content:center;
 }
@@ -1408,9 +1407,8 @@ select{
 
 @media (max-width:1100px){
   .estado-layout{
-    grid-template-columns:240px 1fr;
-    column-gap:32px;
-    align-items:center;
+    gap:32px;
+    padding-right:20px;
   }
 
   .estado-chart-box{
@@ -1431,26 +1429,30 @@ select{
   }
 }
 
-@media (max-width:768px){
-  .estado-layout{
-    grid-template-columns:1fr;
-    justify-items:center;
-    row-gap:20px;
-    width:100%;
-  }
+@media (max-width:768px) {
+    .estado-layout {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        padding-right: 0;
+        width: 100%;
+    }
 
-  .legend-container{
-    width:100%;
-    display:flex;
-    justify-content:center;
-  } 
+    .legend-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
 
-  .legend-text{
-    grid-template-columns:1fr;
-    width:max-content;
-  }
+    .legend-text {
+        display: grid;
+        grid-template-columns:repeat(2, minmax(150px, 190px));
+        column-gap: 16px;
+        row-gap: 10px;
+        align-content: center;
+    }
 }
-
 
 .auditoria-card {
     margin-top: 24px;
@@ -1639,7 +1641,7 @@ select{
     }
 }
 
-.alerta-erro {
+.alerta-erro{
   background: #f8d7da;
   color: #842029;
   border: 1px solid #f5c2c7;
@@ -1649,7 +1651,7 @@ select{
   font-size: 14px;
   }
 
-.alerta-sucesso {
+.alerta-sucesso{
   background: #d1e7dd;
   color: #0f5132;
   border: 1px solid #badbcc;
@@ -1912,7 +1914,9 @@ select{
     color: #374151;
     transition: background .15s;
 }
+
 acao-btn:hover {background: #e5e7eb; }
+
 .acao-menu {
     display: none;
     position: absolute;
@@ -1926,6 +1930,7 @@ acao-btn:hover {background: #e5e7eb; }
     z-index: 100;
     overflow: hidden;
 }
+
 .acao-menu a {
     display: flex;
     align-items: center;
@@ -1937,6 +1942,7 @@ acao-btn:hover {background: #e5e7eb; }
     white-space: nowrap;
     transition: background .12s;
 }
+
 .acao-menu a:hover { background: #f3f4f6; }
 .acao-menu a i { font-size: 15px; }
 .acao-wrap.open .acao-menu { display: block; }
@@ -2050,7 +2056,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 .notif-panel-header { padding: 12px 16px; font-weight: 700; font-size: 14px; border-bottom: 1px solid #f3f4f6; color: #111827; }
 .notif-item {
     display: flex; align-items: flex-start; gap: 10px;
-    padding: 10px 14px; text-decoration: none; color: #1f2937;
+    padding: 10px 14px; text-decoration: none; color: #1f2937 !important;
     font-size: 13px; border-bottom: 1px solid #f9fafb; transition: background .12s;
 }
 .notif-item:hover { background: #f3f4f6; }

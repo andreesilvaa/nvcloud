@@ -200,7 +200,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
       <th>Categoria</th>
       <th>Produto</th>
       <th>SN</th>
-      <th>Cod. Barras</th>
       <th>PAT</th>
       <th>Parceiro</th>
       <th>Estado</th>
@@ -215,7 +214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
         <td><?=htmlspecialchars($p['categoria'])?></td>
         <td><?=htmlspecialchars($p['produto'])?></td>
         <td><?=htmlspecialchars($p['sn'])?></td>
-        <td><?=htmlspecialchars($p['cod_barras'])?></td>
         <td>N/A</td>
         <td><?=htmlspecialchars($p['parceiro'])?></td>
         <td><?= estadoBolha($p['estado']) ?></td>
