@@ -193,28 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     </div>
   </form>
 
-<form>
-    <form method="post" id="formLote">
-        <input type="hidden" name="form_type" value="lote_estado">
-        <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-            <select name="novo_estado">
-                <?php foreach ($estados as $estOpt): ?>
-                    <option value="<?= e($estOpt) ?>"><?= e($estOpt) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <button class="btn btn-blue" type="submit">Aplicar aos selecionados</button>
-        </div>
-        <!-- ... a tua <table> fica AQUI dentro do form ... -->
-    </form>
-    <script>
-        document.getElementById('selAll')?.addEventListener('change', function(){
-            document.querySelectorAll('.rowChk').forEach(c => c.checked = this.checked);
-        });
-    </script>
   <table class="table">
     <thead><tr>
-      <th><input type="checkbox" id="selAll"</th>
       <th>ID</th>
       <th>Categoria</th>
       <th>Produto</th>
@@ -224,35 +204,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
       <th>Parceiro</th>
       <th>Estado</th>
       <th>Ações</th>
-          </tr>
+    </tr>
     </thead>
-</form>
 
   <tbody>
     <?php foreach($pecas as $p): ?>
       <tr>
         <td><?=$p['id']?></td>
-        <td><?=htmlspecialchars($p['categoria'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
-        <td><?=htmlspecialchars($p['produto'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
-        <td><?=htmlspecialchars($p['sn'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
-        <td><?=htmlspecialchars($p['cod_barras'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
+        <td><?=htmlspecialchars($p['categoria'])?></td>
+        <td><?=htmlspecialchars($p['produto'])?></td>
+        <td><?=htmlspecialchars($p['sn'])?></td>
+        <td><?=htmlspecialchars($p['cod_barras'])?></td>
         <td>N/A</td>
-        <td><?=htmlspecialchars($p['parceiro'])?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
-          <td><?= estadoBolha($p['estado']) ?></td><td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" class="rowChk"></td>
-            <td class="actions">
-              <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta peça? Esta ação é irreversível.');">
-                <input type="hidden" name="form_type" value="eliminar_peca">
-                <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-                <button type="submit" class="btn btn-red">Eliminar</button>
-              </form>
-              <a class="btn btn-grey" href="app.php?page=historico&id=<?=$p['id']?>">Histórico</a>
-            </td>
-        </tr>
-</form>
-
-      <?php endforeach; ?>
-    </tbody>
+        <td><?=htmlspecialchars($p['parceiro'])?></td>
+        <td><?= estadoBolha($p['estado']) ?></td>
+        <td class="actions">
+          <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?=$p['id']?>">Editar</a>
+          <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta peça? Esta ação é irreversível.');">
+            <input type="hidden" name="form_type" value="eliminar_peca">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button type="submit" class="btn btn-red">Eliminar</button>
+          </form>
+          <a class="btn btn-grey" href="app.php?page=historico&id=<?=$p['id']?>">Histórico</a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+  </tbody>
   </table>
 
     <?php if ($invPaginas > 1):
