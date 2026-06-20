@@ -411,13 +411,24 @@ if ($documento === 'G.Transp Cliente') {
         }
     }
 
+    // Normaliza ainda mais agressivamente para comparar nomes de parceiros:
+    // remove espaços, vírgulas, pontos e sufixos jurídicos comuns (S.A., Lda, Unipessoal, etc.).
+    // Isto evita criar parceiros "duplicados" só por diferenças de formatação
+    // (ex: "MCComputadores, S.A." vs "MC Computadores").
+    $normParceiro = static function (string $s) use ($norm): string {
+        $s = $norm($s);
+        $s = preg_replace('/\b(s\.?a\.?|lda\.?|unip(essoal)?\.?|limitada)\b/u', '', $s);
+        $s = preg_replace('/[^a-z0-9]/u', '', $s);
+        return $s;
+    };
+
     // Tenta casar o candidato com um parceiro registado no inventário
     if ($candidato !== '') {
-        $candNorm = $norm($candidato);
+        $candNorm = $normParceiro($candidato);
         foreach ($parceirosInventario as $p) {
-            $pNorm = $norm($p);
+            $pNorm = $normParceiro($p);
             if (strlen($pNorm) < 4) continue;
-            if (str_contains($candNorm, $pNorm) || str_contains($pNorm, $candNorm)) {
+            if ($candNorm === $pNorm || str_contains($candNorm, $pNorm) || str_contains($pNorm, $candNorm)) {
                 $parceiro = $p;
                 break;
             }
@@ -432,9 +443,9 @@ if ($documento === 'G.Transp Cliente') {
     //         (apenas correspondência direta: nome do parceiro contido na linha)
     if ($parceiro === '') {
         foreach ($linhas as $linha) {
-            $linhaNorm = $norm($linha);
+            $linhaNorm = $normParceiro($linha);
             foreach ($parceirosInventario as $p) {
-                $pNorm = $norm($p);
+                $pNorm = $normParceiro($p);
                 if (strlen($pNorm) < 4) continue;
                 if (str_contains($linhaNorm, $pNorm)) {
                     $parceiro = $p;
@@ -485,32 +496,128 @@ if ($documento === 'G.Transp Cliente') {
             }
         }
 
+        // PRIORIDADE 3 (fallback adicional): correspondência por palavra/código em comum.
+        // Cobre casos em que a designação do PDF usa um prefixo diferente do catálogo
+        // (ex.: PDF "PC KP1-AB5" vs catálogo "Insys KP1-AB5" — não há contenção total,
+        // mas partilham o token "kp1-ab5"). Só corre se as duas tentativas anteriores
+        // não encontraram nada, para não alterar o comportamento já validado.
+        if ($score === 0) {
+            $desTokens = array_values(array_filter(preg_split('/[^a-z0-9]+/u', $desNorm), fn($t) => strlen($t) >= 3));
+            $melhorTok = 0;
+
+            foreach ($catalogoDb as $categoria => $produtos) {
+                foreach ($produtos as $produto) {
+                    $pNorm = $norm($produto);
+                    if ($pNorm === '') continue;
+                    $pTokens = array_values(array_filter(preg_split('/[^a-z0-9]+/u', $pNorm), fn($t) => strlen($t) >= 3));
+
+                    foreach ($pTokens as $pTok) {
+                        if (!in_array($pTok, $desTokens, true)) continue;
+                        // Prioriza o token partilhado mais longo (mais específico, ex: "kp1ab5" em vez de "pc")
+                        if (strlen($pTok) > $melhorTok) {
+                            $melhorTok = strlen($pTok);
+                            $melhor    = ['categoria' => $categoria, 'produto' => $produto];
+                        }
+                    }
+                }
+            }
+        }
+
         return $melhor;
     };
 
 
     // ── 5. Linhas de artigos ──────────────────────────────────────────────────
-    // Formato: "ASSISTENCIA BOX D039 / ISD039X23A50415 1,00"
-    //           ^artigo       ^designação  ^SN           ^qtd
+    // As guias da empresa usam VÁRIOS formatos para a coluna Designação/Nº Série,
+    // por exemplo (confirmado em PDFs reais):
+    //   "BOX D039 / ISD039X23A50415              1,00"                (1 barra, SN limpo)
+    //   "MONITOR SELENIKO TOUCH/C2021050830049/  1,00"                (barra a fechar, sem nada depois)
+    //   "PC GIADA F108D/K1647P700638/PAT-100055/AUCHAN COIMBRA  1,00" (SN + anotações extra após mais barras)
+    //   "FONTE PRATEADA/REGULADOR DE PC/PAT-100055/AUCHAN       1,00" (sem SN real, só anotações)
+    //   "Cabeçote Proxima INLPXM011262 /PAT-000101728/Unilabs Aveiro 1,00" (SN colado à designação, sem barra antes)
+    //   "Vídeo Extender VGA Remoto + Transformador              1,00" (sem barra nenhuma, sem SN)
+    // A extração faz-se em 2 passos: (1) isola o texto antes da quantidade, sem exigir
+    // barra nenhuma; (2) tenta encontrar o SN dentro desse texto através de heurísticas,
+    // ignorando anotações como "PAT-XXXXX" ou nomes de loja/local.
     $linhaCategoria  = [];
     $linhaProduto    = [];
     $linhaQuantidade = [];
     $linhaNumSerie   = [];
 
-    foreach ($linhas as $linha) {
-        // Formato fornecedor: "ASSISTENCIA designação / SN qtd"
-        // Formato cliente:    "designação / SN qtd"  (sem prefixo ASSISTENCIA)
-        // Aceita quantidade inteira (1) ou decimal (1,00 / 1.00)
+    // Restringe a pesquisa à zona da tabela de artigos (entre o cabeçalho
+    // "Artigo / Designação ... Nº Série" e o rodapé "Software PHC"), para não
+    // arriscar apanhar números soltos noutras partes da guia (totais, datas, etc.)
+    // agora que a regex de quantidade deixou de exigir uma barra "/".
+    $inicioTabela = null;
+    $fimTabela    = null;
+    foreach ($linhas as $i => $l) {
+        if ($inicioTabela === null && stripos($l, 'Artigo') !== false && stripos($l, 'esigna') !== false) {
+            $inicioTabela = $i;
+            continue;
+        }
+        if ($inicioTabela !== null && stripos($l, 'Software') !== false) {
+            $fimTabela = $i;
+            break;
+        }
+    }
+    $linhasItens = ($inicioTabela !== null)
+        ? array_slice($linhas, $inicioTabela + 1, $fimTabela !== null ? ($fimTabela - $inicioTabela - 1) : null)
+        : $linhas; // fallback: se não encontrar o cabeçalho, mantém o comportamento antigo (varre tudo)
+
+    // Heurística: um token "parece" um número de série se for só letras/dígitos
+    // (sem espaços nem hífenes) e tiver pelo menos um dígito — isto distingue
+    // SNs reais (ex: "K1647P700638") de palavras comuns ou nomes de loja em
+    // maiúsculas (ex: "AUCHAN", "COIMBRA", "PRATEADA"), que não têm dígitos.
+    $pareceSn = static function (string $tok): bool {
+        return (bool) preg_match('/^[A-Z0-9]{4,}$/i', $tok) && (bool) preg_match('/\d/', $tok);
+    };
+
+    foreach ($linhasItens as $linha) {
+        // Passo 1: isola o texto do artigo e a quantidade no fim da linha.
+        // Já não exige barra "/" — só que a linha termine em número (inteiro ou decimal).
+        // Exige um espaçamento mínimo (3+ espaços) antes da quantidade, porque o
+        // "pdftotext -layout" preserva as colunas: a Quantidade real está sempre bem
+        // afastada à direita. Isto evita apanhar números "colados" ao texto em linhas
+        // de anotação que não são artigos (ex: "Vodafone Madeira - PAT 99980", onde
+        // "99980" ficaria a só 1 espaço do texto, em vez dos 3+ típicos da coluna Qtd.).
         if (!preg_match(
-            '/^(?:ASSISTENCIA\s+)?(.+?)\s*\/\s*([A-Z0-9]{4,})\s+([\d]+(?:[,.][\d]+)?)\s*$/i',
+            '/^(?:ASSISTENCIA\s+)?(.+?)\s{3,}([\d]+(?:[,.][\d]+)?)\s*$/i',
             $linha, $m
         )) {
             continue;
         }
 
-        $designacao = trim($m[1]);
-        $sn         = strtoupper(trim($m[2]));
-        $qtd        = (float) str_replace(',', '.', $m[3]);
+        $corpo = trim($m[1]);
+        $qtd   = (float) str_replace(',', '.', $m[2]);
+
+        // Passo 2: dentro do corpo, separa por "/" e tenta identificar o SN.
+        $partes = array_values(array_filter(
+            array_map('trim', explode('/', $corpo)),
+            static fn($p) => $p !== ''
+        ));
+        $designacao = $partes[0] ?? $corpo;
+        $sn = '';
+
+        if (isset($partes[1]) && $pareceSn($partes[1])) {
+            // Caso "designação / SN" — o 2º segmento é o próprio SN.
+            $sn = strtoupper($partes[1]);
+        } elseif (preg_match('/^(.*\S)\s+([A-Z0-9]{8,})$/u', $designacao, $mEmb) && $pareceSn($mEmb[2])) {
+            // Caso "designação SN" sem barra antes do SN (ex: "Cabeçote Proxima INLPXM011262")
+            // — o SN está colado ao fim da designação, separado só por espaço.
+            $sn         = strtoupper($mEmb[2]);
+            $designacao = trim($mEmb[1]);
+        } elseif (isset($partes[1])) {
+            // 2º segmento existe mas não parece um SN (ex: "REGULADOR DE PC") —
+            // é descrição adicional, não um código de série; mantém-se na designação.
+            $designacao = trim($designacao . ' ' . $partes[1]);
+        }
+        // Quaisquer segmentos a partir do 3º ("PAT-XXXXX", nome de loja/local) são
+        // sempre ignorados — são anotações internas da guia, não dados da peça.
+
+        // Limpeza: remove um marcador "SN:" / "Nº Série:" que tenha ficado colado
+        // ao fim da designação depois de extrair o SN embutido (ex: "Impressora Prima 12 SN:").
+        $designacao = preg_replace('/\b(SN|N[ºo]\.?\s*S[ée]rie)\s*:?\s*$/iu', '', $designacao);
+        $designacao = trim($designacao, " :\t-");
 
         // PRIORIDADE 1: procurar o SN na tabela pecas para obter categoria e produto exatos
         $categoria = '';
