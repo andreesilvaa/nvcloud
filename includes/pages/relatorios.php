@@ -86,6 +86,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
     }
     ?>
 
+    <?php if (!empty($_SESSION['mensagem_erro'])): ?>
+      <div class="alerta-erro" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
+      <?php unset($_SESSION['mensagem_erro']); endif; ?>
+    <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
+      <div class="alerta-sucesso" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
+      <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
+
     <!-- Upload manual -->
     <div class="card" style="margin-bottom:18px">
         <form method="post" enctype="multipart/form-data" action="app.php?page=relatorios">

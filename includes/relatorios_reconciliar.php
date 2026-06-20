@@ -22,13 +22,25 @@ function nvReconciliarRelatorio(PDO $pdo, array $parse, array $meta): array
 	$avisos = [];
 
 	// 1) PAT existe?
+	// Nota: na tabela `pats`, numero_pat já guarda o número COM a revisão
+	// incluída (ex: "PAT-00102731/3") — não é preciso (nem correto) voltar
+	// a concatenar a revisão. A tentativa antiga comparava sempre contra
+	// valores que nunca podiam corresponder (número sem revisão, ou número
+	// com a revisão duplicada), por isso nenhum PAT era encontrado mesmo
+	// quando existia. Comparamos primeiro pelo valor completo e, só se
+	// falhar, tentamos ignorar a revisão como rede de segurança.
 	$patId = null;
 	if (!empty($parse['pat_numero'])) {
-		$st = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? OR CONCAT(numero_pat,'/',revisao) = ? LIMIT 1");
-		// numero_pat pode estar com ou sem a revisão; tentamos ambos
-		$semRev = preg_replace('#/\d+$#', '', $parse['pat_numero']);
-		$st->execute([$semRev, $parse['pat_numero']]);
+		$st = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? LIMIT 1");
+		$st->execute([$parse['pat_numero']]);
 		$patId = $st->fetchColumn() ?: null;
+
+		if (!$patId) {
+			$semRev = preg_replace('#/\d+$#', '', $parse['pat_numero']);
+			$st2 = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? OR numero_pat LIKE ? LIMIT 1");
+			$st2->execute([$semRev, $semRev . '/%']);
+			$patId = $st2->fetchColumn() ?: null;
+		}
 	}
 	if (!$patId) {
 		$estado = 'revisao_manual';
