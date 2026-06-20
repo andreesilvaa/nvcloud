@@ -134,16 +134,6 @@ $contas = [];
   }
 ?>
 
-    <?php if (!empty($_SESSION['mensagem_erro'])): ?>
-      <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?>
-      </div>
-    <?php unset($_SESSION['mensagem_erro']); ?>
-    <?php endif; ?>
-    
-    <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-      <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-    <?php unset($_SESSION['mensagem_sucesso']); ?>
-    <?php endif; ?>
 
     <div class="contas-layout">
 

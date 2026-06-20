@@ -202,16 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
   }
 ?>
 
-  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
-    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
-  <?php unset($_SESSION['mensagem_erro']); ?>
-  <?php endif; ?>
-  
-  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-  <?php unset($_SESSION['mensagem_sucesso']); ?>
-<?php endif; ?>
-
   <form method="post" class="panel">
     <input type="hidden" name="form_type" value="nova_peca">
     <?php if ($pecaEdit): ?>
@@ -299,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         
     <div style="margin-top:20px">
       <button class="btn btn-blue" type="submit"><?= $pecaEdit ? 'Atualizar' : 'Guardar' ?></button>
-      <a class="btn btn-yellow" href="app.php?page=inventario">← Voltar à lista de peças</a>
+      <a class="btn btn-yellow" href="app.php?page=inventario" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
     </div>
   </form>
 

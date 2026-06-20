@@ -4,13 +4,6 @@
     <div class="alerta-erro">Não tens permissão para gerir estados. Contacta um administrador.</div>
   <?php else: ?>
 
-  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
-    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
-  <?php unset($_SESSION['mensagem_erro']); endif; ?>
-  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
-
   <?php if (isset($_GET['nova']) || $tabEdit): ?>
     <h1 class="section-title"><?= $tabEdit ? 'Editar Estado' : 'Novo Estado' ?></h1>
     <div class="panel">
@@ -26,7 +19,7 @@
           <label><input type="text" name="descricao" value="<?= htmlspecialchars($tabEdit['descricao'] ?? '') ?>"></label>
         </div>
         <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
-        <a class="btn btn-yellow" href="app.php?page=estados">← Voltar à lista</a>
+        <a class="btn btn-yellow" href="app.php?page=estados" onclick="nvVoltar(event)">← Voltar à lista</a>
       </form>
     </div>
   <?php else: ?>

@@ -245,20 +245,13 @@ $kpiPatsConcluidos = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE estado='C
 $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade='Urgente' AND estado NOT IN ('Resolvido','Concluído','Cancelado')");
 ?>
 
-<?php if (!empty($_SESSION['mensagem_erro'])): ?>
-  <div class="alerta-erro" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
-  <?php unset($_SESSION['mensagem_erro']); endif; ?>
-<?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-  <div class="alerta-sucesso" style="margin-bottom:16px;"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
-
 <?php if ($patVerId > 0 && $patDetalhe): ?>
     ════════════════════════════════════════════
     VISTA: DETALHE / EDIÇÃO DO PAT
     ════════════════════════════════════════════
 
 <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
-  <a href="app.php?page=pats" class="btn btn-grey">← Voltar à lista</a>
+  <a href="app.php?page=pats" class="btn btn-grey" onclick="nvVoltar(event)">← Voltar à lista</a>
   <h3 style="margin:0; font-size:17px;">
       <?= htmlspecialchars($patDetalhe['numero_pat']) ?>/<?= (int)$patDetalhe['revisao'] ?>
   </h3>
@@ -512,7 +505,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
     ════════════════════════════════════════════ -->
 
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
-        <a href="app.php?page=pats" class="btn btn-grey">← Voltar</a>
+        <a href="app.php?page=pats" class="btn btn-grey" onclick="nvVoltar(event)">← Voltar</a>
         <h3 style="margin:0;">Novo PAT</h3>
     </div>
 

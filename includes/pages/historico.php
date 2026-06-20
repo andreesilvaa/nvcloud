@@ -114,7 +114,7 @@ if ($page === 'historico' && isset($_GET['id'])) {
   </table>
 
   <div style="margin-top:16px">
-    <a class="btn btn-yellow" href="app.php?page=inventario">← Voltar à lista de peças</a>
+    <a class="btn btn-yellow" href="app.php?page=inventario" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
   </div>
 
 

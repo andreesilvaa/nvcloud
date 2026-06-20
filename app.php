@@ -335,6 +335,7 @@ $pageTitles = [
   'nvi' => 'N-Vi',
   'configuracoes' => 'Configurações',
   'revisao' => 'Revisão',
+  'analises' => 'Análises',
   ];
 
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
@@ -2033,6 +2034,18 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 .filters label, .filters2 label { font-size:13px; margin-bottom:4px; }
 
 </style>
+<script>
+// Botões "← Voltar": em vez de irem sempre para um destino fixo, voltam
+// para a página onde o utilizador estava antes (histórico do browser).
+// Se não houver página anterior dentro da aplicação (ex.: link aberto
+// diretamente), usa-se o destino definido no href como rede de segurança.
+function nvVoltar(ev) {
+    if (window.history.length > 1) {
+        ev.preventDefault();
+        history.back();
+    }
+}
+</script>
 </head>
 
 
@@ -2079,27 +2092,6 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     <i class="bi bi-clipboard-check"></i><span>Revisão</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, ['resumo','movimentos','sla']) ? 'open' : '' ?>">
-  <button class="sidebar-parent" type="button" id="relatoriosToggle">
-    <span class="sidebar-parent-left">
-      <i class="bi bi-bar-chart"></i>
-      <span>Análises</span>
-    </span>
-    <i class="bi bi-chevron-down sidebar-arrow"></i>
-  </button>
-  <div class="sidebar-submenu">
-    <a class="submenu-link <?=active('resumo',$page)?>" href="app.php?page=resumo">
-      <span>Resumo Mensal</span>
-    </a>
-    <a class="submenu-link <?=active('movimentos',$page)?>" href="app.php?page=movimentos">
-      <span>Movimentos</span>
-    </a>
-    <a class="submenu-link <?=active('sla',$page)?>" href="app.php?page=sla">
-      <span>SLA</span>
-    </a>
-  </div>
-</div>
-
   <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
   <button class="sidebar-parent" type="button" id="tabelasToggle">
     <span class="sidebar-parent-left">
@@ -2132,7 +2124,7 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
     <i class="bi bi-robot"></i><span>N-Vi</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria']) ? 'open' : '' ?>">
+  <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria', 'analises']) ? 'open' : '' ?>">
   <button class="sidebar-parent" type="button" id="configToggle">
     <span class="sidebar-parent-left">
       <i class="bi bi-gear"></i>
@@ -2148,6 +2140,10 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 
     <a class="submenu-link <?=active('auditoria',$page)?>" href="app.php?page=auditoria">
       <span>Auditoria</span>
+    </a>
+
+    <a class="submenu-link <?=active('analises',$page)?>" href="app.php?page=analises">
+      <span>Análises</span>
     </a>
   </div>
 </div>
@@ -2243,6 +2239,37 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 
 <div class="main">
 <?php
+// Mensagens de sucesso/erro (flash) — renderizadas SEMPRE aqui, uma única vez,
+// para a página atual (a que está em $_GET['page']). Isto garante que cada
+// mensagem só aparece na página para onde a ação redirecionou, e nunca fica
+// pendurada na sessão para aparecer, por engano, numa página seguinte não
+// relacionada (bug anterior: algumas páginas — ex. Envios, Revisão, Relatórios,
+// QR's — definiam a mensagem mas nunca a mostravam nem a limpavam).
+if (!empty($_SESSION['mensagem_erro']) || !empty($_SESSION['mensagem_sucesso'])) {
+    echo '<div class="flash-mensagens" style="margin-bottom:16px;">';
+    if (!empty($_SESSION['mensagem_erro'])) {
+        echo '<div class="alerta-erro flash-msg">' . htmlspecialchars($_SESSION['mensagem_erro']) . '</div>';
+        unset($_SESSION['mensagem_erro']);
+    }
+    if (!empty($_SESSION['mensagem_sucesso'])) {
+        echo '<div class="alerta-sucesso flash-msg">' . htmlspecialchars($_SESSION['mensagem_sucesso']) . '</div>';
+        unset($_SESSION['mensagem_sucesso']);
+    }
+    echo '</div>';
+    echo '<script>
+        (function(){
+            document.querySelectorAll(".flash-msg").forEach(function(el){
+                setTimeout(function(){
+                    el.style.transition = "opacity .4s ease";
+                    el.style.opacity = "0";
+                    setTimeout(function(){ el.remove(); }, 400);
+                }, 5000);
+            });
+        })();
+    </script>';
+}
+?>
+<?php
 // Banner do Laboratório: avisa os técnicos de peças paradas há +15 dias
 if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
     require_once __DIR__ . '/includes/pecas_suspeitas.php';
@@ -2292,39 +2319,10 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
   <?php require __DIR__ . '/includes/pages/nvi.php'; ?>
 <?php elseif ($page === 'revisao'): ?>
   <?php require __DIR__ . '/includes/pages/revisao.php'; ?>
-<?php elseif ($page === 'resumo'): ?>
-  <?php require __DIR__ . '/includes/pages/resumo.php'; ?>
-<?php elseif ($page === 'movimentos'): ?>
-  <?php require __DIR__ . '/includes/pages/movimentos.php'; ?>
+<?php elseif ($page === 'analises'): ?>
+  <?php require __DIR__ . '/includes/pages/analises.php'; ?>
 <?php elseif ($page === 'etiqueta'): ?>
   <?php require __DIR__ . '/includes/pages/etiqueta.php'; ?>
-<?php elseif ($page === 'sla'): ?>
-  <?php
-  require_once __DIR__ . '/includes/sla.php';
-  $slaQuebras = nvSlaQuebras($pdo);
-  ?>
-  <div class="card">
-    <h2>Quebras de SLA</h2>
-    <?php if ($slaQuebras): ?>
-    <table class="table">
-      <thead><tr><th>Peça</th><th>SN</th><th>Estado</th><th>Parceiro</th><th>Dias</th><th>Limite</th></tr></thead>
-      <tbody>
-      <?php foreach ($slaQuebras as $sq): ?>
-        <tr>
-          <td><?= e($sq['produto']) ?></td>
-          <td><?= e($sq['sn']) ?></td>
-          <td><?= estadoBolha($sq['estado']) ?></td>
-          <td><?= e($sq['parceiro']) ?></td>
-          <td style="color:#dc2626;font-weight:700;"><?= (int)$sq['dias'] ?></td>
-          <td><?= (int)$sq['dias_limite'] ?></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-    <?php else: ?>
-      <p style="color:#6b7280;">Sem quebras de SLA neste momento.</p>
-    <?php endif; ?>
-  </div>
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>
   <div class="panel">Módulo em preparação.</div>

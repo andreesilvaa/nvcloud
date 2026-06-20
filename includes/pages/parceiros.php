@@ -4,13 +4,6 @@
     <div class="alerta-erro">Não tens permissão para gerir parceiros. Contacta um administrador.</div>
   <?php else: ?>
 
-  <?php if (!empty($_SESSION['mensagem_erro'])): ?>
-    <div class="alerta-erro"><?= htmlspecialchars($_SESSION['mensagem_erro']) ?></div>
-  <?php unset($_SESSION['mensagem_erro']); endif; ?>
-  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?>
-    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-  <?php unset($_SESSION['mensagem_sucesso']); endif; ?>
-
   <?php if ($parceiroVer): ?>
     <h1 class="section-title">Visualizar informação do Parceiro</h1>
     <div class="panel" style="max-width:520px;">
@@ -30,7 +23,7 @@
         <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato2_email'] ?? '') ?>" readonly></label></div>
       <div style="margin-bottom:18px;"><label><strong>Telefone do 2º Contato:</strong></label>
         <label><input type="text" value="<?= htmlspecialchars($parceiroVer['contato2_telefone'] ?? '') ?>" readonly></label></div>
-      <a class="btn btn-yellow" href="app.php?page=parceiros">← Voltar à lista de parceiros</a>
+      <a class="btn btn-yellow" href="app.php?page=parceiros" onclick="nvVoltar(event)">← Voltar à lista de parceiros</a>
     </div>
 
   <?php elseif (isset($_GET['nova']) || $tabEdit): ?>
@@ -56,7 +49,7 @@
         <div style="margin-bottom:18px;"><label>Telefone do 2º Contato</label>
           <label><input type="text" name="contato2_telefone" value="<?= htmlspecialchars($tabEdit['contato2_telefone'] ?? '') ?>"></label></div>
         <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
-        <a class="btn btn-yellow" href="app.php?page=parceiros">← Voltar à lista</a>
+        <a class="btn btn-yellow" href="app.php?page=parceiros" onclick="nvVoltar(event)">← Voltar à lista</a>
       </form>
     </div>
 

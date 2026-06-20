@@ -238,7 +238,7 @@ if ($page === 'nvi') {
 
     <div style="display:flex; gap:10px;">
       <button type="submit" class="btn btn-blue">Executar</button>
-      <a class="btn btn-yellow" href="app.php?page=dashboard">← Voltar ao Dashboard</a>
+      <a class="btn btn-yellow" href="app.php?page=dashboard" onclick="nvVoltar(event)">← Voltar ao Dashboard</a>
     </div>
   </form>
 

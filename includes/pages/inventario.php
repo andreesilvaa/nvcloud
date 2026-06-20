@@ -120,16 +120,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     </a>
   </div>
 
-  <?php if (!empty($_SESSION['mensagem_erro'])) {
-      echo '<div class="alerta-erro">' . htmlspecialchars($_SESSION['mensagem_erro']) . '</div>';
-      unset($_SESSION['mensagem_erro']);
-  }
-  ?>
-
-  <?php if (!empty($_SESSION['mensagem_sucesso'])): ?> 
-    <div class="alerta-sucesso"><?= htmlspecialchars($_SESSION['mensagem_sucesso']) ?></div>
-    <?php unset($_SESSION['mensagem_sucesso']); ?>
-    <?php endif; ?>
 
   <form method="get">
     <input type="hidden" name="page" value="inventario">
