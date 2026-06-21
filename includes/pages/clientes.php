@@ -404,7 +404,7 @@ if ($page === 'alertas') {
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button type="submit" class="btn btn-blue">Filtrar</button>
-          <a href="app.php?page=alertas" class="btn btn-grey">Limpar</a>
+          <a href="app.php?page=clientes" class="btn btn-grey">Limpar</a>
         </div>
       </div>
     </form>

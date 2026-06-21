@@ -2323,6 +2323,8 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
   <?php require __DIR__ . '/includes/pages/analises.php'; ?>
 <?php elseif ($page === 'etiqueta'): ?>
   <?php require __DIR__ . '/includes/pages/etiqueta.php'; ?>
+<?php elseif ($page === 'peca'): ?>
+  <?php require __DIR__ . '/includes/pages/peca.php'; ?>
 <?php else: ?>
   <h1 class="section-title"><?=ucfirst($page)?></h1>
   <div class="panel">Módulo em preparação.</div>
@@ -2833,6 +2835,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 </script>
 
+<?php if ($page === 'envios'): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const catalogoInventarioReal = <?= json_encode($catalogoInventarioReal, JSON_UNESCAPED_UNICODE) ?>;
@@ -3025,6 +3028,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php endif; // page === 'envios' ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
