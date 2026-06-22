@@ -1,0 +1,62 @@
+# Comandos rápidos — nvcloud em Docker
+
+## 1. Entrar na pasta do projeto
+
+cd C:\laragon\www\nvcloud
+
+## 2. Arrancar o ambiente (app + MySQL + phpMyAdmin)
+
+docker compose up -d
+
+## 3. Parar o ambiente
+
+docker compose down
+
+## 4. Ver o estado dos containers
+
+docker compose ps
+
+## 5. Ver logs (tudo)
+
+docker compose logs --tail=100
+
+## 6. Ver só logs da app (PHP/Apache)
+
+docker compose logs --tail=100 app
+
+## 7. Ver só logs da base de dados (MySQL)
+
+docker compose logs --tail=100 db
+
+## 8. Reiniciar tudo (sem apagar dados)
+
+docker compose down
+docker compose up -d --build
+
+## 9. Reset total da base de dados (APAGA stocks_db dentro do Docker!)
+
+docker compose down -v
+docker compose up -d --build
+
+## 10. Entrar dentro do container da app (bash)
+
+docker exec -it nvcloud_app bash
+
+## 11. Entrar dentro do MySQL pela linha de comandos (dentro do container)
+
+docker exec -it nvcloud_db mysql -uroot -proot
+
+## 12. URLs importantes
+
+Site:       http://localhost:8080
+phpMyAdmin: http://localhost:8081
+
+## 13. Dados da base (Docker)
+
+Host interno (entre containers): db
+Host para DataGrip/Windows:      127.0.0.1
+Porta interna (entre containers):3306
+Porta externa (Windows):         3307
+Base:                            stocks_db
+User:                            root
+Pass:                            root
