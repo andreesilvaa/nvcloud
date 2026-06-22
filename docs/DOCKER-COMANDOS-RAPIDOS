@@ -1,5 +1,12 @@
 # Comandos rápidos — nvcloud em Docker
 
+## Arrancar nvcloud a partir do Ubuntu (WSL)
+
+1. Abrir app Ubuntu.
+2. cd ~/projects/nvcloud
+3. docker compose up -d
+4. Browser → http://localhost:8080
+
 ## 1. Entrar na pasta do projeto
 
 cd C:\laragon\www\nvcloud
