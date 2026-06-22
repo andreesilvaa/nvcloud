@@ -1,0 +1,83 @@
+# Como arrancar o nvcloud em Docker
+
+## Pré-requisitos
+
+- Docker Desktop instalado e a correr
+- WSL2 ativo (Docker Desktop a usar WSL2 como backend)
+- Projeto nvcloud clonado em:
+  C:\laragon\www\nvcloud
+
+Ficheiros importantes:
+- docker-compose.yml
+- .env
+- docker/php/Dockerfile
+
+## 1. Arrancar o ambiente
+
+1. Abrir o terminal (PowerShell ou VS Code).
+2. Ir para a pasta do projeto:
+
+   cd C:\laragon\www\nvcloud
+
+3. Arrancar os containers:
+
+   docker compose up -d
+
+4. Verificar se está tudo a correr:
+
+   docker compose ps
+
+Devo ver algo como:
+
+- nvcloud_app          Up
+- nvcloud_db           Up
+- nvcloud_phpmyadmin   Up
+
+## 2. Aceder ao site e phpMyAdmin
+
+- Site nvcloud:
+  http://localhost:8080
+
+- phpMyAdmin:
+  http://localhost:8081
+
+phpMyAdmin (Docker):
+- user: root
+- password: root
+- base de dados principal: stocks_db
+
+## 3. Ligar a app à base de dados
+
+No ficheiro config.php:
+
+define('DB_HOST', 'db');
+define('DB_NAME', 'stocks_db');
+define('DB_USER', 'root');
+define('DB_PASS', 'root');
+define('DB_CHARSET', 'utf8mb4');
+
+No login.php (e em qualquer outro sítio onde haja PDO):
+
+$dsn = 'mysql:host=' . DB_HOST . ';port=3306;dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+
+## 4. Importar/atualizar a base de dados (se trocar de máquina)
+
+1. Exportar stocks_db de um ambiente onde ela esteja correta (HeidiSQL/phpMyAdmin).
+2. No Docker, abrir phpMyAdmin em http://localhost:8081.
+3. Selecionar a base stocks_db.
+4. Aba "Importar" → escolher o ficheiro .sql → Executar.
+
+## 5. Parar o ambiente
+
+Na pasta do projeto:
+
+cd C:\laragon\www\nvcloud
+docker compose down
+
+## 6. Reset total da base (apagar volume)
+
+ATENÇÃO: isto apaga TODA a base stocks_db dentro do Docker.
+
+cd C:\laragon\www\nvcloud
+docker compose down -v
+docker compose up -d --build
