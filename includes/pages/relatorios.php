@@ -128,13 +128,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
       <form method="post" enctype="multipart/form-data" action="app.php?page=relatorios">
           <input type="hidden" name="action" value="relatorio_upload">
           <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
-          <div style="margin-bottom:14px;">
-              <label style="margin-bottom:5px; display:block;">Ficheiro (PDF ou EML)</label>
-              <input type="file" name="relatorio" accept=".pdf,.eml" required style="width:100%;">
+          <div style="margin-bottom:0;">
+              <label for="relatorio_input" class="upload-pdf-box" id="uploadRelatorioBox">
+                  <span class="upload-pdf-icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>
+                  <span class="upload-pdf-text" id="uploadRelatorioText">
+                      <strong>Clica para escolher um ficheiro</strong><br>ou arrasta o PDF/EML para aqui
+                  </span>
+                  <span class="upload-pdf-filename" id="uploadRelatorioFilename" style="display:none;"></span>
+              </label>
+              <input type="file" id="relatorio_input" name="relatorio" accept=".pdf,.eml" required class="upload-pdf-input">
           </div>
-          <button type="submit" class="btn btn-teal" style="width:100%;">Importar relatório</button>
+          <button type="submit" class="btn-ler-guia"><i class="bi bi-search"></i> Importar Relatório</button>
       </form>
    </div>
+
+   <script>
+   (function () {
+       const input = document.getElementById('relatorio_input');
+       const box = document.getElementById('uploadRelatorioBox');
+       const texto = document.getElementById('uploadRelatorioText');
+       const nomeFicheiro = document.getElementById('uploadRelatorioFilename');
+       if (!input || !box || !texto || !nomeFicheiro) return;
+
+       function mostrarFicheiro(file) {
+           if (!file) {
+               texto.style.display = '';
+               nomeFicheiro.style.display = 'none';
+               nomeFicheiro.innerHTML = '';
+               return;
+           }
+           texto.style.display = 'none';
+           nomeFicheiro.style.display = 'flex';
+           nomeFicheiro.innerHTML = '<i class="bi bi-file-earmark-text-fill"></i><span></span>';
+           nomeFicheiro.querySelector('span').textContent = file.name;
+       }
+
+       input.addEventListener('change', function () {
+           mostrarFicheiro(input.files && input.files[0] ? input.files[0] : null);
+       });
+
+       ['dragenter', 'dragover'].forEach(function (evt) {
+           box.addEventListener(evt, function (e) { e.preventDefault(); box.classList.add('is-dragover'); });
+       });
+       ['dragleave', 'drop'].forEach(function (evt) {
+           box.addEventListener(evt, function (e) { e.preventDefault(); box.classList.remove('is-dragover'); });
+       });
+       box.addEventListener('drop', function (e) {
+           if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+               input.files = e.dataTransfer.files;
+               mostrarFicheiro(e.dataTransfer.files[0]);
+           }
+       });
+   })();
+   </script>
 
     <!-- PAINEL DIREITO: Validação do relatório importado -->
     <div class="panel" style="height:100%;">
@@ -192,10 +238,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
                     <?= $det['aprovado_por'] ? ' (' . e($det['aprovado_por']) . ')' : '' ?></p>
             <?php endif; ?>
         <?php else: ?>
-            <div style="text-align:center; padding:40px 20px; color:#6b7280;">
-                <div style="font-size:40px; margin-bottom:12px;">📄</div>
-                <p style="font-size:15px; font-weight:500; margin-bottom:6px;">Nenhum relatório selecionado</p>
-                <p style="font-size:13px;">Importa um relatório ou escolhe um na lista abaixo.</p>
+            <div style="text-align:center; padding:34px 20px; color:#6b7280;">
+                <div style="width:56px; height:56px; margin:0 auto 14px; border-radius:50%; background:#fbf1da; display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-file-earmark-text" style="font-size:24px; color:#c9a14a;"></i>
+                </div>
+                <p style="font-size:15px; font-weight:600; color:#374151; margin-bottom:6px;">Nenhum relatório selecionado</p>
+                <p style="font-size:13px; margin:0;">Importa um relatório ou escolhe um na lista abaixo.</p>
             </div>
         <?php endif; ?>
     </div>
@@ -206,8 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
 <!-- ══ PARCEIROS (fonte dos relatórios) ══ -->
 <div class="panel" style="margin-bottom:20px;">
     <h4 style="margin-bottom:16px;"><i class="bi bi-people" style="margin-right:6px; color:#c9a14a;"></i>Parceiros</h4>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
-        <a href="app.php?page=relatorios" style="text-decoration:none; color:inherit;">
+    <div class="relatorios-fonte-grid" id="relatoriosFonteGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
+        <a href="app.php?page=relatorios" class="relatorios-fonte-card" data-fonte="" style="text-decoration:none; color:inherit;">
             <div style="border:2px solid <?= $fonteAtiva === '' ? '#c9a14a' : '#e5e7eb' ?>; border-radius:10px; padding:16px; text-align:center; transition:border-color .15s ease;">
                 <i class="bi bi-grid" style="font-size:26px; color:#c9a14a;"></i>
                 <div style="font-size:24px; font-weight:700; margin:8px 0 2px;"><?= $totalRelatorios ?></div>
@@ -215,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
             </div>
         </a>
         <?php foreach ($fontesInfo as $fonteChave => $info): ?>
-            <a href="app.php?page=relatorios&fonte=<?= urlencode($fonteChave) ?>" style="text-decoration:none; color:inherit;">
+            <a href="app.php?page=relatorios&fonte=<?= urlencode($fonteChave) ?>" class="relatorios-fonte-card" data-fonte="<?= htmlspecialchars($fonteChave) ?>" style="text-decoration:none; color:inherit;">
                 <div style="border:2px solid <?= $fonteAtiva === $fonteChave ? '#c9a14a' : '#e5e7eb' ?>; border-radius:10px; padding:16px; text-align:center; transition:border-color .15s ease;">
                     <i class="bi <?= $info['icone'] ?>" style="font-size:26px; color:#c9a14a;"></i>
                     <div style="font-size:24px; font-weight:700; margin:8px 0 2px;"><?= $contagemFontes[$fonteChave] ?></div>
@@ -228,15 +276,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
 
 
 <!-- ══ LINHA INFERIOR: Lista de Relatórios (largura total) ══ -->
-<div class="panel">
-    <h4 style="margin-bottom:18px;">
-        <i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i>Lista de Relatórios
-        <?php if ($fonteAtiva !== '' && isset($fontesInfo[$fonteAtiva])): ?>
-            <span style="font-size:13px; font-weight:500; color:#6b7280; margin-left:8px;">— <?= e($fontesInfo[$fonteAtiva]['nome']) ?></span>
-        <?php endif; ?>
-    </h4>
-    <div style="overflow-x:auto;">
-        <table class="table envios-table">
+<div class="panel" id="painelListaRelatorios">
+    <div class="panel-header-row">
+        <div class="panel-header-left">
+            <h4 style="margin:0;">
+                <i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i>Lista de Relatórios
+                <?php if ($fonteAtiva !== '' && isset($fontesInfo[$fonteAtiva])): ?>
+                    <span style="font-size:13px; font-weight:500; color:#6b7280; margin-left:8px;">— <?= e($fontesInfo[$fonteAtiva]['nome']) ?></span>
+                <?php endif; ?>
+            </h4>
+            <span class="panel-count-badge"><?= count($lista) ?></span>
+        </div>
+        <div class="panel-header-actions">
+            <div class="quick-search-wrap">
+                <i class="bi bi-search"></i>
+                <input type="text" class="quick-search-input" data-table="#tabelaRelatorios" data-empty="#tabelaRelatoriosVazia" placeholder="Pesquisa rápida na tabela…">
+            </div>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table envios-table" id="tabelaRelatorios">
             <thead>
             <tr>
                 <th>Ficheiro</th>
@@ -250,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
             </thead>
             <tbody>
             <?php if (empty($lista)): ?>
-                <tr><td colspan="7" class="envios-vazio">Nenhum relatório registado.</td></tr>
+                <tr id="tabelaRelatoriosVazia" data-no-filter><td colspan="7" class="envios-vazio">Nenhum relatório registado.</td></tr>
             <?php else: ?>
                 <?php foreach ($lista as $r): ?>
                     <?php [$bg, $fg] = $corEstado($r['estado']); ?>
@@ -260,16 +319,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
                         <td><?= e($r['pat_numero']) ?></td>
                         <td><?= e($r['cliente_detect']) ?></td>
                         <td>
-                            <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:<?= $bg ?>; color:<?= $fg ?>;">
+                            <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:<?= $bg ?>; color:<?= $fg ?>; white-space:nowrap;">
                                 <?= e($r['estado']) ?>
                             </span>
                         </td>
-                        <td><?= e($r['criado_em']) ?></td>
+                        <td style="white-space:nowrap;"><?= e($r['criado_em']) ?></td>
                         <td><a class="btn btn-yellow" href="<?= $linkBase . ($fonteAtiva !== '' ? '&' : '?') ?>ver=<?= (int)$r['id'] ?>">Ver</a></td>
                     </tr>
                 <?php endforeach; ?>
+                <tr id="tabelaRelatoriosVazia" data-no-filter style="display:none;"><td colspan="7" class="envios-vazio">Sem resultados para esta pesquisa.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+(function () {
+    const grid = document.getElementById('relatoriosFonteGrid');
+    if (!grid) return;
+
+    window.addEventListener('popstate', function () {
+        // Navegação por back/forward do browser: recarrega para garantir conteúdo correto.
+        window.location.reload();
+    });
+
+    grid.querySelectorAll('.relatorios-fonte-card').forEach(function (card) {
+        card.addEventListener('click', function (e) {
+            e.preventDefault();
+            const href = card.getAttribute('href');
+
+            // Estado visual "ativo" imediato, sem esperar pela resposta
+            grid.querySelectorAll('.relatorios-fonte-card > div').forEach(function (d) {
+                d.style.borderColor = '#e5e7eb';
+            });
+            card.querySelector('div').style.borderColor = '#c9a14a';
+
+            fetch(href)
+                .then(function (resp) { return resp.text(); })
+                .then(function (html) {
+                    const docNovo = new DOMParser().parseFromString(html, 'text/html');
+                    const painelNovo = docNovo.getElementById('painelListaRelatorios');
+                    const painelAtual = document.getElementById('painelListaRelatorios');
+                    if (painelNovo && painelAtual) {
+                        painelAtual.replaceWith(painelNovo);
+                        // Religar a pesquisa rápida e o estado vazio no novo painel
+                        const input = painelNovo.querySelector('.quick-search-input');
+                        if (input && typeof nvFiltrarTabela === 'function') {
+                            input.addEventListener('input', function () { nvFiltrarTabela(input); });
+                        }
+                    }
+                    history.pushState(null, '', href);
+                })
+                .catch(function () {
+                    // Em caso de falha de rede, recorrer à navegação normal
+                    window.location.href = href;
+                });
+        });
+    });
+})();
+</script>

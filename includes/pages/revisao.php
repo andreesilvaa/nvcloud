@@ -211,13 +211,14 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
     white-space: nowrap;
 }
 .rev-table td {
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
     padding: 11px 12px;
     vertical-align: middle;
     color: #374151;
 }
+.rev-table tbody tr:nth-child(even) td { background: #f8fafc; }
 .rev-table tr:last-child td { border-bottom: none; }
-.rev-table tr:hover td { background: #f8fafc; }
+.rev-table tr:hover td { background: #eef2f7; }
 .rev-feita td { opacity: .6; }
 .rev-nome-link {
     font-weight: 600;
@@ -505,9 +506,16 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 
     <?php else: ?>
 
+    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <div class="quick-search-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" class="quick-search-input" data-table="#tabelaRevisao" data-empty="#tabelaRevisaoVazia" placeholder="Pesquisa rápida na tabela…">
+        </div>
+    </div>
+
     <!-- Tabela (desktop) -->
     <div class="rev-table-wrap">
-        <table class="rev-table">
+        <table class="rev-table" id="tabelaRevisao">
             <thead>
                 <tr>
                     <th>Peça / SN</th>
@@ -527,11 +535,6 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
                 $dias = (int)$r['dias_parada'];
                 $diasCls = $dias >= 60 ? 'alta' : ($dias >= 30 ? 'media' : 'baixa');
                 $ea = $r['estado_atual'];
-                $eaCor = match(true) {
-                    str_contains($ea, 'Disponív') => '#16a34a',
-                    str_contains($ea, 'Abati')    => '#dc2626',
-                    default                        => '#d97706',
-                };
                 ?>
                 <tr class="<?= $r['decisao'] !== 'pendente' ? 'rev-feita' : '' ?>">
                     <td>
@@ -542,10 +545,8 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
                     </td>
                     <td><?= e($r['categoria']) ?></td>
                     <td><?= e($r['parceiro']) ?: '<span style="color:#d1d5db;">—</span>' ?></td>
-                    <td style="color:#6b7280;"><?= e($r['estado_no_momento']) ?></td>
-                    <td>
-                        <span style="color:<?= $eaCor ?>;font-weight:600;"><?= e($ea) ?></span>
-                    </td>
+                    <td><?= $r['estado_no_momento'] ? estadoBolha($r['estado_no_momento']) : '<span style="color:#d1d5db;">—</span>' ?></td>
+                    <td><?= $ea ? estadoBolha($ea) : '<span style="color:#d1d5db;">—</span>' ?></td>
                     <td><span class="dias-pill <?= $diasCls ?>"><?= $dias ?>d</span></td>
                     <td>
                         <?php if ($r['decisao'] === 'pendente'): ?>
@@ -572,12 +573,13 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
                     <td>
                         <?php $isPend = $r['decisao'] === 'pendente'; ?>
                         <button class="rev-btn <?= $isPend ? 'rev-btn-rever' : 'rev-btn-editar' ?>"
-                            onclick="abrirModal(<?= $r['id'] ?>, <?= json_encode($r['produto']) ?>, <?= json_encode($r['sn']) ?>)">
+                            onclick="abrirModal(<?= (int)$r['id'] ?>, <?= htmlspecialchars(json_encode($r['produto']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($r['sn']), ENT_QUOTES) ?>)">
                             <?= $isPend ? 'Rever' : 'Editar' ?>
                         </button>
                     </td>
                 </tr>
             <?php endforeach; ?>
+                <tr id="tabelaRevisaoVazia" data-no-filter style="display:none;"><td colspan="9" style="text-align:center; color:#9ca3af; padding:24px;">Sem resultados para esta pesquisa.</td></tr>
             </tbody>
         </table>
     </div>
@@ -612,11 +614,11 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
             </div>
             <div class="rev-card-row">
                 <span class="rev-card-row-label">Estado anterior</span>
-                <span class="rev-card-row-val" style="color:#6b7280;"><?= e($r['estado_no_momento']) ?></span>
+                <span class="rev-card-row-val"><?= $r['estado_no_momento'] ? estadoBolha($r['estado_no_momento']) : '—' ?></span>
             </div>
             <div class="rev-card-row">
                 <span class="rev-card-row-label">Estado atual</span>
-                <span class="rev-card-row-val"><?= e($r['estado_atual']) ?></span>
+                <span class="rev-card-row-val"><?= $r['estado_atual'] ? estadoBolha($r['estado_atual']) : '—' ?></span>
             </div>
             <div class="rev-card-row">
                 <span class="rev-card-row-label">Dias parada</span>
@@ -642,7 +644,7 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
             <?php endif; ?>
             <div class="rev-card-footer">
                 <button class="rev-btn <?= $isPend ? 'rev-btn-rever' : 'rev-btn-editar' ?>"
-                    onclick="abrirModal(<?= $r['id'] ?>, <?= json_encode($r['produto']) ?>, <?= json_encode($r['sn']) ?>)">
+                    onclick="abrirModal(<?= (int)$r['id'] ?>, <?= htmlspecialchars(json_encode($r['produto']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($r['sn']), ENT_QUOTES) ?>)">
                     <?= $isPend ? 'Rever' : 'Editar' ?>
                 </button>
             </div>

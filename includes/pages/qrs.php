@@ -60,7 +60,7 @@ $qrTermo = trim($_GET['qr_code'] ?? '');
         <div class="panel">
             <h4 style="margin-bottom:4px;"><i class="bi bi-camera" style="color:#c9a14a; margin-right:6px;"></i>Leitura Automática</h4>
             <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">Permite o acesso à câmara e aponta para o código.</p>
-            <div id="reader" style="width:100%; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1;"></div>
+            <div id="reader" style="width:100%; max-width:260px; margin:0 auto; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1;"></div>
         </div>
 
         <!-- PAINEL DIREITO: Pesquisa manual + Resultado -->
@@ -112,7 +112,7 @@ $qrTermo = trim($_GET['qr_code'] ?? '');
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Estado</div>
-                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['estado']) ?></div>
+                                <div style="font-weight:600;"><?= estadoBolha($qrResultado['estado']) ?></div>
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px; grid-column:1/-1;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Código de Barras</div>

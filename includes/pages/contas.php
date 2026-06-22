@@ -181,7 +181,14 @@ $contas = [];
 
         <div style="margin-bottom:18px;">
           <label>Fotografia</label>
-          <input type="file" name="fotografia" id="fotografiaInput" accept="image/*">
+          <label for="fotografiaInput" class="upload-pdf-box" id="fotografiaUploadBox">
+              <span class="upload-pdf-icon"><i class="bi bi-camera-fill"></i></span>
+              <span class="upload-pdf-text" id="fotografiaUploadText">
+                  <strong>Clica para escolher uma foto</strong><br>ou arrasta a imagem para aqui
+              </span>
+              <span class="upload-pdf-filename" id="fotografiaUploadFilename" style="display:none;"></span>
+          </label>
+          <input type="file" name="fotografia" id="fotografiaInput" accept="image/*" class="upload-pdf-input">
 
           <input type="hidden" name="fotografia_cropada" id="fotografia_cropada">
 
@@ -205,51 +212,119 @@ $contas = [];
       <?php endif; ?>
       </div>
 
+      <script>
+      (function () {
+          const input = document.getElementById('fotografiaInput');
+          const box = document.getElementById('fotografiaUploadBox');
+          const texto = document.getElementById('fotografiaUploadText');
+          const nomeFicheiro = document.getElementById('fotografiaUploadFilename');
+          if (!input || !box || !texto || !nomeFicheiro) return;
+
+          function mostrarFicheiro(file) {
+              if (!file) {
+                  texto.style.display = '';
+                  nomeFicheiro.style.display = 'none';
+                  nomeFicheiro.innerHTML = '';
+                  return;
+              }
+              texto.style.display = 'none';
+              nomeFicheiro.style.display = 'flex';
+              nomeFicheiro.innerHTML = '<i class="bi bi-image-fill"></i><span></span>';
+              nomeFicheiro.querySelector('span').textContent = file.name;
+          }
+
+          input.addEventListener('change', function () {
+              mostrarFicheiro(input.files && input.files[0] ? input.files[0] : null);
+          });
+
+          ['dragenter', 'dragover'].forEach(function (evt) {
+              box.addEventListener(evt, function (e) {
+                  e.preventDefault();
+                  box.classList.add('is-dragover');
+              });
+          });
+          ['dragleave', 'drop'].forEach(function (evt) {
+              box.addEventListener(evt, function (e) {
+                  e.preventDefault();
+                  box.classList.remove('is-dragover');
+              });
+          });
+          box.addEventListener('drop', function (e) {
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  input.files = e.dataTransfer.files;
+                  input.dispatchEvent(new Event('change'));
+              }
+          });
+      })();
+      </script>
+
         <button type="submit" class="btn btn-teal"><?= $contaEdit ? 'Atualizar Conta' : 'Criar Conta' ?>
         </button>
       </form>
     </div>
 
   <div class="panel">
-    <h4 style="margin-bottom:18px;">Contas Existentes</h4>
+    <div class="panel-header-row">
+      <div class="panel-header-left">
+        <h4 style="margin:0;">Contas Existentes</h4>
+        <span class="panel-count-badge"><?= count($contas) ?></span>
+      </div>
+      <div class="panel-header-actions">
+        <div class="quick-search-wrap">
+          <i class="bi bi-search"></i>
+          <input type="text" class="quick-search-input" data-table="#tabelaContas" data-empty="#tabelaContasVazia" placeholder="Pesquisar conta…">
+        </div>
+      </div>
+    </div>
 
-    <table class="table">
+    <div class="table-responsive scroll-oculto">
+    <table class="table" id="tabelaContas">
       <thead>
         <tr>
-          <th>Nome</th>
-          <th>Email</th>
-          <th>Data Criação</th>
-          <th>Imagem</th>
-          <th>Ações</th>
+          <th>Conta</th>
+          <th style="width:160px;">Criada em</th>
+          <th style="width:70px;">Ações</th>
         </tr>
       </thead>
 
   <tbody>
     <?php foreach ($contas as $c): ?>
     <tr>
-      <td><?= htmlspecialchars($c['nome']) ?></td>
-      <td><?= htmlspecialchars($c['email']) ?></td>
-      <td><?= htmlspecialchars($c['created_at']) ?></td>
       <td>
-        <?php if (!empty($c['fotografia'])): ?>
-          <img src="<?= htmlspecialchars($c['fotografia']) ?>" alt="Foto" style="width:42px;height:42px;border-radius:6px;object-fit:cover;">
-        <?php else: ?>
-          Sem foto
-        <?php endif; ?>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <?php if (!empty($c['fotografia'])): ?>
+            <img src="<?= htmlspecialchars($c['fotografia']) ?>" alt="Foto" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;">
+          <?php else: ?>
+            <div style="width:38px;height:38px;border-radius:8px;background:#eef2f7;color:#9ca3af;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-person"></i></div>
+          <?php endif; ?>
+          <div style="min-width:0;">
+            <div style="font-weight:700; color:#1f2937;"><?= htmlspecialchars($c['nome']) ?></div>
+            <div style="font-size:12px; color:#6b7280;"><?= htmlspecialchars($c['email']) ?></div>
+          </div>
+        </div>
       </td>
-      <td class="actions">
-        <a class="btn btn-yellow" href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>">Editar</a>
-      
-        <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta conta? Esta ação é irreversível.');">
-        <input type="hidden" name="form_type" value="eliminar_conta">
-        <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-        <button type="submit" class="btn btn-red">Eliminar</button>
-      </form>
+      <td style="color:#6b7280; font-size:13px;"><?= htmlspecialchars($c['created_at']) ?></td>
+      <td>
+        <div class="acao-wrap">
+          <button class="acao-btn" type="button" onclick="toggleAcao(this)">⋮</button>
+          <div class="acao-menu">
+            <a href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>"><i class="bi bi-pencil-square"></i> Editar</a>
+            <a href="#" onclick="event.preventDefault(); nvConfirmar(this.nextElementSibling, 'Eliminar esta conta? Esta ação é irreversível.');">
+              <i class="bi bi-trash3" style="color:#dc3545;"></i> <span style="color:#dc3545;">Eliminar</span>
+            </a>
+            <form method="post" style="display:none;">
+              <input type="hidden" name="form_type" value="eliminar_conta">
+              <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
+            </form>
+          </div>
+        </div>
       </td>
     </tr>
     <?php endforeach; ?>
+    <?php if (!$contas): ?><tr id="tabelaContasVazia" data-no-filter><td colspan="3" class="table-empty-state"><i class="bi bi-inbox"></i>Sem contas registadas.</td></tr><?php endif; ?>
   </tbody>
     </table>
+    </div>
   </div>
   </div>
 

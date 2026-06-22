@@ -411,9 +411,22 @@ if ($page === 'alertas') {
   </div>
 
   <div class="panel">
-    <h4 style="margin-bottom:16px;">Lista de Clientes</h4>
+    <div class="panel-header-row">
+        <div class="panel-header-left">
+            <h4 style="margin:0;">Lista de Clientes</h4>
+            <span class="panel-count-badge"><?= count($clientesRoots) ?></span>
+        </div>
+        <div class="panel-header-actions">
+            <button type="button" class="btn btn-grey" style="padding:8px 14px; font-size:13px;" onclick="nvClientesExpandirTudo(true)">
+                <i class="bi bi-arrows-expand"></i> Expandir tudo
+            </button>
+            <button type="button" class="btn btn-grey" style="padding:8px 14px; font-size:13px;" onclick="nvClientesExpandirTudo(false)">
+                <i class="bi bi-arrows-collapse"></i> Colapsar tudo
+            </button>
+        </div>
+    </div>
 
-    <div style="overflow-x:auto;">
+    <div class="table-responsive">
       <table class="clientes-table">
         <thead>
           <tr>

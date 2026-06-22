@@ -220,13 +220,13 @@ if ($mediaExecMin === null || $mediaExecMin === false) {
 
 <div class="panel-grid-2">
   <div class="panel">
-    <h4>Tendência (6 meses)</h4>
-    <canvas id="trendChart"></canvas>
+    <h4><i class="bi bi-bar-chart-line" style="color:#c9a14a; margin-right:6px;"></i>Atividade Mensal — Peças vs PATs</h4>
+    <canvas id="atividadeMensalChart"></canvas>
   </div>
 
   <div class="panel">
-    <h4>Stock por Categorias</h4>
-    <canvas id="categoriaChart"></canvas>
+    <h4><i class="bi bi-people" style="color:#c9a14a; margin-right:6px;"></i>Top Parceiros (peças atribuídas)</h4>
+    <canvas id="topParceirosChart"></canvas>
   </div>
 </div>
 

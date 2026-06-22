@@ -23,44 +23,49 @@
             <?php endforeach; ?>
           </select></label>
         </div>
-        <div style="margin-bottom:14px;">
-          <label>Fabricante</label>
-          <label><select name="fabricante_id">
-            <option value="">— Sem fabricante —</option>
-            <?php foreach ($listaFabricantes as $f): ?>
-              <option value="<?= (int)$f['id'] ?>" <?= ((int)($tabEdit['fabricante_id'] ?? 0) === (int)$f['id']) ? 'selected' : '' ?>><?= htmlspecialchars($f['nome']) ?></option>
-            <?php endforeach; ?>
-          </select></label>
-        </div>
         <button type="submit" class="btn btn-teal"><?= $tabEdit ? 'Atualizar' : 'Guardar' ?></button>
         <a class="btn btn-yellow" href="app.php?page=produtos" onclick="nvVoltar(event)">← Voltar à lista</a>
       </form>
     </div>
   <?php else: ?>
-    <h1 class="section-title">Lista de Produtos</h1>
-    <a class="btn btn-teal" href="app.php?page=produtos&nova=1" style="margin-bottom:18px;display:inline-block;">Novo Produto</a>
-    <table class="table">
-      <thead><tr><th>ID</th><th>Produto</th><th>Categoria</th><th>Fabricante</th><th>Ações</th></tr></thead>
-      <tbody>
-        <?php foreach ($tabListas as $row): ?>
-          <tr>
-            <td>#<?= (int)$row['id'] ?></td>
-            <td><?= htmlspecialchars($row['nome']) ?></td>
-            <td><?= htmlspecialchars($row['categoria_nome'] ?? '') ?></td>
-            <td><?= htmlspecialchars($row['fabricante_nome'] ?? '') ?></td>
-            <td class="actions">
-              <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int)$row['id'] ?>">Editar</a>
-              <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">
-                <input type="hidden" name="form_type" value="eliminar_produto">
-                <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
-                <button type="submit" class="btn btn-red">Eliminar</button>
-              </form>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-        <?php if (!$tabListas): ?><tr><td colspan="5">Sem registos.</td></tr><?php endif; ?>
-      </tbody>
-    </table>
+    <h1 class="section-title"><i class="bi bi-tag" style="color:#c9a14a; margin-right:8px;"></i>Lista de Produtos</h1>
+    <div class="panel">
+      <div class="panel-header-row">
+        <div class="panel-header-left">
+          <span class="panel-count-badge"><?= count($tabListas) ?></span>
+        </div>
+        <div class="panel-header-actions">
+          <div class="quick-search-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" class="quick-search-input" data-table="#tabelaProdutos" data-empty="#tabelaProdutosVazia" placeholder="Pesquisar produto ou categoria…">
+          </div>
+          <a class="btn btn-teal" href="app.php?page=produtos&nova=1"><i class="bi bi-plus-lg"></i> Novo Produto</a>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table" id="tabelaProdutos">
+          <thead><tr><th style="width:90px;">ID</th><th>Produto</th><th>Categoria</th><th style="width:70px;">Ações</th></tr></thead>
+          <tbody>
+            <?php foreach ($tabListas as $row): ?>
+              <tr>
+                <td>#<?= (int)$row['id'] ?></td>
+                <td><strong><?= htmlspecialchars($row['nome']) ?></strong></td>
+                <td><?= htmlspecialchars($row['categoria_nome'] ?? '—') ?></td>
+                <td class="actions">
+                  <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int)$row['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                  <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">
+                    <input type="hidden" name="form_type" value="eliminar_produto">
+                    <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                    <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            <?php if (!$tabListas): ?><tr id="tabelaProdutosVazia" data-no-filter><td colspan="4" class="table-empty-state"><i class="bi bi-inbox"></i>Sem registos.</td></tr><?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
     <?php paginacaoTabela('produtos', $tabPaginas, $tabPag); ?>
   <?php endif; ?>
   <?php endif; /* fim do guard de admin (produtos) */ ?>

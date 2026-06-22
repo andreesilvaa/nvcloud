@@ -985,18 +985,80 @@ if ($page === 'envios') {
 ?>
 
 <!-- == Linha Superior: Leitura Guia (Esquerda) + Formulario (Direita) == -->
+<!-- Estilos .upload-pdf-* e .btn-ler-guia agora centralizados em app.php (reutilizados também em Contas/Relatórios) -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
    <div class="panel" style="height:100%;">
       <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Leitura de Guia de Transporte</h4>
       <form method="post" enctype="multipart/form-data" autocomplete="off">
           <input type="hidden" name="form_type" value="importar_guia_envio">
-          <div style="margin-bottom:14px;">
-              <label style="margin-bottom:5px; display:block;">PDF da Guia</label>
-              <input type="file" name="guia_pdf" accept=".pdf,application/pdf" required style="width:100%;">
+          <div style="margin-bottom:0;">
+              <label for="guia_pdf_input" class="upload-pdf-box" id="uploadPdfBox">
+                  <span class="upload-pdf-icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>
+                  <span class="upload-pdf-text" id="uploadPdfText">
+                      <strong>Clica para escolher um ficheiro</strong><br>ou arrasta o PDF para aqui
+                  </span>
+                  <span class="upload-pdf-filename" id="uploadPdfFilename" style="display:none;"></span>
+              </label>
+              <input type="file" id="guia_pdf_input" name="guia_pdf" accept=".pdf,application/pdf" required class="upload-pdf-input">
           </div>
-          <button type="submit" class="btn btn-blue" style="width:100%;">Ler Guia</button>
+          <button type="submit" class="btn-ler-guia"><i class="bi bi-search"></i> Ler Guia</button>
       </form>
 </div>
+
+<script>
+(function () {
+    const input = document.getElementById('guia_pdf_input');
+    const box = document.getElementById('uploadPdfBox');
+    const texto = document.getElementById('uploadPdfText');
+    const nomeFicheiro = document.getElementById('uploadPdfFilename');
+    if (!input || !box || !texto || !nomeFicheiro) return;
+
+    function mostrarFicheiro(file) {
+        if (!file) {
+            texto.style.display = '';
+            nomeFicheiro.style.display = 'none';
+            nomeFicheiro.innerHTML = '';
+            return;
+        }
+        texto.style.display = 'none';
+        nomeFicheiro.style.display = 'flex';
+        nomeFicheiro.innerHTML = '<i class="bi bi-file-earmark-pdf-fill"></i><span></span><i class="bi bi-x-circle upload-pdf-clear" title="Remover ficheiro"></i>';
+        nomeFicheiro.querySelector('span').textContent = file.name;
+    }
+
+    input.addEventListener('change', function () {
+        mostrarFicheiro(input.files && input.files[0] ? input.files[0] : null);
+    });
+
+    nomeFicheiro.addEventListener('click', function (e) {
+        if (e.target.classList.contains('upload-pdf-clear')) {
+            e.preventDefault();
+            e.stopPropagation();
+            input.value = '';
+            mostrarFicheiro(null);
+        }
+    });
+
+    ['dragenter', 'dragover'].forEach(function (evt) {
+        box.addEventListener(evt, function (e) {
+            e.preventDefault();
+            box.classList.add('is-dragover');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+        box.addEventListener(evt, function (e) {
+            e.preventDefault();
+            box.classList.remove('is-dragover');
+        });
+    });
+    box.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            input.files = e.dataTransfer.files;
+            mostrarFicheiro(e.dataTransfer.files[0]);
+        }
+    });
+})();
+</script>
 
     <!-- PAINEL DIREITO: Formulário / Rascunho -->
     <div class="panel" style="height:100%;">
@@ -1138,10 +1200,12 @@ if ($page === 'envios') {
             </div>
 
         <?php else: ?>
-            <div style="text-align:center; padding:40px 20px; color:#6b7280;">
-                <div style="font-size:40px; margin-bottom:12px;">📄</div>
-                <p style="font-size:15px; font-weight:500; margin-bottom:6px;">Nenhum rascunho aberto</p>
-                <p style="font-size:13px;">Faz a leitura de uma Guia para começar.</p>
+            <div style="text-align:center; padding:34px 20px; color:#6b7280;">
+                <div style="width:56px; height:56px; margin:0 auto 14px; border-radius:50%; background:#fbf1da; display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-send" style="font-size:24px; color:#c9a14a;"></i>
+                </div>
+                <p style="font-size:15px; font-weight:600; color:#374151; margin-bottom:6px;">Nenhum rascunho aberto</p>
+                <p style="font-size:13px; margin:0;">Faz a leitura de uma Guia para começar.</p>
             </div>
         <?php endif; ?>
     </div>

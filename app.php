@@ -330,7 +330,6 @@ $pageTitles = [
   'categorias' => 'Categorias',
   'estados' => 'Estados',
   'parceiros' => 'Parceiros',
-  'fabricantes' => 'Fabricantes',
   'produtos' => 'Produtos',
   'nvi' => 'N-Vi',
   'configuracoes' => 'Configurações',
@@ -1074,22 +1073,71 @@ body{
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
 }
+/* Variante com altura limitada e scroll vertical (scrollbar visível) */
+.table-responsive.scroll-limitado{
+    max-height:70vh;
+}
+.table-responsive.scroll-limitado thead th{ position:sticky; top:0; z-index:3; }
+/* Variante com scroll vertical mas SEM barra de scroll visível (continua a poder fazer-se scroll) */
+.table-responsive.scroll-oculto{
+    max-height:420px;
+    overflow-y:auto;
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+}
+.table-responsive.scroll-oculto::-webkit-scrollbar{ display:none; }
+.table-responsive.scroll-oculto thead th{ position:sticky; top:0; z-index:3; }
 
 .table{
         width:100%;
         border-collapse:collapse;
         background:#fff;
+        table-layout:auto;
       }
 .table th,.table td{
       border:1px solid #e5e7eb;
-      padding:6px 8px;
+      padding:8px 10px;
       text-align:left;
       vertical-align:middle;
-      white-space:nowrap;
+      white-space:normal;
+      word-break:break-word;
+      font-size:13.5px;
 }
 .table th{
             background:#f6f7f9;
+            font-size:12px;
+            text-transform:uppercase;
+            letter-spacing:.03em;
+            color:#4b5563;
+            white-space:nowrap;
           }
+.table td.nowrap,
+.table th.nowrap{ white-space:nowrap; }
+.table tbody tr:hover{ background:#fafbfc; }
+body.dark-mode .table tbody tr:hover{ background:#26303f; }
+
+/* Caixa de pesquisa rápida (filtro instantâneo do lado do cliente) — mesmo estilo dos restantes inputs do site */
+.quick-search-wrap{ position:relative; max-width:300px; flex:1; min-width:220px; }
+.quick-search-wrap i{
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:#9ca3af; font-size:16px; pointer-events:none;
+}
+.quick-search-wrap input{ padding-left:40px; }
+.quick-search-wrap input:focus + i,
+.quick-search-wrap:has(input:focus) i{ color:#cba35c; }
+.table-empty-state{ text-align:center; color:#9ca3af; padding:34px 16px !important; background:#fff !important; }
+.table-empty-state i{ font-size:30px; display:block; margin-bottom:8px; opacity:.5; }
+.panel-header-row{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px; margin-bottom:16px;
+}
+.panel-header-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.panel-count-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:24px; height:24px; padding:0 8px; border-radius:999px;
+    background:#f3f4f6; color:#4b5563; font-size:12px; font-weight:700;
+}
+.panel-header-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .btn{
       display:inline-block;
       padding:12px 16px;
@@ -1117,6 +1165,71 @@ body{
             grid-template-columns:1fr 1fr;
             gap:20px;
           }
+@media (max-width:768px){
+  .form-grid{ grid-template-columns:1fr; }
+}
+.parceiro-contacto-col{
+  background:#fafbfc;
+  border:1px solid #eef0f3;
+  border-radius:10px;
+  padding:16px 18px;
+}
+
+/* -- Caixa de upload drag&drop (Envios, Relatórios, Contas) -- */
+.upload-pdf-input{
+    position:absolute; width:1px; height:1px;
+    padding:0; margin:0; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+.upload-pdf-box{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; text-align:center; padding:32px 20px;
+    border:1.5px solid #f0e3c4; border-radius:16px;
+    background:linear-gradient(180deg, #fffdf9 0%, #fbf2df 100%);
+    cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.04);
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.upload-pdf-box:hover{
+    transform:translateY(-3px);
+    box-shadow:0 10px 24px rgba(201,161,74,.2);
+    border-color:#c9a14a;
+}
+.upload-pdf-box.is-dragover{
+    border-color:#c9a14a;
+    background:linear-gradient(180deg,#fff8ea,#f7e8c4);
+    transform:translateY(-3px);
+    box-shadow:0 10px 24px rgba(201,161,74,.25);
+}
+.upload-pdf-icon{
+    width:54px; height:54px; border-radius:50%;
+    background:#fff; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px rgba(201,161,74,.28);
+}
+.upload-pdf-icon i{ font-size:22px; color:#c9a14a; }
+.upload-pdf-text{ font-size:13px; color:#6b7280; line-height:1.5; }
+.upload-pdf-text strong{ color:#3d82c4; font-weight:700; }
+.upload-pdf-filename{
+    display:flex; align-items:center; gap:10px;
+    font-size:13px; font-weight:600; color:#1e293b;
+    background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+    padding:10px 16px; max-width:100%; box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.upload-pdf-filename .bi-file-earmark-pdf-fill{ color:#c9a14a; font-size:17px; }
+.upload-pdf-filename span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.upload-pdf-clear{ margin-left:2px; color:#9ca3af; cursor:pointer; flex-shrink:0; }
+.upload-pdf-clear:hover{ color:#dc3545; }
+.btn-ler-guia{
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    width:100%; padding:14px 16px; margin-top:16px;
+    background:linear-gradient(135deg,#4d92d9,#3672ab);
+    color:#fff; font-size:15px; font-weight:600;
+    border:none; border-radius:11px; cursor:pointer;
+    box-shadow:0 4px 12px rgba(61,130,196,.32);
+    transition:transform .15s ease, box-shadow .15s ease;
+}
+.btn-ler-guia i{ font-size:16px; }
+.btn-ler-guia:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(61,130,196,.42); }
+.btn-ler-guia:active{ transform:translateY(0); box-shadow:0 3px 8px rgba(61,130,196,.3); }
 
 label{display:block;font-weight:700;margin:0 0 8px}
 
@@ -1416,6 +1529,8 @@ select{
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+    margin-left: auto;
+    justify-content: flex-end;
 }
 
 .btn-audit {
@@ -1475,14 +1590,16 @@ select{
 }
 
 .auditoria-tabela thead th {
-    background: #f8fafc;
-    color: #374151;
-    font-size: 14px;
+    background: #eef1f5;
+    color: #1f2937;
+    font-size: 13px;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
     text-align: left;
-    padding: 12px 10px;
-    border-bottom: 1px solid #dfe3e8;
-    border-right: 1px solid #e5e7eb;
+    padding: 12px 14px;
+    border-bottom: 2px solid #cbd5e1;
+    border-right: 1px solid #cbd5e1;
 }
 
 .auditoria-tabela thead th:last-child {
@@ -1490,11 +1607,11 @@ select{
 }
 
 .auditoria-tabela tbody td {
-    padding: 11px 10px;
+    padding: 11px 14px;
     font-size: 14px;
     color: #1f2937;
-    border-top: 1px solid #eef1f4;
-    border-right: 1px solid #eef1f4;
+    border-top: 1px solid #e5e9ef;
+    border-right: 1px solid #dde2e8;
     vertical-align: top;
 }
 
@@ -1502,12 +1619,12 @@ select{
     border-right: none;
 }
 
-.auditoria-tabela tbody tr:nth-child(odd) {
-    background: #fff8e8;
+.auditoria-tabela tbody tr:nth-child(even) {
+    background: #f8fafc;
 }
 
-.auditoria-tabela tbody tr:nth-child(even) {
-    background: #eefaf4;
+.auditoria-tabela tbody tr:hover {
+    background: #eef2f7;
 }
 
 .auditoria-vazia {
@@ -1578,7 +1695,6 @@ select{
 
 .envios-table{
   width:100%;
-    min-width:760px;
   border-collapse:separate;
     border-spacing:0;
   background:#fff;
@@ -1590,8 +1706,14 @@ select{
   text-align:left;
   vertical-align:middle;
     border-bottom:1px solid #e5e7eb;
-    white-space:nowrap;
+    white-space:normal;
+    word-break:break-word;
   }
+
+/* Algumas tabelas (ex.: Lista de Envios/Relatórios) beneficiam de colunas numa só linha;
+   usar a classe utilitária abaixo apenas nessas, em vez de forçar nowrap globalmente. */
+.envios-table td.nowrap,
+.envios-table th.nowrap{ white-space:nowrap; }
 
 .envios-table th{
   background:#f6f7f9;
@@ -2092,7 +2214,7 @@ function nvVoltar(ev) {
     <i class="bi bi-clipboard-check"></i><span>Revisão</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','fabricantes','produtos']) ? 'open' : '' ?>">
+  <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','produtos']) ? 'open' : '' ?>">
   <button class="sidebar-parent" type="button" id="tabelasToggle">
     <span class="sidebar-parent-left">
       <i class="bi bi-table"></i>
@@ -2110,9 +2232,6 @@ function nvVoltar(ev) {
     </a>
     <a class="submenu-link <?=active('parceiros',$page)?>" href="app.php?page=parceiros">
       <span>Parceiros</span>
-    </a>
-    <a class="submenu-link <?=active('fabricantes',$page)?>" href="app.php?page=fabricantes">
-      <span>Fabricantes</span>
     </a>
     <a class="submenu-link <?=active('produtos',$page)?>" href="app.php?page=produtos">
       <span>Produtos</span>
@@ -2309,8 +2428,6 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
   <?php require __DIR__ . '/includes/pages/categorias.php'; ?>
 <?php elseif ($page === 'estados'): ?>
   <?php require __DIR__ . '/includes/pages/estados.php'; ?>
-<?php elseif ($page === 'fabricantes'): ?>
-  <?php require __DIR__ . '/includes/pages/fabricantes.php'; ?>
 <?php elseif ($page === 'produtos'): ?>
   <?php require __DIR__ . '/includes/pages/produtos.php'; ?>
 <?php elseif ($page === 'parceiros'): ?>
@@ -2402,51 +2519,66 @@ if (document.getElementById('estadoChart')) {
   });
 }
 
-if (document.getElementById('trendChart')) {
-  new Chart(document.getElementById('trendChart'), {
-    type: 'line',
+if (document.getElementById('atividadeMensalChart')) {
+  new Chart(document.getElementById('atividadeMensalChart'), {
     data: {
       labels: trendLabels,
       datasets: [
         {
+          type: 'bar',
           label: 'Peças',
           data: trendPecas,
-          borderColor: '#36a2eb',
-          backgroundColor: 'rgba(54,162,235,.2)',
-          tension: .35
+          backgroundColor: 'rgba(54,162,235,.55)',
+          borderRadius: 6,
+          order: 2
         },
         {
+          type: 'line',
           label: 'PATs',
           data: trendPats,
           borderColor: '#ff6384',
-          backgroundColor: 'rgba(255,99,132,.2)',
-          tension: .35
+          backgroundColor: '#ff6384',
+          tension: .35,
+          pointRadius: 4,
+          pointBackgroundColor: '#ff6384',
+          order: 1
         }
       ]
     },
     options: {
-      responsive: true
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      },
+      plugins: {
+        legend: { display: true, position: 'top', align: 'end' }
+      }
     }
   });
 }
 
-if (document.getElementById('categoriaChart')) {
-  new Chart(document.getElementById('categoriaChart'), {
+if (document.getElementById('topParceirosChart')) {
+  new Chart(document.getElementById('topParceirosChart'), {
     type: 'bar',
     data: {
-      labels: categoriaLabels,
+      labels: parceiroLabels,
       datasets: [{
-        label: 'Total',
-        data: categoriaTotals,
-        backgroundColor: '#28a745'
+        label: 'Peças',
+        data: parceiroTotals,
+        backgroundColor: palette,
+        borderRadius: 6
       }]
     },
     options: {
       indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 } }
+      },
       plugins: {
-        legend: {
-          display: false
-        }
+        legend: { display: false }
       }
     }
   });
@@ -3051,6 +3183,19 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+
+// Expandir/colapsar todas as contas-filho da página Clientes de uma só vez.
+function nvClientesExpandirTudo(abrir) {
+    document.querySelectorAll('.cliente-toggle').forEach(function (btn) {
+        const target = btn.getAttribute('data-target');
+        if (!target) return;
+        document.querySelectorAll('.' + CSS.escape(target)).forEach(function (row) {
+            row.style.display = abrir ? 'table-row' : 'none';
+        });
+        btn.classList.toggle('is-open', abrir);
+        btn.textContent = abrir ? '−' : '+';
+    });
+}
 </script>
 
 <script>
@@ -3103,9 +3248,37 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!isOpen) wrap.classList.add('open');
     }
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('acao-wrap')) {
+        if (!e.target.closest('.acao-wrap')) {
             document.querySelectorAll('.acao-wrap.open').forEach(w => w.classList.remove('open'));
         }
+    });
+
+    // Filtro rápido (lado do cliente) para tabelas com caixa de pesquisa instantânea.
+    // Uso: <input class="quick-search-input" data-table="#idDaTabela" data-empty="#idEstadoVazio">
+    function nvFiltrarTabela(input) {
+        const tabelaSel = input.getAttribute('data-table');
+        const tabela = document.querySelector(tabelaSel);
+        if (!tabela) return;
+        const termo = input.value.trim().toLowerCase();
+        const linhas = tabela.querySelectorAll('tbody tr');
+        let visiveis = 0;
+        linhas.forEach(function (tr) {
+            if (tr.hasAttribute('data-no-filter')) { return; }
+            const texto = tr.textContent.toLowerCase();
+            const mostra = termo === '' || texto.includes(termo);
+            tr.style.display = mostra ? '' : 'none';
+            if (mostra) visiveis++;
+        });
+        const emptySel = input.getAttribute('data-empty');
+        if (emptySel) {
+            const emptyEl = document.querySelector(emptySel);
+            if (emptyEl) emptyEl.style.display = (visiveis === 0 && termo !== '') ? '' : 'none';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.quick-search-input').forEach(function (input) {
+            input.addEventListener('input', function () { nvFiltrarTabela(input); });
+        });
     });
 </script>
 

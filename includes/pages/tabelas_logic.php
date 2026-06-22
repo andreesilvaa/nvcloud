@@ -32,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acoesDeGestao = [
         'guardar_categoria', 'eliminar_categoria',
         'guardar_estado', 'eliminar_estado',
-        'guardar_fabricante', 'eliminar_fabricante',
         'guardar_produto', 'eliminar_produto',
         'guardar_parceiro', 'eliminar_parceiro',
     ];
@@ -115,47 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectTo('app.php?page=estados');
     }
 
-    // ----- FABRICANTES -----
-    if ($ft === 'guardar_fabricante') {
-        $id = (int)($_POST['id'] ?? 0);
-        $nome = trim($_POST['nome'] ?? '');
-        if ($nome === '') {
-            flashError('O nome do fabricante é obrigatório.');
-            redirectTo('app.php?page=fabricantes&' . ($id ? "edit=$id" : 'nova=1'));
-        }
-        if (tabNomeDuplicado($pdo, 'fabricantes', 'nome', $nome, $id)) {
-            flashError('Já existe um fabricante com esse nome.');
-            redirectTo('app.php?page=fabricantes&' . ($id ? "edit=$id" : 'nova=1'));
-        }
-        if ($id > 0) {
-            $stmt = $pdo->prepare("UPDATE fabricantes SET nome = ? WHERE id = ?");
-            $stmt->execute([$nome, $id]);
-            flashSuccess('Fabricante atualizado com sucesso.');
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO fabricantes (nome) VALUES (?)");
-            $stmt->execute([$nome]);
-            flashSuccess('Fabricante criado com sucesso.');
-        }
-        redirectTo('app.php?page=fabricantes');
-    }
-    if ($ft === 'eliminar_fabricante') {
-        $id = (int)($_POST['id'] ?? 0);
-        if (tabContar($pdo, "SELECT COUNT(*) FROM produtos WHERE fabricante_id = ?", [$id]) > 0) {
-            flashError('Não é possível eliminar este fabricante: está associado a produtos.');
-            redirectTo('app.php?page=fabricantes');
-        }
-        $stmt = $pdo->prepare("DELETE FROM fabricantes WHERE id = ?");
-        $stmt->execute([$id]);
-        flashSuccess('Fabricante eliminado com sucesso.');
-        redirectTo('app.php?page=fabricantes');
-    }
-
     // ----- PRODUTOS -----
     if ($ft === 'guardar_produto') {
         $id = (int)($_POST['id'] ?? 0);
         $nome = trim($_POST['nome'] ?? '');
         $catId = (int)($_POST['categoria_id'] ?? 0) ?: null;
-        $fabId = (int)($_POST['fabricante_id'] ?? 0) ?: null;
         if ($nome === '') {
             flashError('O nome do produto é obrigatório.');
             redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
@@ -165,12 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
         }
         if ($id > 0) {
-            $stmt = $pdo->prepare("UPDATE produtos SET nome = ?, categoria_id = ?, fabricante_id = ? WHERE id = ?");
-            $stmt->execute([$nome, $catId, $fabId, $id]);
+            $stmt = $pdo->prepare("UPDATE produtos SET nome = ?, categoria_id = ? WHERE id = ?");
+            $stmt->execute([$nome, $catId, $id]);
             flashSuccess('Produto atualizado com sucesso.');
         } else {
-            $stmt = $pdo->prepare("INSERT INTO produtos (nome, categoria_id, fabricante_id) VALUES (?, ?, ?)");
-            $stmt->execute([$nome, $catId, $fabId]);
+            $stmt = $pdo->prepare("INSERT INTO produtos (nome, categoria_id) VALUES (?, ?)");
+            $stmt->execute([$nome, $catId]);
             flashSuccess('Produto criado com sucesso.');
         }
         redirectTo('app.php?page=produtos');
@@ -244,7 +207,6 @@ $tabPaginas  = 1;
 $tabEdit     = null;
 $parceiroVer = null;
 $listaCategorias  = [];
-$listaFabricantes = [];
 
 function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, int &$paginas): array
 {
@@ -259,7 +221,8 @@ function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, in
 }
 
 if ($page === 'categorias') {
-    $tabListas = carregarTabela($pdo, "SELECT * FROM categorias ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    // Lista completa numa única página (sem paginação)
+    $tabListas = carregarTabela($pdo, "SELECT * FROM categorias ORDER BY nome ASC", 1000000, 0, $tabPaginas);
     if (($_GET['edit'] ?? '') !== '') {
         $stmt = $pdo->prepare("SELECT * FROM categorias WHERE id = ?");
         $stmt->execute([(int)$_GET['edit']]);
@@ -267,17 +230,10 @@ if ($page === 'categorias') {
     }
 }
 if ($page === 'estados') {
-    $tabListas = carregarTabela($pdo, "SELECT * FROM estados ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
+    // Lista completa numa única página (sem paginação)
+    $tabListas = carregarTabela($pdo, "SELECT * FROM estados ORDER BY nome ASC", 1000000, 0, $tabPaginas);
     if (($_GET['edit'] ?? '') !== '') {
         $stmt = $pdo->prepare("SELECT * FROM estados WHERE id = ?");
-        $stmt->execute([(int)$_GET['edit']]);
-        $tabEdit = $stmt->fetch() ?: null;
-    }
-}
-if ($page === 'fabricantes') {
-    $tabListas = carregarTabela($pdo, "SELECT * FROM fabricantes ORDER BY nome ASC", $tabPerPage, $tabOffset, $tabPaginas);
-    if (($_GET['edit'] ?? '') !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM fabricantes WHERE id = ?");
         $stmt->execute([(int)$_GET['edit']]);
         $tabEdit = $stmt->fetch() ?: null;
     }
@@ -285,15 +241,13 @@ if ($page === 'fabricantes') {
 if ($page === 'produtos') {
     $tabListas = carregarTabela(
         $pdo,
-        "SELECT p.*, c.nome AS categoria_nome, f.nome AS fabricante_nome
+        "SELECT p.*, c.nome AS categoria_nome
            FROM produtos p
            LEFT JOIN categorias c ON c.id = p.categoria_id
-           LEFT JOIN fabricantes f ON f.id = p.fabricante_id
           ORDER BY p.nome ASC",
         $tabPerPage, $tabOffset, $tabPaginas
     );
     $listaCategorias  = $pdo->query("SELECT id, nome FROM categorias ORDER BY nome ASC")->fetchAll();
-    $listaFabricantes = $pdo->query("SELECT id, nome FROM fabricantes ORDER BY nome ASC")->fetchAll();
     if (($_GET['edit'] ?? '') !== '') {
         $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
         $stmt->execute([(int)$_GET['edit']]);

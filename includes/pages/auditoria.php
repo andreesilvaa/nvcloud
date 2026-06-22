@@ -70,7 +70,14 @@ if ($page === 'auditoria') {
     </div>
 
     <div class="auditoria-box">
-        <h3 class="auditoria-title">Registo de Atividades</h3>
+        <div class="panel-header-row" style="margin-bottom:18px;">
+            <h3 class="auditoria-title" style="margin:0;">Registo de Atividades</h3>
+            <div class="auditoria-botoes">
+                <button type="submit" form="auditoriaFiltrosForm" class="btn-audit btn-filtrar">🔍 Filtrar</button>
+                <button type="button" class="btn-audit btn-limpar" id="btnLimparAuditoria">Limpar filtros</button>
+                <a href="exportar_auditoria_csv.php?audit_user=<?= urlencode($filtroUtilizador) ?>&audit_action=<?= urlencode($filtroAcao) ?>" class="btn-audit btn-exportar">Exportar CSV</a>
+            </div>
+        </div>
 
         <form method="get" class="auditoria-filtros" id="auditoriaFiltrosForm">
           <input type="hidden" name="page" value="auditoria">
@@ -86,7 +93,7 @@ if ($page === 'auditoria') {
                 </select>
             </div>
 
-            
+
             <div class="auditoria-filtro">
                 <label for="audit_action">Ação</label>
                 <select name="audit_action" id="audit_action">
@@ -97,12 +104,6 @@ if ($page === 'auditoria') {
                         </option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-
-            <div class="auditoria-botoes">
-                <button type="submit" class="btn-audit btn-filtrar">🔍 Filtrar</button>
-                <button type="button" class="btn-audit btn-limpar" id="btnLimparAuditoria">Limpar filtros</button>
-                <a href="exportar_auditoria_csv.php?audit_user=<?= urlencode($filtroUtilizador) ?>&audit_action=<?= urlencode($filtroAcao) ?>" class="btn-audit btn-exportar">Exportar CSV</a>
             </div>
         </form>
 

@@ -246,15 +246,25 @@ if ($page === 'nvi') {
     <div class="alerta-erro" style="margin-top:20px;"><?= htmlspecialchars($nvi['erro']) ?></div>
   <?php elseif ($nvi['executou']): ?>
     <div class="panel" style="margin-top:20px;">
-      <h4 style="margin:0 0 10px;"><?= htmlspecialchars($nvi['titulo']) ?></h4>
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; font-family:monospace; font-size:12px; color:#334155; margin-bottom:14px; white-space:pre-wrap;">
+      <div class="panel-header-row" style="margin-bottom:10px;">
+        <div class="panel-header-left">
+          <h4 style="margin:0;"><?= htmlspecialchars($nvi['titulo']) ?></h4>
+          <?php if (!empty($nvi['linhas'])): ?><span class="panel-count-badge"><?= count($nvi['linhas']) ?></span><?php endif; ?>
+        </div>
+        <div class="panel-header-actions">
+          <button type="button" class="btn btn-grey" style="padding:8px 14px; font-size:13px;" id="nviCopySql">
+            <i class="bi bi-clipboard"></i> Copiar SQL
+          </button>
+        </div>
+      </div>
+      <div id="nviSqlBox" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; font-family:monospace; font-size:12px; color:#334155; margin-bottom:14px; white-space:pre-wrap;">
         <?= htmlspecialchars(preg_replace('/\s+/', ' ', $nvi['sql'])) ?>
       </div>
       <?php if (empty($nvi['linhas'])): ?>
         <p style="color:#6b7280;">Sem resultados para esta pergunta.</p>
       <?php else: ?>
-        <div style="overflow-x:auto;">
-          <table class="table">
+        <div class="table-responsive">
+          <table class="table" id="tabelaNvi">
             <thead><tr>
               <?php foreach ($nvi['colunas'] as $col): ?><th><?= htmlspecialchars($col) ?></th><?php endforeach; ?>
             </tr></thead>
@@ -265,9 +275,22 @@ if ($page === 'nvi') {
             </tbody>
           </table>
         </div>
-        <p style="color:#9ca3af; font-size:12px; margin-top:10px;"><?= count($nvi['linhas']) ?> resultado(s).</p>
       <?php endif; ?>
     </div>
+    <script>
+      (function () {
+        const btn = document.getElementById('nviCopySql');
+        const box = document.getElementById('nviSqlBox');
+        if (!btn || !box) return;
+        btn.addEventListener('click', function () {
+          navigator.clipboard.writeText(box.textContent.trim()).then(function () {
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
+            setTimeout(function () { btn.innerHTML = original; }, 1500);
+          });
+        });
+      })();
+    </script>
   <?php endif; ?>
 
   <script>

@@ -760,16 +760,25 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
 
     <!-- Botão novo PAT + Tabela -->
     <div class="panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h4 style="margin:0;">Lista de PATs</h4>
-            <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
-            <a href="exportar_pats_csv.php" class="btn btn-green" style="padding:8px 14px; font-size:13px;">
-                <i class="bi bi-download"></i> Exportar CSV
-            </a>
+        <div class="panel-header-row">
+            <div class="panel-header-left">
+                <h4 style="margin:0;">Lista de PATs</h4>
+                <span class="panel-count-badge"><?= count($patsList) ?></span>
+            </div>
+            <div class="panel-header-actions">
+                <div class="quick-search-wrap">
+                    <i class="bi bi-search"></i>
+                    <input type="text" class="quick-search-input" data-table="#tabelaPats" data-empty="#tabelaPatsVazia" placeholder="Pesquisa rápida na tabela…">
+                </div>
+                <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
+                <a href="exportar_pats_csv.php" class="btn btn-green" style="padding:8px 14px; font-size:13px;">
+                    <i class="bi bi-download"></i> Exportar CSV
+                </a>
+            </div>
         </div>
 
-        <div style="overflow-x:auto;">
-            <table class="table">
+        <div class="table-responsive">
+            <table class="table" id="tabelaPats">
                 <thead>
                 <tr>
                     <th>Nº PAT</th>
@@ -784,7 +793,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 </thead>
                 <tbody>
                 <?php if (empty($patsList)): ?>
-                    <tr><td colspan="8" style="text-align:center; color:#6b7280; padding:30px;">Nenhum PAT encontrado.</td></tr>
+                    <tr id="tabelaPatsVazia" data-no-filter><td colspan="8" class="table-empty-state"><i class="bi bi-inbox"></i>Nenhum PAT encontrado.</td></tr>
                 <?php else: ?>
           <?php foreach ($patsList as $pat): ?>
             <?php
@@ -830,6 +839,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                     </td>
                 </tr>
                 <?php endforeach; ?>
+                <tr id="tabelaPatsVazia" data-no-filter style="display:none;"><td colspan="8" class="table-empty-state"><i class="bi bi-search"></i>Sem resultados para esta pesquisa.</td></tr>
         <?php endif; ?>
                 </tbody>
             </table>
