@@ -1815,11 +1815,44 @@ select{
 }
 
 .clientes-filtros{
-  display:grid;
-  grid-template-columns:1.4fr 1fr 1fr auto;
-  gap:18px;
+  display:flex;
+  flex-wrap:wrap;
   align-items:end;
-  margin-bottom:20px;
+  gap:16px;
+  margin-bottom:4px;
+}
+.clientes-filtro{
+  flex:1 1 200px;
+  min-width:180px;
+  display:flex;
+  flex-direction:column;
+}
+.clientes-filtro label{
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:#9ca3af;
+  margin:0 0 7px;
+}
+.clientes-filtro input,
+.clientes-filtro select{
+  height:44px;
+  border:1px solid #e5e9ef;
+  background:#f8fafc;
+  border-radius:9px;
+  font-size:14px;
+}
+.clientes-filtro input:focus,
+.clientes-filtro select:focus{
+  background:#fff;
+  border-color:#cba35c;
+}
+.clientes-filtros-botoes{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-left:auto;
 }
 
 .clientes-table{
@@ -1901,9 +1934,15 @@ select{
 }
 
 @media (max-width: 768px){
-  .clientes-kpis,
-  .clientes-filtros{
+  .clientes-kpis{
     grid-template-columns:1fr;
+  }
+  .clientes-filtro{
+    flex-basis:100%;
+  }
+  .clientes-filtros-botoes{
+    margin-left:0;
+    width:100%;
   }
 }
 

@@ -368,41 +368,38 @@ if ($page === 'alertas') {
       <input type="hidden" name="page" value="alertas">
 
       <div class="clientes-filtros">
-        <div>
+        <div class="clientes-filtro">
           <label>Pesquisar</label>
-            <label>
-                <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
-            </label>
+          <div class="quick-search-wrap" style="max-width:none;">
+            <i class="bi bi-search"></i>
+            <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
+          </div>
         </div>
 
-        <div>
+        <div class="clientes-filtro">
           <label>Tipo</label>
-            <label>
-                <select name="type">
-                  <option value="">-- Todos --</option>
-                  <?php foreach ($clientesTipos as $tipo): ?>
-                    <option value="<?= htmlspecialchars($tipo) ?>"
-                      <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
-                      <?= htmlspecialchars(tipoPt($tipo)) ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
-            </label>
+          <select name="type">
+            <option value="">-- Todos --</option>
+            <?php foreach ($clientesTipos as $tipo): ?>
+              <option value="<?= htmlspecialchars($tipo) ?>"
+                <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
+                <?= htmlspecialchars(tipoPt($tipo)) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
 
-        <div>
+        <div class="clientes-filtro">
           <label>Hierarquia</label>
-            <label>
-                <select name="hierarquia">
-                  <option value="">-- Todas --</option>
-                  <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
-                  <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
-                  <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
-                </select>
-            </label>
+          <select name="hierarquia">
+            <option value="">-- Todas --</option>
+            <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
+            <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
+            <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
+          </select>
         </div>
 
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div class="clientes-filtros-botoes">
           <button type="submit" class="btn btn-blue">Filtrar</button>
           <a href="app.php?page=clientes" class="btn btn-grey">Limpar</a>
         </div>

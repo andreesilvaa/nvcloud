@@ -723,34 +723,31 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         <form method="get">
             <input type="hidden" name="page" value="pats">
             <div class="clientes-filtros">
-                <div>
+                <div class="clientes-filtro">
                     <label>Pesquisar</label>
-                    <label>
+                    <div class="quick-search-wrap" style="max-width:none;">
+                        <i class="bi bi-search"></i>
                         <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Nº PAT, entidade ou técnico">
-                    </label>
+                    </div>
                 </div>
-                <div>
+                <div class="clientes-filtro">
                     <label>Estado</label>
-                    <label>
-                        <select name="estado">
-                            <option value="">-- Todos --</option>
-                            <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
-                            <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
+                    <select name="estado">
+                        <option value="">-- Todos --</option>
+                        <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
+                        <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-                <div>
+                <div class="clientes-filtro">
                     <label>Prioridade</label>
-                    <label>
-                        <select name="prioridade">
-                            <option value="">-- Todas --</option>
-                            <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
-                            <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
-                        </select>
-                    </label>
+                    <select name="prioridade">
+                        <option value="">-- Todas --</option>
+                        <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+                        <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+                    </select>
                 </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div class="clientes-filtros-botoes">
                     <button type="submit" class="btn btn-blue">Filtrar</button>
                     <a href="app.php?page=pats" class="btn btn-grey">Limpar</a>
                 </div>
