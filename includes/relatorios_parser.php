@@ -5,10 +5,10 @@ if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit(
 
 // Caminhos sensíveis ao SO. O bootstrap.php define-os primeiro (têm prioridade);
 // estes são apenas fallback caso este ficheiro seja incluído isoladamente.
-if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
+if (!defined('TESSERACT_BIN'))  define('TESSERACT_BIN', '/usr/bin/tesseract');
 if (!defined('TESSERACT_LANG')) define('TESSERACT_LANG', 'por+eng');
-if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
-if (!defined('PDFTOPPM_BIN'))   define('PDFTOPPM_BIN',  PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
+if (!defined('PDFTOTEXT_BIN'))  define('PDFTOTEXT_BIN', '/usr/bin/pdftotext');
+if (!defined('PDFTOPPM_BIN'))   define('PDFTOPPM_BIN',  '/usr/bin/pdftoppm');
 
 
 

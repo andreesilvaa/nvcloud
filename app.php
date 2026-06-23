@@ -535,12 +535,6 @@ $actividadeRecente = $pdo->query("
   AUDITORIA
 ==================*/
 
-
-
-
-
-
-
 function active(string $p, string $page): string {
     return $p === $page ? 'active-link' : '';
 }
@@ -644,6 +638,8 @@ function contactoCelula(array $map, string $nome): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StockVision</title>
+<link rel="icon" type="image/png" href="/assets/favicon.png">
+<link rel="apple-touch-icon" href="/assets/favicon.png">
 <link rel="stylesheet" href="fonts.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

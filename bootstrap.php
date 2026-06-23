@@ -14,27 +14,11 @@ require_once __DIR__ . '/vendor/autoload.php';
 // variáveis de ambiente. Em Windows aponta para os .exe; em Linux assume
 // que estão no PATH (instalar com: apt install poppler-utils tesseract-ocr).
 // ============================================================
-if (!defined('PDFTOTEXT_BIN')) {
-    if (PHP_OS_FAMILY === 'Windows') {
-        define('PDFTOTEXT_BIN', getenv('PDFTOTEXT_BIN') ?: 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe');
-    } else {
-        define('PDFTOTEXT_BIN', getenv('PDFTOTEXT_BIN') ?: 'pdftotext');
-    }
-}
-if (!defined('PDFTOPPM_BIN')) {
-    if (PHP_OS_FAMILY === 'Windows') {
-        define('PDFTOPPM_BIN', getenv('PDFTOPPM_BIN') ?: 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe');
-    } else {
-        define('PDFTOPPM_BIN', getenv('PDFTOPPM_BIN') ?: 'pdftoppm');
-    }
-}
-if (!defined('TESSERACT_BIN')) {
-    if (PHP_OS_FAMILY === 'Windows') {
-        define('TESSERACT_BIN', getenv('TESSERACT_BIN') ?: 'C:/Program Files/Tesseract-OCR/tesseract.exe');
-    } else {
-        define('TESSERACT_BIN', getenv('TESSERACT_BIN') ?: 'tesseract');
-    }
-}
+// Linux/produção: binários do sistema (apt install poppler-utils tesseract-ocr).
+// Sobreponíveis por variável de ambiente.
+if (!defined('PDFTOTEXT_BIN')) define('PDFTOTEXT_BIN', getenv('PDFTOTEXT_BIN') ?: '/usr/bin/pdftotext');
+if (!defined('PDFTOPPM_BIN'))  define('PDFTOPPM_BIN',  getenv('PDFTOPPM_BIN')  ?: '/usr/bin/pdftoppm');
+if (!defined('TESSERACT_BIN')) define('TESSERACT_BIN', getenv('TESSERACT_BIN') ?: '/usr/bin/tesseract');
 if (!defined('TESSERACT_LANG')) {
     define('TESSERACT_LANG', getenv('TESSERACT_LANG') ?: 'por+eng');
 }

@@ -14,13 +14,13 @@ function extrairTextoPDF(string $pdfPath): string
 	// Caminhos centralizados (definidos no bootstrap.php; fallback aqui caso este
 	// ficheiro seja incluído isoladamente). Em Linux assume binários no PATH.
 	if (!defined('PDFTOTEXT_BIN')) {
-		define('PDFTOTEXT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe' : 'pdftotext');
+		define('PDFTOTEXT_BIN', '/usr/bin/pdftotext');
 	}
 	if (!defined('PDFTOPPM_BIN')) {
-		define('PDFTOPPM_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/poppler/poppler-26.02.0/Library/bin/pdftoppm.exe' : 'pdftoppm');
+		define('PDFTOPPM_BIN', '/usr/bin/pdftoppm');
 	}
 	if (!defined('TESSERACT_BIN')) {
-		define('TESSERACT_BIN', PHP_OS_FAMILY === 'Windows' ? 'C:/Program Files/Tesseract-OCR/tesseract.exe' : 'tesseract');
+		define('TESSERACT_BIN', '/usr/bin/tesseract');
 	}
 	$tesseract = TESSERACT_BIN;
 	$tmpBase = sys_get_temp_dir() . '/nvcloud_' . uniqid();
