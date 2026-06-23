@@ -150,6 +150,7 @@ $contas = [];
           <input type="hidden" name="fotografia_atual" value="<?= htmlspecialchars($contaEdit['fotografia'] ?? '') ?>">
         <?php endif; ?>
 
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:4px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Dados da conta</div>
         <div style="margin-bottom:14px;">
           <label>Nome</label>
             <label>
@@ -171,6 +172,7 @@ $contas = [];
             </label>
         </div>
 
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:24px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Acesso</div>
         <div style="margin-bottom:14px;">
           <label>Password<?= $contaEdit ? ' (deixar em branco para manter a atual)' : '' ?> 
             </label>
@@ -179,6 +181,7 @@ $contas = [];
             </label>
         </div>
 
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:24px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Fotografia</div>
         <div style="margin-bottom:18px;">
           <label>Fotografia</label>
           <label for="fotografiaInput" class="upload-pdf-box" id="fotografiaUploadBox">
@@ -283,7 +286,7 @@ $contas = [];
         <tr>
           <th>Conta</th>
           <th style="width:160px;">Criada em</th>
-          <th style="width:70px;">Ações</th>
+          <th class="actions" style="width:70px;">Ações</th>
         </tr>
       </thead>
 
@@ -304,20 +307,13 @@ $contas = [];
         </div>
       </td>
       <td style="color:#6b7280; font-size:13px;"><?= htmlspecialchars($c['created_at']) ?></td>
-      <td>
-        <div class="acao-wrap">
-          <button class="acao-btn" type="button" onclick="toggleAcao(this)">⋮</button>
-          <div class="acao-menu">
-            <a href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>"><i class="bi bi-pencil-square"></i> Editar</a>
-            <a href="#" onclick="event.preventDefault(); nvConfirmar(this.nextElementSibling, 'Eliminar esta conta? Esta ação é irreversível.');">
-              <i class="bi bi-trash3" style="color:#dc3545;"></i> <span style="color:#dc3545;">Eliminar</span>
-            </a>
-            <form method="post" style="display:none;">
-              <input type="hidden" name="form_type" value="eliminar_conta">
-              <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-            </form>
-          </div>
-        </div>
+      <td class="actions">
+        <a class="btn btn-yellow" href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+        <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta conta? Esta ação é irreversível.');">
+          <input type="hidden" name="form_type" value="eliminar_conta">
+          <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
+          <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
+        </form>
       </td>
     </tr>
     <?php endforeach; ?>

@@ -126,12 +126,12 @@ if ($page === 'auditoria') {
                               <td><?= htmlspecialchars($log['utilizador']) ?></td>
                               <td>
                                 <?php
-                                if ($log['campo'] === 'criação' || $log['campo'] === 'eliminação') {
-                                  echo htmlspecialchars(ucfirst($log['campo']));
-                                } else {
-                                  echo 'Alteração de ' . htmlspecialchars($log['campo']);
-                                }
+                                $campoAud = (string)$log['campo'];
+                                if ($campoAud === 'criação')        { $aBg='#dcfce7'; $aFg='#15803d'; $aTxt='Criação'; }
+                                elseif ($campoAud === 'eliminação') { $aBg='#fee2e2'; $aFg='#b91c1c'; $aTxt='Eliminação'; }
+                                else                                { $aBg='#dbeafe'; $aFg='#1d4ed8'; $aTxt='Alteração de ' . $campoAud; }
                                 ?>
+                                <span style="display:inline-block; padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:600; background:<?= $aBg ?>; color:<?= $aFg ?>;"><?= htmlspecialchars($aTxt) ?></span>
                               </td>
                               <td>
                     <?php

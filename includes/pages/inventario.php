@@ -112,76 +112,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     exit;
 }
 ?>
-  <div style="margin-bottom:18px; display:flex; align-items:center; gap:8px;">
-    <a class="btn btn-teal" href="app.php?page=nova_peca">Adicionar Peça</a>
-    <a class="btn btn-green" href="app.php?page=qrs">Ler</a>
-    <a href="exportar_inventario_csv.php" class="btn btn-green" style="padding:12px 16px; margin-left:auto;">
-        <i class="bi bi-download"></i> Exportar CSV
-    </a>
+  <style>
+    .inv-toolbar{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .inv-toolbar .inv-filtros{ margin:0 0 0 auto; flex:0 1 auto; justify-content:flex-end; gap:12px; }
+    .inv-toolbar .inv-filtros .clientes-filtro{ flex:0 1 165px; min-width:140px; }
+    .inv-toolbar .inv-filtros .clientes-filtros-botoes{ margin-left:0; }
+    @media (max-width:900px){ .inv-toolbar .inv-filtros{ flex-basis:100%; justify-content:flex-start; } }
+  </style>
+  <!-- Toolbar: Ações à esquerda · filtros + pesquisa SN + botões à direita -->
+  <div class="inv-toolbar">
+    <details class="actions-dd">
+      <summary class="btn btn-teal"><i class="bi bi-lightning-charge"></i> Ações <i class="bi bi-chevron-down"></i></summary>
+      <div class="actions-dd-menu">
+        <a class="is-primary" href="app.php?page=nova_peca"><i class="bi bi-plus-lg"></i> Adicionar Peça</a>
+        <a href="app.php?page=qrs"><i class="bi bi-upc-scan"></i> Ler (QR / código)</a>
+        <div class="dd-sep"></div>
+        <a href="exportar_inventario_csv.php"><i class="bi bi-download"></i> Exportar CSV</a>
+      </div>
+    </details>
+
+    <form method="get" class="clientes-filtros inv-filtros">
+      <input type="hidden" name="page" value="inventario">
+
+    <div class="clientes-filtro">
+      <label>Tipo</label>
+      <select name="categoria">
+        <option value="">-- Todos --</option>
+        <?php foreach($categorias as $cat): ?>
+          <option value="<?=$cat?>" <?= $filters['categoria']===$cat?'selected':'' ?>><?=$cat?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div class="clientes-filtro">
+      <label>Estado</label>
+      <select name="estado">
+        <option value="">-- Todos --</option>
+        <?php foreach($estados as $estado): ?>
+          <option value="<?=$estado?>" <?= $filters['estado']===$estado?'selected':'' ?>><?=$estado?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div class="clientes-filtro">
+      <label>Parceiro</label>
+      <select name="parceiro">
+        <option value="">-- Todos --</option>
+        <?php foreach($parceiros as $parceiro): ?>
+          <option value="<?=$parceiro?>" <?= $filters['parceiro']===$parceiro?'selected':'' ?>><?=$parceiro?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div class="clientes-filtro">
+      <label>Nome da peça</label>
+      <select name="produto">
+        <option value="">-- Todos --</option>
+        <?php foreach ($catalogoProdutos as $categoriaCatalogo => $produtos): ?>
+          <optgroup label="<?= htmlspecialchars($categoriaCatalogo) ?>">
+            <?php foreach ($produtos as $produto): ?>
+              <option value="<?= htmlspecialchars($produto) ?>" <?= $filters['produto'] === $produto ? 'selected' : '' ?>><?= htmlspecialchars($produto) ?></option>
+            <?php endforeach; ?>
+          </optgroup>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div class="clientes-filtro">
+      <label>SN (N.º de série)</label>
+      <input type="text" name="sn" value="<?=htmlspecialchars($filters['sn'])?>" placeholder="ex.: ABC12345">
+    </div>
+
+    <div class="clientes-filtros-botoes">
+      <button class="btn btn-blue" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+      <a class="btn btn-grey" href="app.php?page=inventario">Limpar</a>
+    </div>
+    </form>
   </div>
-
-
-  <form method="get">
-    <input type="hidden" name="page" value="inventario">
-      <div class="filters">
-        <div><label>Tipo:</label><label>
-                <select name="categoria">
-                  <option value="">-- Todos --</option>
-                    <?php foreach($categorias as $cat): ?>
-                    <option value="<?=$cat?>" <?= $filters['categoria']===$cat?'selected':'' ?>><?=$cat?></option><?php endforeach; ?></select>
-            </label>
-        </div>
-
-      <div><label>Estado:</label><label>
-              <select name="estado">
-                <option value="">-- Todos --</option>
-                  <?php foreach($estados as $estado): ?>
-                  <option value="<?=$estado?>" <?= $filters['estado']===$estado?'selected':'' ?>><?=$estado?></option><?php endforeach; ?></select>
-          </label>
-      </div>
-
-      <div><label>Parceiro:</label><label>
-              <select name="parceiro">
-                <option value="">-- Todos --</option>
-                  <?php foreach($parceiros as $parceiro): ?>
-                  <option value="<?=$parceiro?>" <?= $filters['parceiro']===$parceiro?'selected':'' ?>><?=$parceiro?></option>
-                  <?php endforeach; ?></select>
-          </label>
-      </div>
-
-      <div><button class="btn btn-blue" type="submit"><i class="bi bi-search"></i> Filtrar</button></div>
-    </div>
-
-    <div class="filters2">
-      <div><label>SN (N.º de série):</label>
-          <label>
-              <input type="text" name="sn" value="<?=htmlspecialchars($filters['sn'])?>" placeholder="ex.: ABC12345">
-          </label>
-      </div>
-
-<div>
-  <label>Nome da peça:</label>
-    <label>
-        <select name="produto">
-          <option value="">-- Todos --</option>
-          <?php foreach ($catalogoProdutos as $categoriaCatalogo => $produtos): ?>
-            <optgroup label="<?= htmlspecialchars($categoriaCatalogo) ?>">
-              <?php foreach ($produtos as $produto): ?>
-                <option value="<?= htmlspecialchars($produto) ?>" <?= $filters['produto'] === $produto ? 'selected' : '' ?>>
-                  <?= htmlspecialchars($produto) ?>
-                </option>
-              <?php endforeach; ?>
-            </optgroup>
-          <?php endforeach; ?>
-        </select>
-    </label>
-</div>
-
-
-      <div><a class="btn btn-blue" href="app.php?page=inventario">Limpar / Mostrar tudo</a>
-      </div>
-    </div>
-  </form>
 
   <div class="table-responsive">
   <table class="table">
@@ -193,7 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
       <th>PAT</th>
       <th>Parceiro</th>
       <th>Estado</th>
-      <th>Ações</th>
+      <th class="actions">Ações</th>
     </tr>
     </thead>
 

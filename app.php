@@ -431,6 +431,58 @@ if ($revPendentes > 0) {
     ];
 }
 
+// PATs com prazo ULTRAPASSADO (em atraso) — mais crítico que o aviso de 3 dias
+$stmtAtraso = $pdo->query("
+    SELECT id, numero_pat, revisao, entidade, data_limite
+    FROM pats
+    WHERE data_limite IS NOT NULL AND data_limite < NOW()
+      AND estado NOT IN ('Resolvido','Concluído','Cancelado')
+    ORDER BY data_limite ASC LIMIT 10
+");
+foreach ($stmtAtraso->fetchAll() as $p) {
+    $notificacoes[] = [
+        'tipo' => 'atraso',
+        'msg'  => 'PAT em atraso: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — prazo ' . date('d/m/Y', strtotime($p['data_limite'])),
+        'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+    ];
+}
+
+// Envios em rascunho por finalizar
+try {
+    $nDraft = (int)$pdo->query("SELECT COUNT(*) FROM envios WHERE estado = 'Rascunho'")->fetchColumn();
+    if ($nDraft > 0) {
+        $notificacoes[] = [
+            'tipo' => 'envio',
+            'msg'  => $nDraft . ' envio(s) em rascunho por finalizar',
+            'link' => 'app.php?page=envios',
+        ];
+    }
+} catch (Throwable $e) { /* tabela ausente — ignora */ }
+
+// Relatórios à espera de validação
+try {
+    $nRel = (int)$pdo->query("SELECT COUNT(*) FROM relatorios WHERE estado IN ('por_confirmar','revisao_manual')")->fetchColumn();
+    if ($nRel > 0) {
+        $notificacoes[] = [
+            'tipo' => 'relatorio',
+            'msg'  => $nRel . ' relatório(s) à espera de validação',
+            'link' => 'app.php?page=relatorios',
+        ];
+    }
+} catch (Throwable $e) { /* tabela ausente — ignora */ }
+
+// Qualidade de dados: peças sem estado atribuído
+try {
+    $nSemEstado = (int)$pdo->query("SELECT COUNT(*) FROM pecas WHERE estado IS NULL OR TRIM(estado) = ''")->fetchColumn();
+    if ($nSemEstado > 0) {
+        $notificacoes[] = [
+            'tipo' => 'suspeita',
+            'msg'  => $nSemEstado . ' peça(s) sem estado atribuído',
+            'link' => 'app.php?page=inventario',
+        ];
+    }
+} catch (Throwable $e) { /* ignora */ }
+
 $totalNotif = count($notificacoes);
 
 // ══════════════════════════════════════════════
@@ -515,7 +567,7 @@ function tipoPt(string $type): string {
     return $mapa[mb_strtolower($type, 'UTF-8')] ?? $type;
 }
 
-// Cor de cada estado — MESMA paleta do gráfico de pizza do Dashboard (estadoColors).
+// Cor de cada estado — MESMA palete do gráfico de pizza do Dashboard (estadoColors).
 function estadoCorHex(string $estado): string {
     static $cores = [
         'Disponível'             => '#28a745',
@@ -2087,6 +2139,51 @@ body.dark-mode .acao-menu { background: #1f2937; border-color: #374151; }
 body.dark-mode .acao-menu a { color: #e5e7eb; }
 body.dark-mode .acao-menu a:hover { background: #374151; }
 
+/* -- Modo Escuro: componentes adicionados + fundos claros inline -- */
+body.dark-mode .actions-dd-menu{ background:#1f2937; border-color:#374151; }
+body.dark-mode .actions-dd-menu a, body.dark-mode .actions-dd-menu button{ color:#e5e7eb; }
+body.dark-mode .actions-dd-menu a:hover, body.dark-mode .actions-dd-menu button:hover{ background:#374151; }
+body.dark-mode .actions-dd-menu .dd-sep{ background:#374151; }
+body.dark-mode .actions-dd-menu a.is-primary{ color:#f3f4f6; }
+body.dark-mode .filter-chip{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .filter-chip .lbl{ color:#9ca3af; }
+body.dark-mode .seg-control{ background:#374151; border-color:#4b5563; }
+body.dark-mode .seg-control a, body.dark-mode .seg-control button{ color:#e5e7eb; }
+body.dark-mode .seg-control .seg-mid{ background:#1f2937; border-color:#4b5563; }
+body.dark-mode .seg-control a:hover{ background:#4b5563; }
+body.dark-mode .row-detail > td{ background:#111827 !important; }
+body.dark-mode .row-detail-inner .rd-item .rd-val{ color:#e5e7eb; }
+body.dark-mode .pats-filtros{ background:#1f2937; border-color:#374151; }
+body.dark-mode .pats-search input, body.dark-mode .pats-filtros-row select{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .env-tabs{ border-color:#374151; }
+body.dark-mode .env-tab{ color:#9ca3af; }
+body.dark-mode .env-tab.is-active{ color:#f3f4f6; }
+body.dark-mode .env-tab .pill{ background:#374151; color:#d1d5db; }
+body.dark-mode .env-stat{ background:#111827; border-color:#374151; }
+body.dark-mode .rel-month-row td{ background:#374151 !important; color:#d1d5db; }
+body.dark-mode .rel-preview{ background:#1f2937; border-color:#374151; }
+body.dark-mode .rel-mes-filtro{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .quick-search-wrap input{ background:#374151; color:#e5e7eb; }
+body.dark-mode .clientes-filtro input, body.dark-mode .clientes-filtro select{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .cli-contactos span{ color:#9ca3af; }
+body.dark-mode .cli-contactos span i{ color:#6b7280; }
+body.dark-mode .kpi-resumo-compact .kpi-card .kpi-lbl{ color:#9ca3af; }
+body.dark-mode .tipo-badge{ filter:brightness(.92); }
+body.dark-mode .clientes-table th{ background:#374151; color:#d1d5db; }
+body.dark-mode .clientes-table td{ border-color:#374151; }
+/* Apanhar fundos claros definidos inline (zonas que ficavam brancas) */
+body.dark-mode [style*="background:#f8fafc"],
+body.dark-mode [style*="background:#f8f9fa"],
+body.dark-mode [style*="background:#f9fafb"],
+body.dark-mode [style*="background:#fff"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background:#f0fdf4"],
+body.dark-mode [style*="background:#eef2f7"],
+body.dark-mode [style*="background:#f3f4f6"]{ background:#1f2937 !important; }
+body.dark-mode [style*="color:#1f2937"],
+body.dark-mode [style*="color:#111827"],
+body.dark-mode [style*="color:#374151"]{ color:#e5e7eb !important; }
+
 
 /* -- Notificações -- */
 .notif-wrap { position: relative; }
@@ -2119,6 +2216,15 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 .notif-item:last-child { border-bottom: none; }
 .notif-dot-urgente { color: #ef4444; font-size: 10px; margin-top: 3px; }
 .notif-dot-prazo   { color: #f59e0b; font-size: 10px; margin-top: 3px; }
+.notif-dot-suspeita  { color: #8b5cf6; font-size: 10px; margin-top: 3px; }
+.notif-dot-atraso    { color: #dc2626; font-size: 10px; margin-top: 3px; }
+.notif-dot-envio     { color: #06b6d4; font-size: 10px; margin-top: 3px; }
+.notif-dot-relatorio { color: #2563eb; font-size: 10px; margin-top: 3px; }
+.notif-dot-stock     { color: #16a34a; font-size: 10px; margin-top: 3px; }
+body.dark-mode .notif-panel{ background:#1f2937; border-color:#374151; }
+body.dark-mode .notif-panel-header{ color:#f3f4f6; border-color:#374151; }
+body.dark-mode .notif-item{ color:#e5e7eb !important; border-color:#374151; }
+body.dark-mode .notif-item:hover{ background:#374151; }
 .notif-empty { padding: 18px; text-align: center; color: #6b7280; font-size: 13px; }
 .notif-wrap.open .notif-panel { display: block; }
 
@@ -2193,6 +2299,73 @@ body.dark-mode .acao-menu a:hover { background: #374151; }
 .filters2 select,
 .filters2 input { height:38px; padding:8px 12px; font-size:14px; }
 .filters label, .filters2 label { font-size:13px; margin-bottom:4px; }
+
+/* ════════════════════════════════════════════════════════════════
+   COMPONENTES PARTILHADOS DE UI (linguagem comum de tabelas/toolbars)
+   Adicionado para uniformizar Inventário, PATs, Clientes, Envios, etc.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Coluna de Ações sempre centrada horizontalmente */
+.table td.actions, .table th.actions, td.actions, th.actions{ text-align:center; }
+.table td.actions .btn, .table td.actions form{ vertical-align:middle; }
+
+/* Toolbar compacta (filtros + ações numa só linha, com wrap responsivo) */
+.toolbar-compact{ display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:4px 0 16px; }
+.toolbar-compact .tb-grow{ flex:1 1 220px; min-width:200px; }
+.toolbar-compact .tb-actions{ display:flex; gap:8px; align-items:end; margin-left:auto; }
+
+/* Dropdown de ações reutilizável (toggle nativo <details>, sem dependências) */
+.actions-dd{ position:relative; display:inline-block; }
+.actions-dd > summary{ list-style:none; cursor:pointer; user-select:none; }
+.actions-dd > summary::-webkit-details-marker{ display:none; }
+.actions-dd > summary .bi-chevron-down{ font-size:11px; margin-left:2px; transition:transform .15s; }
+.actions-dd[open] > summary .bi-chevron-down{ transform:rotate(180deg); }
+.actions-dd-menu{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:60;
+  background:#fff; border:1px solid #e5e9ef; border-radius:10px;
+  box-shadow:0 10px 28px rgba(16,24,40,.14); min-width:212px; padding:6px;
+  display:flex; flex-direction:column;
+}
+.actions-dd-menu a, .actions-dd-menu button{
+  display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:none; background:none; width:100%; text-align:left;
+  border-radius:7px; text-decoration:none; color:#374151; font-size:14px; cursor:pointer;
+}
+.actions-dd-menu a:hover, .actions-dd-menu button:hover{ background:#f3f4f6; }
+.actions-dd-menu a.is-primary{ color:#1a202c; font-weight:600; }
+.actions-dd-menu a.is-primary i{ color:#c9a14a; }
+.actions-dd-menu .dd-sep{ height:1px; background:#eef1f5; margin:4px 2px; }
+.actions-dd-menu label.dd-check{ font-size:13px; color:#374151; padding:7px 10px; cursor:pointer; display:flex; gap:9px; align-items:center; }
+
+/* Chips de filtro ativo (PATs Opção D / filtros visíveis) */
+.filter-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 14px; }
+.filter-chip{
+  display:inline-flex; align-items:center; gap:7px; padding:5px 10px 5px 12px;
+  background:#f3f4f6; border:1px solid #e5e9ef; border-radius:999px;
+  font-size:12.5px; color:#374151; text-decoration:none;
+}
+.filter-chip .lbl{ color:#9ca3af; text-transform:uppercase; font-size:10.5px; font-weight:700; letter-spacing:.04em; }
+.filter-chip a, .filter-chip button{ color:#9ca3af; border:none; background:none; cursor:pointer; line-height:1; padding:0; display:inline-flex; }
+.filter-chip a:hover, .filter-chip button:hover{ color:#dc3545; }
+
+/* Linha expansível de detalhe (Clientes Opção D) */
+.row-toggle{ cursor:pointer; }
+.row-toggle .exp-caret{ transition:transform .15s; display:inline-block; color:#9ca3af; }
+tr.is-expanded .exp-caret{ transform:rotate(90deg); }
+.row-detail > td{ background:#f8fafc !important; padding:0 !important; }
+.row-detail-inner{ padding:14px 18px; display:flex; flex-wrap:wrap; gap:22px 40px; }
+.row-detail-inner .rd-item{ display:flex; flex-direction:column; gap:2px; }
+.row-detail-inner .rd-item .rd-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; font-weight:700; color:#9ca3af; }
+.row-detail-inner .rd-item .rd-val{ font-size:13.5px; color:#1f2937; }
+
+/* Segmented control (Revisão Opção D — navegação de data) */
+.seg-control{ display:inline-flex; align-items:stretch; border:1px solid #e5e9ef; border-radius:9px; overflow:hidden; background:#f8fafc; }
+.seg-control a, .seg-control button{
+  display:inline-flex; align-items:center; gap:6px; padding:0 14px; height:42px;
+  border:none; background:none; color:#374151; font-size:14px; text-decoration:none; cursor:pointer;
+}
+.seg-control .seg-mid{ font-weight:600; min-width:140px; justify-content:center; border-left:1px solid #e5e9ef; border-right:1px solid #e5e9ef; background:#fff; }
+.seg-control a:hover, .seg-control button:hover{ background:#eef2f7; }
 
 </style>
 <script>

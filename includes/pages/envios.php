@@ -984,8 +984,42 @@ if ($page === 'envios') {
 }
 ?>
 
+<?php
+// Opção C — layout em tabs (Lista / Importar / Estatísticas)
+$envTabInicial = $envioAtual ? 'importar' : 'lista';
+// Estatísticas simples a partir da lista já carregada (sem novas queries)
+$envStats = ['total'=>count($envios), 'Rascunho'=>0, 'Ativa'=>0, 'Concluida'=>0, 'Outros'=>0];
+foreach ($envios as $eStat) {
+    $st = $eStat['estado'] ?? '';
+    if (isset($envStats[$st])) $envStats[$st]++; else $envStats['Outros']++;
+}
+?>
+<style>
+.env-tabs{ display:flex; gap:4px; border-bottom:1px solid #e5e9ef; margin-bottom:18px; flex-wrap:wrap; }
+.env-tab{ border:none; background:none; padding:11px 18px; font-size:14px; font-weight:600; color:#6b7280; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; align-items:center; gap:7px; }
+.env-tab:hover{ color:#374151; }
+.env-tab.is-active{ color:#1a202c; border-bottom-color:#c9a14a; }
+.env-tab .pill{ background:#f3f4f6; color:#4b5563; border-radius:999px; font-size:11px; font-weight:700; padding:1px 8px; }
+.env-tabpane{ display:none; }
+.env-tabpane.is-active{ display:block; }
+.env-estado{ display:inline-flex; align-items:center; gap:7px; padding:3px 11px; border-radius:999px; font-size:11.5px; font-weight:600; background:var(--bg); color:var(--c); }
+.env-estado .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+.env-stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+.env-stat{ background:#f8fafc; border:1px solid #e5e9ef; border-radius:12px; padding:16px 18px; }
+.env-stat .n{ font-size:30px; font-weight:700; line-height:1; }
+.env-stat .l{ font-size:13px; color:#6b7280; margin-top:6px; }
+</style>
+
+<div class="env-tabs" id="enviosTabs">
+  <button type="button" class="env-tab<?= $envTabInicial==='lista' ? ' is-active':'' ?>" data-tab="lista"><i class="bi bi-list-ul"></i> Lista de Envios <span class="pill"><?= $envStats['total'] ?></span></button>
+  <button type="button" class="env-tab<?= $envTabInicial==='importar' ? ' is-active':'' ?>" data-tab="importar"><i class="bi bi-cloud-arrow-up"></i> Importar</button>
+  <button type="button" class="env-tab" data-tab="stats"><i class="bi bi-bar-chart"></i> Estatísticas</button>
+</div>
+
+<!-- ===== PANE: IMPORTAR ===== -->
+<div class="env-tabpane<?= $envTabInicial==='importar' ? ' is-active':'' ?>" data-pane="importar">
 <!-- == Linha Superior: Leitura Guia (Esquerda) + Formulario (Direita) == -->
-<!-- Estilos .upload-pdf-* e .btn-ler-guia agora centralizados em app.php (reutilizados também em Contas/Relatórios) -->
+<!-- Estilos .upload-pdf-* e .btn-ler-guia centralizados em app.php (reutilizados também em Contas/Relatórios) -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
    <div class="panel" style="height:100%;">
       <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Leitura de Guia de Transporte</h4>
@@ -1211,9 +1245,10 @@ if ($page === 'envios') {
     </div>
 
 </div><!-- fim grid superior -->
+</div><!-- ===== fim PANE: IMPORTAR ===== -->
 
-
-<!-- ══ LINHA INFERIOR: Lista de Envios (largura total) ══ -->
+<!-- ===== PANE: LISTA DE ENVIOS ===== -->
+<div class="env-tabpane<?= $envTabInicial==='lista' ? ' is-active':'' ?>" data-pane="lista">
 <div class="panel">
     <h4 style="margin-bottom:18px;"><i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i>Lista de Envios</h4>
     <div style="overflow-x:auto;">
@@ -1227,7 +1262,7 @@ if ($page === 'envios') {
                 <th>Parceiro</th>
                 <th>Estado</th>
                 <th>Criado Por</th>
-                <th>Ações</th>
+                <th class="actions">Ações</th>
             </tr>
             </thead>
             <tbody>
@@ -1242,14 +1277,18 @@ if ($page === 'envios') {
                         <td><?= htmlspecialchars($e['data_documento'] ? date('d/m/Y', strtotime($e['data_documento'])) : '—') ?></td>
                         <td><?= htmlspecialchars($e['parceiro']) ?></td>
                         <td>
-                       <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600;
-                               background:<?= $e['estado']==='Rascunho' ? '#fef3c7' : ($e['estado']==='Ativa' ? '#dcfce7' : ($e['estado']==='Concluida' ? '#dbeafe' : '#f3f4f6')) ?>;
-                               color:<?= $e['estado']==='Rascunho' ? '#92400e' : ($e['estado']==='Ativa' ? '#15803d' : ($e['estado']==='Concluida' ? '#1d4ed8' : '#374151')) ?>;">
-                         <?= htmlspecialchars($e['estado']) ?>
-                       </span>
+                            <?php
+                            $eMap = [
+                                'Rascunho'  => ['#92400e','#fef3c7','Rascunho'],
+                                'Ativa'     => ['#15803d','#dcfce7','Ativa'],
+                                'Concluida' => ['#1d4ed8','#dbeafe','Concluída'],
+                            ];
+                            $eb = $eMap[$e['estado']] ?? ['#374151','#f3f4f6', $e['estado']];
+                            ?>
+                            <span class="env-estado" style="--c:<?= $eb[0] ?>;--bg:<?= $eb[1] ?>;"><span class="dot"></span><?= htmlspecialchars($eb[2]) ?></span>
                         </td>
                         <td><?= htmlspecialchars($e['criado_por']) ?></td>
-                        <td>
+                        <td class="actions">
                             <?php if (($e['estado'] ?? '') === 'Rascunho'): ?>
                                 <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int)$e['id'] ?>">Abrir Rascunho</a>
                             <?php else: ?>
@@ -1263,5 +1302,34 @@ if ($page === 'envios') {
         </table>
     </div>
 </div>
+</div><!-- ===== fim PANE: LISTA DE ENVIOS ===== -->
+
+<!-- ===== PANE: ESTATÍSTICAS ===== -->
+<div class="env-tabpane" data-pane="stats">
+  <div class="panel">
+    <h4 style="margin-bottom:18px;"><i class="bi bi-bar-chart" style="margin-right:6px; color:#c9a14a;"></i>Estatísticas de Envios</h4>
+    <div class="env-stats-grid">
+      <div class="env-stat"><div class="n"><?= $envStats['total'] ?></div><div class="l">Total de envios</div></div>
+      <div class="env-stat"><div class="n" style="color:#b45309;"><?= $envStats['Rascunho'] ?></div><div class="l">Rascunhos</div></div>
+      <div class="env-stat"><div class="n" style="color:#15803d;"><?= $envStats['Ativa'] ?></div><div class="l">Ativas</div></div>
+      <div class="env-stat"><div class="n" style="color:#1d4ed8;"><?= $envStats['Concluida'] ?></div><div class="l">Concluídas</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var nav = document.getElementById('enviosTabs');
+  if(!nav) return;
+  var tabs  = nav.querySelectorAll('.env-tab');
+  var panes = document.querySelectorAll('.env-tabpane');
+  nav.addEventListener('click', function(ev){
+    var b = ev.target.closest('.env-tab'); if(!b) return;
+    var t = b.getAttribute('data-tab');
+    tabs.forEach(function(x){ x.classList.toggle('is-active', x===b); });
+    panes.forEach(function(p){ p.classList.toggle('is-active', p.getAttribute('data-pane')===t); });
+  });
+})();
+</script>
 
 

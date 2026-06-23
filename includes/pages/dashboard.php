@@ -26,6 +26,25 @@ if ($mediaExecMin === null || $mediaExecMin === false) {
     $h = (float)$mediaExecMin / 60;
     $execLabel = $h < 24 ? round($h, 1) . 'h' : round($h / 24, 1) . 'd';
 }
+
+// ── Dashboard · Ranking de Parceiros por carga atual (Opção B) ──
+// Leitura apenas: peças por parceiro, destacando as que estão "em curso" (carga ativa).
+$rankingParceiros = $pdo->query("
+    SELECT p.parceiro,
+           COUNT(*) AS total,
+           SUM(CASE WHEN p.estado NOT IN ('Disponível','Cliente','Abater') THEN 1 ELSE 0 END) AS em_curso
+    FROM pecas p
+    WHERE p.parceiro IS NOT NULL AND TRIM(p.parceiro) <> ''
+    GROUP BY p.parceiro
+    ORDER BY em_curso DESC, total DESC
+    LIMIT 5
+")->fetchAll();
+$rankingMax = 0;
+foreach ($rankingParceiros as $rp) { $rankingMax = max($rankingMax, (int)$rp['em_curso']); }
+
+// ── Dashboard · Peças Paradas (Opção G) ── reutiliza helper existente
+require_once __DIR__ . '/../pecas_suspeitas.php';
+$pecasParadas = array_slice(nvPecasSuspeitas($pdo, ['dias' => 7]), 0, 8);
 ?>
 
 <!-- Dashboard-Quadrados --> 
@@ -219,14 +238,74 @@ if ($mediaExecMin === null || $mediaExecMin === false) {
 </div>
 
 <div class="panel-grid-2">
+  <!-- Opção B — Ranking de Parceiros por carga atual -->
   <div class="panel">
-    <h4><i class="bi bi-bar-chart-line" style="color:#c9a14a; margin-right:6px;"></i>Atividade Mensal — Peças vs PATs</h4>
-    <canvas id="atividadeMensalChart"></canvas>
+    <h4><i class="bi bi-people" style="color:#c9a14a; margin-right:6px;"></i>Ranking de Parceiros — carga atual</h4>
+    <?php if (empty($rankingParceiros)): ?>
+      <div class="table-empty-state"><i class="bi bi-people"></i>Sem peças atribuídas a parceiros.</div>
+    <?php else: ?>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Parceiro</th>
+          <th class="nowrap" style="text-align:center;">Em curso</th>
+          <th class="nowrap" style="text-align:center;">Total</th>
+          <th style="width:34%;">Carga</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($rankingParceiros as $rp):
+          $emCurso = (int)$rp['em_curso']; $tot = (int)$rp['total'];
+          $pct = $rankingMax > 0 ? round($emCurso / $rankingMax * 100) : 0;
+        ?>
+        <tr>
+          <td style="font-weight:600;"><?= htmlspecialchars($rp['parceiro']) ?></td>
+          <td class="nowrap" style="text-align:center;font-weight:700;color:#b45309;"><?= $emCurso ?></td>
+          <td class="nowrap" style="text-align:center;color:#6b7280;"><?= $tot ?></td>
+          <td>
+            <div style="background:#f1f3f5;border-radius:999px;height:8px;overflow:hidden;">
+              <div style="width:<?= $pct ?>%;height:100%;background:linear-gradient(90deg,#c9a14a,#e0bd6e);border-radius:999px;"></div>
+            </div>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
   </div>
 
+  <!-- Opção G — Peças Paradas (sem movimento) -->
   <div class="panel">
-    <h4><i class="bi bi-people" style="color:#c9a14a; margin-right:6px;"></i>Top Parceiros (peças atribuídas)</h4>
-    <canvas id="topParceirosChart"></canvas>
+    <h4><i class="bi bi-hourglass-bottom" style="color:#c9a14a; margin-right:6px;"></i>Peças Paradas <span style="font-weight:400;color:#9ca3af;font-size:13px;">(sem movimento há +7 dias)</span></h4>
+    <?php if (empty($pecasParadas)): ?>
+      <div class="table-empty-state"><i class="bi bi-check2-circle"></i>Nenhuma peça parada. Tudo em dia.</div>
+    <?php else: ?>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Peça</th>
+          <th>Estado</th>
+          <th class="nowrap" style="text-align:center;">Dias parada</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($pecasParadas as $pp):
+          $dias = (int)$pp['dias_parada'];
+          $corDias = $dias >= 30 ? '#dc3545' : ($dias >= 15 ? '#f59e0b' : '#6b7280');
+          $nome = $pp['produto'] ?: ('Peça #' . $pp['id']);
+        ?>
+        <tr>
+          <td>
+            <a href="app.php?page=peca&id=<?= (int)$pp['id'] ?>" style="font-weight:600;color:#1f2937;text-decoration:none;"><?= htmlspecialchars($nome) ?></a>
+            <?php if (!empty($pp['sn'])): ?><div style="font-size:11px;color:#9ca3af;font-family:monospace;">SN: <?= htmlspecialchars($pp['sn']) ?></div><?php endif; ?>
+          </td>
+          <td><?= estadoBolha($pp['estado']) ?></td>
+          <td class="nowrap" style="text-align:center;font-weight:700;color:<?= $corDias ?>;"><?= $dias ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
   </div>
 </div>
 

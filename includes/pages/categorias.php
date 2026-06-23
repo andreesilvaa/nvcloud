@@ -35,7 +35,7 @@
       </div>
       <div class="table-responsive">
         <table class="table" id="tabelaCategorias">
-          <thead><tr><th style="width:90px;">ID</th><th>Categoria</th><th style="width:70px;">Ações</th></tr></thead>
+          <thead><tr><th style="width:90px;">ID</th><th>Categoria</th><th class="actions" style="width:70px;">Ações</th></tr></thead>
           <tbody>
             <?php foreach ($tabListas as $row): ?>
               <tr>

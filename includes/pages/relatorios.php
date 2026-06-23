@@ -121,7 +121,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
     $linkBase = 'app.php?page=relatorios' . ($fonteAtiva !== '' ? '&fonte=' . urlencode($fonteAtiva) : '');
     ?>
 
-<!-- == Linha Superior: Importar Relatório (Esquerda) + Validação (Direita) == -->
+<?php if ($det): ?>
+<!-- == Linha Superior: Importar Relatório (Esquerda) + Validação (Direita) — só ao rever == -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
    <div class="panel" style="height:100%;">
       <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Importar Relatório</h4>
@@ -249,11 +250,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
     </div>
 
 </div><!-- fim grid superior -->
+<?php endif; ?>
 
 
-<!-- ══ PARCEIROS (fonte dos relatórios) ══ -->
+<!-- ══ PARCEIROS (fonte dos relatórios) — no topo, com Importar em menu ══ -->
 <div class="panel" style="margin-bottom:20px;">
-    <h4 style="margin-bottom:16px;"><i class="bi bi-people" style="margin-right:6px; color:#c9a14a;"></i>Parceiros</h4>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+        <h4 style="margin:0;"><i class="bi bi-people" style="margin-right:6px; color:#c9a14a;"></i>Parceiros</h4>
+        <details class="actions-dd">
+            <summary class="btn btn-teal"><i class="bi bi-cloud-arrow-up"></i> Importar Relatório <i class="bi bi-chevron-down"></i></summary>
+            <div class="actions-dd-menu" style="min-width:300px; padding:14px; right:0;">
+                <form method="post" enctype="multipart/form-data" action="app.php?page=relatorios">
+                    <input type="hidden" name="action" value="relatorio_upload">
+                    <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+                    <label style="font-size:12px; color:#6b7280; display:block; margin-bottom:6px;">Ficheiro PDF ou EML</label>
+                    <input type="file" name="relatorio" accept=".pdf,.eml" required style="display:block; width:100%; margin-bottom:10px; font-size:13px;">
+                    <button type="submit" class="btn btn-blue" style="width:100%; justify-content:center;"><i class="bi bi-upload"></i> Importar</button>
+                </form>
+            </div>
+        </details>
+    </div>
     <div class="relatorios-fonte-grid" id="relatoriosFonteGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
         <a href="app.php?page=relatorios" class="relatorios-fonte-card" data-fonte="" style="text-decoration:none; color:inherit;">
             <div style="border:2px solid <?= $fonteAtiva === '' ? '#c9a14a' : '#e5e7eb' ?>; border-radius:10px; padding:16px; text-align:center; transition:border-color .15s ease;">
@@ -275,6 +291,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
 </div>
 
 
+<?php
+// Opção F — meses disponíveis (para agrupar a lista e alimentar o filtro inline)
+$mesesPt = [1=>'Janeiro',2=>'Fevereiro',3=>'Março',4=>'Abril',5=>'Maio',6=>'Junho',7=>'Julho',8=>'Agosto',9=>'Setembro',10=>'Outubro',11=>'Novembro',12=>'Dezembro'];
+$relMesesDisponiveis = [];
+foreach ($lista as $rTmp) {
+    $tsTmp = strtotime((string)$rTmp['criado_em']);
+    if ($tsTmp) { $relMesesDisponiveis[date('Y-m',$tsTmp)] = $mesesPt[(int)date('n',$tsTmp)].' '.date('Y',$tsTmp); }
+}
+?>
 <!-- ══ LINHA INFERIOR: Lista de Relatórios (largura total) ══ -->
 <div class="panel" id="painelListaRelatorios">
     <div class="panel-header-row">
@@ -287,11 +312,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
             </h4>
             <span class="panel-count-badge"><?= count($lista) ?></span>
         </div>
-        <div class="panel-header-actions">
+        <div class="panel-header-actions" style="gap:10px;">
             <div class="quick-search-wrap">
                 <i class="bi bi-search"></i>
                 <input type="text" class="quick-search-input" data-table="#tabelaRelatorios" data-empty="#tabelaRelatoriosVazia" placeholder="Pesquisa rápida na tabela…">
             </div>
+            <select class="rel-mes-filtro" onchange="nvRelFiltrarMes(this)" aria-label="Filtrar por mês">
+                <option value="">Todos os meses</option>
+                <?php foreach ($relMesesDisponiveis as $k => $lbl): ?>
+                    <option value="<?= $k ?>"><?= $lbl ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
     </div>
     <div class="table-responsive">
@@ -304,17 +335,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
                 <th>Cliente</th>
                 <th>Estado</th>
                 <th>Data</th>
-                <th>Ações</th>
+                <th class="actions">Ações</th>
             </tr>
             </thead>
             <tbody>
             <?php if (empty($lista)): ?>
                 <tr id="tabelaRelatoriosVazia" data-no-filter><td colspan="7" class="envios-vazio">Nenhum relatório registado.</td></tr>
             <?php else: ?>
-                <?php foreach ($lista as $r): ?>
-                    <?php [$bg, $fg] = $corEstado($r['estado']); ?>
-                    <tr>
-                        <td><?= e($r['ficheiro_nome']) ?></td>
+                <?php $mesAtual = null; foreach ($lista as $r): ?>
+                    <?php
+                        [$bg, $fg] = $corEstado($r['estado']);
+                        $tsR    = strtotime((string)$r['criado_em']);
+                        $mesKey = $tsR ? date('Y-m', $tsR) : '0000-00';
+                        $mesLbl = $tsR ? $mesesPt[(int)date('n',$tsR)].' '.date('Y',$tsR) : 'Sem data';
+                        if ($mesKey !== $mesAtual): $mesAtual = $mesKey;
+                    ?>
+                        <tr class="rel-month-row" data-mes="<?= $mesKey ?>"><td colspan="7"><i class="bi bi-calendar3"></i> <?= $mesLbl ?></td></tr>
+                    <?php endif; ?>
+                    <tr data-mes="<?= $mesKey ?>">
+                        <td class="rel-file">
+                            <span class="rel-file-name"><?= e($r['ficheiro_nome']) ?></span>
+                            <div class="rel-preview">
+                                <div><span class="k">PAT</span><span><?= e($r['pat_numero'] ?: '—') ?></span></div>
+                                <div><span class="k">Cliente</span><span><?= e($r['cliente_detect'] ?: '—') ?></span></div>
+                                <div><span class="k">Fonte</span><span><?= e($fontesInfo[$r['fonte']]['nome'] ?? $r['fonte']) ?></span></div>
+                                <div><span class="k">Estado</span><span><?= e($r['estado']) ?></span></div>
+                                <div><span class="k">Data</span><span><?= e($r['criado_em']) ?></span></div>
+                            </div>
+                        </td>
                         <td><?= e($fontesInfo[$r['fonte']]['nome'] ?? $r['fonte']) ?></td>
                         <td><?= e($r['pat_numero']) ?></td>
                         <td><?= e($r['cliente_detect']) ?></td>
@@ -324,7 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
                             </span>
                         </td>
                         <td style="white-space:nowrap;"><?= e($r['criado_em']) ?></td>
-                        <td><a class="btn btn-yellow" href="<?= $linkBase . ($fonteAtiva !== '' ? '&' : '?') ?>ver=<?= (int)$r['id'] ?>">Ver</a></td>
+                        <td class="actions"><a class="btn btn-yellow" href="<?= $linkBase . ($fonteAtiva !== '' ? '&' : '?') ?>ver=<?= (int)$r['id'] ?>">Ver</a></td>
                     </tr>
                 <?php endforeach; ?>
                 <tr id="tabelaRelatoriosVazia" data-no-filter style="display:none;"><td colspan="7" class="envios-vazio">Sem resultados para esta pesquisa.</td></tr>
@@ -378,4 +426,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
         });
     });
 })();
+</script>
+
+<style>
+.rel-mes-filtro{ height:40px; border:1px solid #e5e9ef; background:#f8fafc; border-radius:9px; font-size:13.5px; padding:0 10px; color:#374151; }
+.rel-month-row td{ background:#eef1f5 !important; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#4b5563; padding:7px 12px !important; }
+.rel-month-row .bi{ margin-right:6px; color:#c9a14a; }
+.rel-file{ position:relative; }
+.rel-file-name{ font-weight:600; }
+.rel-preview{ display:none; position:absolute; left:0; top:calc(100% + 4px); z-index:70; background:#fff; border:1px solid #e5e9ef; border-radius:10px; box-shadow:0 10px 28px rgba(16,24,40,.16); padding:12px 14px; min-width:250px; }
+.rel-file:hover .rel-preview{ display:block; }
+.rel-preview > div{ display:flex; justify-content:space-between; gap:18px; font-size:12.5px; padding:3px 0; }
+.rel-preview .k{ color:#9ca3af; text-transform:uppercase; font-size:10.5px; font-weight:700; letter-spacing:.04em; }
+</style>
+<script>
+window.nvRelFiltrarMes = function(sel){
+  var mes = sel.value;
+  var panel = sel.closest('.panel'); if(!panel) return;
+  var tbody = panel.querySelector('tbody'); if(!tbody) return;
+  tbody.querySelectorAll('tr[data-mes]').forEach(function(tr){
+    tr.style.display = (!mes || tr.getAttribute('data-mes') === mes) ? '' : 'none';
+  });
+};
 </script>

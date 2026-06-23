@@ -453,13 +453,23 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 </style>
 
 <div class="card">
+    <?php
+    // Opção D — navegação de mês como segmented control
+    $revMesesPt = [1=>'Janeiro',2=>'Fevereiro',3=>'Março',4=>'Abril',5=>'Maio',6=>'Junho',7=>'Julho',8=>'Agosto',9=>'Setembro',10=>'Outubro',11=>'Novembro',12=>'Dezembro'];
+    $tsPer        = strtotime($periodo . '-01');
+    $mesPrev      = date('Y-m', strtotime('-1 month', $tsPer));
+    $mesNext      = date('Y-m', strtotime('+1 month', $tsPer));
+    $periodoLabel = $revMesesPt[(int)date('n', $tsPer)] . ' ' . date('Y', $tsPer);
+    ?>
     <div class="rev-header">
         <h2><i class="bi bi-clipboard-check"></i> Revisão de Peças</h2>
-        <form method="get" class="rev-mes-form">
-            <input type="hidden" name="page" value="revisao">
-            <input type="month" name="mes" value="<?= e($periodo) ?>">
-            <button class="btn btn-blue" type="submit">Ver</button>
-        </form>
+        <div class="rev-toolbar" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div class="seg-control">
+                <a href="app.php?page=revisao&mes=<?= e($mesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
+                <span class="seg-mid"><?= e($periodoLabel) ?></span>
+                <a href="app.php?page=revisao&mes=<?= e($mesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
+            </div>
+        </div>
     </div>
 
     <!-- KPIs -->
@@ -506,13 +516,6 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 
     <?php else: ?>
 
-    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-        <div class="quick-search-wrap">
-            <i class="bi bi-search"></i>
-            <input type="text" class="quick-search-input" data-table="#tabelaRevisao" data-empty="#tabelaRevisaoVazia" placeholder="Pesquisa rápida na tabela…">
-        </div>
-    </div>
-
     <!-- Tabela (desktop) -->
     <div class="rev-table-wrap">
         <table class="rev-table" id="tabelaRevisao">
@@ -526,7 +529,7 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
                     <th>Dias</th>
                     <th>Decisão</th>
                     <th>Revisto por</th>
-                    <th></th>
+                    <th class="actions">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -570,12 +573,24 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
                             <span style="color:#d1d5db;">—</span>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td class="actions">
                         <?php $isPend = $r['decisao'] === 'pendente'; ?>
-                        <button class="rev-btn <?= $isPend ? 'rev-btn-rever' : 'rev-btn-editar' ?>"
-                            onclick="abrirModal(<?= (int)$r['id'] ?>, <?= htmlspecialchars(json_encode($r['produto']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($r['sn']), ENT_QUOTES) ?>)">
-                            <?= $isPend ? 'Rever' : 'Editar' ?>
-                        </button>
+                        <div class="rev-acoes" style="display:inline-flex; gap:6px; align-items:center; justify-content:center;">
+                            <?php if ($isPend): ?>
+                            <form method="post" style="display:inline; margin:0;">
+                                <input type="hidden" name="form_type" value="rever_peca">
+                                <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf_token'] ?? '') ?>">
+                                <input type="hidden" name="rev_id" value="<?= (int)$r['id'] ?>">
+                                <input type="hidden" name="decisao" value="mantido">
+                                <button type="submit" class="btn btn-green" title="Marcar como revisto" aria-label="Marcar como revisto"><i class="bi bi-check2"></i></button>
+                            </form>
+                            <?php endif; ?>
+                            <button type="button" class="btn btn-yellow" title="<?= $isPend ? 'Rever' : 'Editar' ?>" aria-label="<?= $isPend ? 'Rever' : 'Editar' ?>"
+                                onclick="abrirModal(<?= (int)$r['id'] ?>, <?= htmlspecialchars(json_encode($r['produto']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($r['sn']), ENT_QUOTES) ?>)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <a class="btn btn-grey" href="app.php?page=peca&id=<?= (int)$r['peca_id'] ?>" title="Ver peça" aria-label="Ver peça"><i class="bi bi-eye"></i></a>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>

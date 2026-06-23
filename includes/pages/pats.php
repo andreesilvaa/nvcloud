@@ -718,41 +718,63 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
         </div>
     </div>
 
-    <!-- Filtros -->
-    <div class="panel" style="margin-bottom:20px;">
-        <form method="get">
+    <!-- Filtros (barra compacta) -->
+    <style>
+      .pats-filtros{ background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:12px 14px; margin-bottom:18px; }
+      .pats-filtros-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+      .pats-search{ position:relative; flex:1 1 280px; min-width:200px; }
+      .pats-search i{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:15px; pointer-events:none; }
+      .pats-search input{ width:100%; height:40px; padding:0 12px 0 38px; border:1px solid #e5e9ef; background:#f8fafc; border-radius:9px; font-size:14px; }
+      .pats-filtros-row select{ height:40px; border:1px solid #e5e9ef; background:#f8fafc; border-radius:9px; font-size:14px; padding:0 10px; min-width:150px; }
+      .pats-filtros-row .btn{ height:40px; display:inline-flex; align-items:center; gap:6px; padding:0 16px; }
+      .pats-search input:focus, .pats-filtros-row select:focus{ background:#fff; border-color:#c9a14a; outline:none; }
+    </style>
+    <div class="pats-filtros">
+        <form method="get" class="pats-filtros-row">
             <input type="hidden" name="page" value="pats">
-            <div class="clientes-filtros">
-                <div class="clientes-filtro">
-                    <label>Pesquisar</label>
-                    <div class="quick-search-wrap" style="max-width:none;">
-                        <i class="bi bi-search"></i>
-                        <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Nº PAT, entidade ou técnico">
-                    </div>
-                </div>
-                <div class="clientes-filtro">
-                    <label>Estado</label>
-                    <select name="estado">
-                        <option value="">-- Todos --</option>
-                        <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
-                        <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="clientes-filtro">
-                    <label>Prioridade</label>
-                    <select name="prioridade">
-                        <option value="">-- Todas --</option>
-                        <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
-                        <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
-                    </select>
-                </div>
-                <div class="clientes-filtros-botoes">
-                    <button type="submit" class="btn btn-blue">Filtrar</button>
-                    <a href="app.php?page=pats" class="btn btn-grey">Limpar</a>
-                </div>
+            <div class="pats-search">
+                <i class="bi bi-search"></i>
+                <input type="text" name="q" value="<?= htmlspecialchars($patFiltros['q']) ?>" placeholder="Pesquisar Nº PAT, entidade ou técnico…">
             </div>
+            <select name="estado">
+                <option value="">Estado: todos</option>
+                <?php foreach (['Aberto','Em Curso','Resolvido','Concluído','Cancelado'] as $est): ?>
+                <option value="<?= $est ?>" <?= $patFiltros['estado']===$est ? 'selected' : '' ?>><?= $est ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="prioridade">
+                <option value="">Prioridade: todas</option>
+                <option value="Normal"  <?= $patFiltros['prioridade']==='Normal'  ? 'selected' : '' ?>>Normal</option>
+                <option value="Urgente" <?= $patFiltros['prioridade']==='Urgente' ? 'selected' : '' ?>>Urgente</option>
+            </select>
+            <button type="submit" class="btn btn-blue"><i class="bi bi-funnel"></i> Filtrar</button>
+            <a href="app.php?page=pats" class="btn btn-grey">Limpar</a>
         </form>
+
+        <?php
+        // Opção D — chips de filtro ativo (sempre visíveis sob a pesquisa)
+        $chipsAtivos = [];
+        if (($patFiltros['q'] ?? '') !== '')          $chipsAtivos['q']          = ['Pesquisa',  $patFiltros['q']];
+        if (($patFiltros['estado'] ?? '') !== '')     $chipsAtivos['estado']     = ['Estado',     $patFiltros['estado']];
+        if (($patFiltros['prioridade'] ?? '') !== '') $chipsAtivos['prioridade'] = ['Prioridade', $patFiltros['prioridade']];
+        if ($chipsAtivos):
+        ?>
+        <div class="filter-chips">
+            <?php foreach ($chipsAtivos as $k => $c):
+                $rest = array_filter([
+                    'q'          => $patFiltros['q']          ?? '',
+                    'estado'     => $patFiltros['estado']     ?? '',
+                    'prioridade' => $patFiltros['prioridade'] ?? '',
+                ], fn($v) => $v !== '');
+                unset($rest[$k]);
+                $url = 'app.php?' . http_build_query(array_merge(['page' => 'pats'], $rest));
+            ?>
+            <span class="filter-chip"><span class="lbl"><?= $c[0] ?>:</span> <?= htmlspecialchars($c[1]) ?>
+                <a href="<?= htmlspecialchars($url) ?>" title="Remover filtro">&times;</a></span>
+            <?php endforeach; ?>
+            <a href="app.php?page=pats" class="filter-chip" style="color:#dc2626;border-color:#fecaca;background:#fff5f5;">Limpar tudo</a>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Botão novo PAT + Tabela -->
@@ -763,10 +785,6 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                 <span class="panel-count-badge"><?= count($patsList) ?></span>
             </div>
             <div class="panel-header-actions">
-                <div class="quick-search-wrap">
-                    <i class="bi bi-search"></i>
-                    <input type="text" class="quick-search-input" data-table="#tabelaPats" data-empty="#tabelaPatsVazia" placeholder="Pesquisa rápida na tabela…">
-                </div>
                 <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
                 <a href="exportar_pats_csv.php" class="btn btn-green" style="padding:8px 14px; font-size:13px;">
                     <i class="bi bi-download"></i> Exportar CSV
@@ -781,16 +799,14 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                     <th>Nº PAT</th>
                     <th>Entidade</th>
                     <th>Técnico</th>
-                    <th>Receção</th>
-                    <th>Limite</th>
                     <th>Prioridade</th>
                     <th>Estado</th>
-                    <th>Ações</th>
+                    <th class="actions">Ações</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (empty($patsList)): ?>
-                    <tr id="tabelaPatsVazia" data-no-filter><td colspan="8" class="table-empty-state"><i class="bi bi-inbox"></i>Nenhum PAT encontrado.</td></tr>
+                    <tr id="tabelaPatsVazia" data-no-filter><td colspan="6" class="table-empty-state"><i class="bi bi-inbox"></i>Nenhum PAT encontrado.</td></tr>
                 <?php else: ?>
           <?php foreach ($patsList as $pat): ?>
             <?php
@@ -806,8 +822,6 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                     <td><strong><?= htmlspecialchars($pat['numero_pat']) ?>/<?= (int)$pat['revisao'] ?></strong></td>
                     <td><?= htmlspecialchars($pat['entidade']) ?></td>
                     <td><?= htmlspecialchars($pat['tecnico']) ?></td>
-                    <td><?= $pat['data_recepcao'] ? date('d/m/Y H:i', strtotime($pat['data_recepcao'])) : '—' ?></td>
-                    <td><?= $pat['data_limite']   ? date('d/m/Y H:i', strtotime($pat['data_limite']))   : '—' ?></td>
                     <td>
                         <?php if ($pat['prioridade'] === 'Urgente'): ?>
                             <span style="padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#fee2e2; color:#dc2626;">Urgente</span>
@@ -821,22 +835,13 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
                   <?= htmlspecialchars($pat['estado']) ?>
                 </span>
                     </td>
-                    <td>
-                      <div class="acao-wrap">
-                        <button class="acao-btn" type="button" onclick="toggleAcao(this)">⋮</button>
-                        <div class="acao-menu">
-                          <a href="app.php?page=pats&ver=<?= (int)$pat['id'] ?>">
-                            <i class="bi bi-pencil-square"></i> Editar
-                          </a>
-                          <a href="workorder.php?id=<?= (int)$pat['id'] ?>" target="_blank">
-                             <i class="bi bi-file-earmark-text"></i> Folha de Obra
-                          </a>
-                        </div>
-                      </div>
+                    <td class="actions">
+                      <a class="btn btn-yellow" href="app.php?page=pats&ver=<?= (int)$pat['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                      <a class="btn btn-grey" href="workorder.php?id=<?= (int)$pat['id'] ?>" target="_blank" title="Folha de Obra" aria-label="Folha de Obra"><i class="bi bi-file-earmark-text"></i></a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
-                <tr id="tabelaPatsVazia" data-no-filter style="display:none;"><td colspan="8" class="table-empty-state"><i class="bi bi-search"></i>Sem resultados para esta pesquisa.</td></tr>
+                <tr id="tabelaPatsVazia" data-no-filter style="display:none;"><td colspan="6" class="table-empty-state"><i class="bi bi-search"></i>Sem resultados para esta pesquisa.</td></tr>
         <?php endif; ?>
                 </tbody>
             </table>

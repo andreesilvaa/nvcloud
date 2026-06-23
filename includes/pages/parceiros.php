@@ -108,7 +108,7 @@
             <th>Parceiro</th>
             <th>1º Contacto</th>
             <th>2º Contacto</th>
-            <th style="width:70px;">Ações</th>
+            <th class="actions" style="width:70px;">Ações</th>
           </tr></thead>
           <tbody>
             <?php foreach ($tabListas as $row): ?>

@@ -34,8 +34,22 @@ async function lerWorkOrder() {
   if (sessionId) {
     try {
       var api = await lerViaApi(info.recordId, sessionId);
-      if (api.ok) return api;
-    } catch (e) { /* continua */ }
+      if (api.ok) {
+        // Leitura híbrida: completar com o DOM os campos que a API não traz
+        // de forma fiável (ex.: técnico/Support Partner) ou que vieram vazios.
+        try {
+          var dom = lerViaDomCirurgico();
+          if (dom && dom.ok && dom.dados) {
+            Object.keys(api.dados).forEach(function (k) {
+              if ((!api.dados[k] || api.dados[k] === '') && dom.dados[k]) {
+                api.dados[k] = dom.dados[k];
+              }
+            });
+          }
+        } catch (e2) { /* DOM indisponível — usa só a API */ }
+        return api;
+      }
+    } catch (e) { /* continua para o DOM */ }
   }
 
   // Tentativa 2: DOM cirúrgico
@@ -110,8 +124,17 @@ function lerViaDomCirurgico() {
     'start date':        'data_recepcao',
     'created date':      'data_limite', // Data Limite = data de criação da WO
     'contact':           'contacto',
+    'phone':             'contacto',
+    'account phone':     'contacto',
+    'address':           'morada',
+    'billing address':   'morada',
     // Português
     'conta':             'entidade',
+    'morada':            'morada',
+    'endereço':          'morada',
+    'endereco':          'morada',
+    'telefone':          'contacto',
+    'contacto':          'contacto',
     'prioridade':        'prioridade',
     'data de criação':   'data_limite',
     'data de criacao':   'data_limite',
@@ -186,10 +209,13 @@ function extrairValorDoCampo(bloco) {
   var candidatos = [
     // Componentes Lightning específicos para valores
     'lightning-formatted-text',
+    'lightning-formatted-rich-text',
+    'lightning-formatted-address',
     'lightning-formatted-date-time',
     'lightning-formatted-number',
     'lightning-formatted-phone',
     'lightning-formatted-email',
+    'lightning-formatted-url',
     // Link de lookup (ex: nome da conta)
     '.slds-form-element__static a',
     // Valor estático genérico
@@ -209,7 +235,7 @@ function extrairValorDoCampo(bloco) {
       b.remove();
     });
 
-    var txt = clone.textContent.trim();
+    var txt = clone.textContent.replace(/\s+/g, ' ').trim();
     if (txt && txt.length > 0 && txt.length < 500) return txt;
   }
 

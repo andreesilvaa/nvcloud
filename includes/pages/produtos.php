@@ -44,13 +44,13 @@
       </div>
       <div class="table-responsive">
         <table class="table" id="tabelaProdutos">
-          <thead><tr><th style="width:90px;">ID</th><th>Produto</th><th>Categoria</th><th style="width:70px;">Ações</th></tr></thead>
+          <thead><tr><th style="width:90px;">ID</th><th>Produto</th><th>Categoria</th><th class="actions" style="width:70px;">Ações</th></tr></thead>
           <tbody>
             <?php foreach ($tabListas as $row): ?>
               <tr>
                 <td>#<?= (int)$row['id'] ?></td>
                 <td><strong><?= htmlspecialchars($row['nome']) ?></strong></td>
-                <td><?= htmlspecialchars($row['categoria_nome'] ?? '—') ?></td>
+                <td><?php $catNome = trim((string)($row['categoria_nome'] ?? '')); ?><?php if ($catNome !== ''): ?><span style="display:inline-block;padding:2px 10px;border-radius:999px;background:#eef1f5;color:#4b5563;font-size:12px;font-weight:600;"><?= htmlspecialchars($catNome) ?></span><?php else: ?><span style="color:#d1d5db;">—</span><?php endif; ?></td>
                 <td class="actions">
                   <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int)$row['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
                   <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">

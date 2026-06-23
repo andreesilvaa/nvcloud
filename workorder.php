@@ -13,12 +13,17 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$host = 'localhost'; $db = 'stocks_db'; $user = 'root'; $pass = ''; $charset = 'utf8mb4';
+// Usa a configuração central (Docker): host 'db', credenciais do config.php.
+if (!defined('DB_HOST')) { require_once __DIR__ . '/config.php'; }
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=$charset", $user, $pass, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $pdo = new PDO(
+        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET,
+        DB_USER, DB_PASS,
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
 } catch (Exception $e) {
     die('Erro de ligação à base de dados.');
 }

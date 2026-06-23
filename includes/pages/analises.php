@@ -119,34 +119,63 @@ $mesesPt = ['01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'J
 ?>
 
 <!-- ══ RESUMO MENSAL ══ -->
+<?php
+// Seletor de mês como segmented control (igual à Revisão), alinhado à direita
+$anMesesPt = [1=>'Janeiro',2=>'Fevereiro',3=>'Março',4=>'Abril',5=>'Maio',6=>'Junho',7=>'Julho',8=>'Agosto',9=>'Setembro',10=>'Outubro',11=>'Novembro',12=>'Dezembro'];
+$anTs           = strtotime($periodo . '-01');
+$anMesPrev      = date('Y-m', strtotime('-1 month', $anTs));
+$anMesNext      = date('Y-m', strtotime('+1 month', $anTs));
+$anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
+?>
 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
     <h4 style="margin:0;"><i class="bi bi-calendar3" style="color:#c9a14a; margin-right:6px;"></i>Resumo Mensal</h4>
-    <form method="get" style="display:flex; gap:10px; align-items:center;">
-        <input type="hidden" name="page" value="analises">
-        <input type="month" name="mes" value="<?= e($periodo) ?>" style="height:38px;">
-        <button class="btn btn-blue" type="submit" style="padding:8px 16px;">Ver</button>
-    </form>
+    <div class="seg-control">
+        <a href="app.php?page=analises&mes=<?= e($anMesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
+        <span class="seg-mid"><?= e($anPeriodoLabel) ?></span>
+        <a href="app.php?page=analises&mes=<?= e($anMesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
+    </div>
 </div>
-<div class="kpi-row" style="grid-template-columns:repeat(4, 1fr); margin-bottom:10px;">
+<style>
+/* Opção A — cartões do resumo mensal em layout horizontal compacto (scoped: não afeta o Dashboard) */
+.kpi-resumo-compact .kpi-card{
+    display:flex !important; flex-direction:row !important; align-items:center;
+    justify-content:flex-start; text-align:left; gap:14px; padding:12px 16px;
+    min-height:0 !important; height:auto !important;
+}
+.kpi-resumo-compact .kpi-card > i{ font-size:26px !important; margin:0 !important; line-height:1; }
+.kpi-resumo-compact .kpi-card .kpi-body{ display:flex; flex-direction:column; gap:2px; }
+.kpi-resumo-compact .kpi-card .num{ font-size:24px !important; margin:0 !important; line-height:1.1; }
+.kpi-resumo-compact .kpi-card .kpi-lbl{ font-size:12.5px; color:#6b7280; }
+@media (max-width:768px){ .kpi-resumo-compact{ grid-template-columns:repeat(2,1fr) !important; } }
+</style>
+<div class="kpi-row kpi-resumo-compact" style="grid-template-columns:repeat(4, 1fr); margin-bottom:10px;">
     <div class="kpi-card">
         <i class="bi bi-box-seam" style="color:#c9a14a;"></i>
-        <div class="num"><?= $entradas ?></div>
-        <div>Peças novas</div>
+        <div class="kpi-body">
+            <div class="num"><?= $entradas ?></div>
+            <div class="kpi-lbl">Peças novas</div>
+        </div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-arrow-left-right" style="color:#3d82c4;"></i>
-        <div class="num"><?= $movEstado ?></div>
-        <div>Mudanças de estado</div>
+        <div class="kpi-body">
+            <div class="num"><?= $movEstado ?></div>
+            <div class="kpi-lbl">Mudanças de estado</div>
+        </div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-check2-square" style="color:#59b94f;"></i>
-        <div class="num"><?= $revFeitas ?></div>
-        <div>Revisões feitas</div>
+        <div class="kpi-body">
+            <div class="num"><?= $revFeitas ?></div>
+            <div class="kpi-lbl">Revisões feitas</div>
+        </div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-hourglass-split" style="color:#f59e0b;"></i>
-        <div class="num"><?= $revPend ?></div>
-        <div>Revisões pendentes</div>
+        <div class="kpi-body">
+            <div class="num"><?= $revPend ?></div>
+            <div class="kpi-lbl">Revisões pendentes</div>
+        </div>
     </div>
 </div>
 <p class="small-note" style="margin-bottom:20px;">Valores referentes a <?= e(($mesesPt[substr($periodo,5,2)] ?? substr($periodo,5,2)) . '/' . substr($periodo,0,4)) ?>. Os totais de revisão estão ligados à página "Revisão".</p>

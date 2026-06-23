@@ -18,7 +18,7 @@ $clientesPais = [];
 $clientesRoots = [];
 $clientesChildrenMap = [];
 
-if ($page === 'alertas') {
+if ($page === 'clientes') {
     // Lista de clientes — a partir da tabela `clientes`
     // (importada do CSV via github/importar_clientes.php).
     try {
@@ -365,7 +365,7 @@ if ($page === 'alertas') {
 
   <div class="panel" style="margin-bottom:20px;">
     <form method="get">
-      <input type="hidden" name="page" value="alertas">
+      <input type="hidden" name="page" value="clientes">
 
       <div class="clientes-filtros">
         <div class="clientes-filtro">
@@ -424,21 +424,39 @@ if ($page === 'alertas') {
     </div>
 
     <div class="table-responsive">
+      <style>
+        .cli-contactos{ display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; line-height:1.5; }
+        .cli-contactos span{ display:inline-flex; align-items:center; gap:5px; color:#6b7280; }
+        .cli-contactos span i{ color:#9ca3af; }
+        .clientes-table td.col-contactos{ white-space:normal; }
+      </style>
+      <?php
+        // Célula de contactos/morada em linha (horizontal: ocupa largura, pouca altura)
+        $cliContactosH = function (array $map, string $nome): string {
+            $c = $map[$nome] ?? null;
+            if (!$c) return '<span style="color:#d1d5db;">—</span>';
+            $p = [];
+            if (!empty($c['emails'])) $p[] = '<span><i class="bi bi-envelope"></i> ' . htmlspecialchars($c['emails']) . '</span>';
+            $tel = trim(implode(', ', array_filter([$c['phones'] ?? '', $c['mobiles'] ?? ''])));
+            if ($tel !== '') $p[] = '<span><i class="bi bi-telephone"></i> ' . htmlspecialchars($tel) . '</span>';
+            $mor = trim(implode(', ', array_filter([$c['street'] ?? '', $c['city'] ?? '', $c['zip'] ?? '', $c['country'] ?? ''])));
+            if ($mor !== '') $p[] = '<span><i class="bi bi-geo-alt"></i> ' . htmlspecialchars($mor) . '</span>';
+            return $p ? '<div class="cli-contactos">' . implode('', $p) . '</div>' : '<span style="color:#d1d5db;">—</span>';
+        };
+      ?>
       <table class="clientes-table">
         <thead>
           <tr>
-            <th style="width:24%;">Conta</th>
-            <th style="width:11%;">Tipo</th>
-            <th style="width:17%;">Conta-Mãe</th>
-            <th style="width:11%;">Última Atividade</th>
-            <th style="width:11%;">Última Modificação</th>
-            <th style="width:26%;">Contactos / Morada</th>
+            <th style="width:26%;">Conta</th>
+            <th style="width:14%;">Tipo</th>
+            <th style="width:20%;">Conta-Mãe</th>
+            <th style="width:40%;">Contactos / Morada</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($clientesRoots)): ?>
             <tr>
-              <td colspan="6" class="clientes-empty">Nenhum Cliente encontrado.</td>
+              <td colspan="4" class="clientes-empty">Nenhum Cliente encontrado.</td>
             </tr>
           <?php else: ?>
             <?php foreach ($clientesRoots as $i => $cliente): ?>
@@ -467,9 +485,8 @@ if ($page === 'alertas') {
               <strong><?= htmlspecialchars($cliente['account_name']) ?></strong>
           </td>
           <td>
-              <span class="tipo-badge <?= $typeClass ?>">
-            <?= htmlspecialchars(tipoPt($cliente['type'])) ?>
-              </span>
+              <?php $dotCor = $typeClass==='tipo-customer' ? '#16a34a' : ($typeClass==='tipo-prospect' ? '#2563eb' : ($typeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
+              <span class="tipo-badge <?= $typeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCor ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(tipoPt($cliente['type'])) ?></span>
           </td>
           <td>
             <?php if ($cliente['parent_account'] !== ''): ?>
@@ -478,13 +495,7 @@ if ($page === 'alertas') {
               <span class="conta-principal-badge">Conta Principal</span>
             <?php endif; ?>
           </td>
-          <td>
-            <?= htmlspecialchars($cliente['last_activity'] !== '' ? $cliente['last_activity'] : '-') ?>
-          </td>
-          <td>
-            <?= htmlspecialchars($cliente['last_modified_date'] !== '' ? $cliente['last_modified_date'] : '-') ?>
-          </td>
-          <td><?= contactoCelula($contactosMap ?? [], $cliente['account_name']) ?></td>
+          <td class="col-contactos"><?= $cliContactosH($contactosMap ?? [], $cliente['account_name']) ?></td>
         </tr>
 
             <?php if ($temFilhos): ?>
@@ -501,7 +512,8 @@ if ($page === 'alertas') {
                 <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars($rowId) ?>" style="display:none;">
                   <td class="cliente-child-name"><?= htmlspecialchars($filho['account_name']) ?></td>
                   <td>
-                    <span class="tipo-badge <?= $childTypeClass ?>"> <?= htmlspecialchars(tipoPt($filho['type'])) ?> </span>
+                    <?php $dotCorF = $childTypeClass==='tipo-customer' ? '#16a34a' : ($childTypeClass==='tipo-prospect' ? '#2563eb' : ($childTypeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
+                    <span class="tipo-badge <?= $childTypeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCorF ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(tipoPt($filho['type'])) ?></span>
                   </td>
                   <td>
                     <?php if ($filho['parent_account'] !== ''): ?>
@@ -510,11 +522,7 @@ if ($page === 'alertas') {
                       <span class="conta-principal-badge">Conta Principal</span>
                     <?php endif; ?>
                   </td>
-                  <td>
-                    <?= htmlspecialchars($filho['last_activity'] !== '' ? $filho['last_activity'] : '-') ?></td>
-                  <td>
-                    <?= htmlspecialchars($filho['last_modified_date'] !== '' ? $filho['last_modified_date'] : '-') ?></td>
-                  <td><?= contactoCelula($contactosMap ?? [], $filho['account_name']) ?></td>
+                  <td class="col-contactos"><?= $cliContactosH($contactosMap ?? [], $filho['account_name']) ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php endif; ?>
@@ -524,5 +532,22 @@ if ($page === 'alertas') {
     </table>
   </div>
 </div>
+
+<style>
+.cli-det-btn{ padding:5px 9px !important; }
+.cli-det-btn i{ transition:transform .15s; display:inline-block; }
+.cli-det-btn.is-open i{ transform:rotate(180deg); }
+</style>
+<script>
+function nvCliDetalhe(btn){
+  var tr = btn.closest('tr');
+  var det = tr.nextElementSibling;
+  if (det && det.classList.contains('cli-det')){
+    var aberto = det.style.display !== 'none';
+    det.style.display = aberto ? 'none' : '';
+    btn.classList.toggle('is-open', !aberto);
+  }
+}
+</script>
 
 
