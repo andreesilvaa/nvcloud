@@ -655,6 +655,13 @@ function contactoCelula(array $map, string $nome): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="StockVision">
+<link rel="apple-touch-icon" href="/stockvision-sf/icons/icon-192.png">
+<script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js"); }</script>
 <title>StockVision</title>
 <link rel="icon" type="image/png" href="/assets/favicon.png">
 <link rel="apple-touch-icon" href="/assets/favicon.png">
@@ -2579,6 +2586,7 @@ function nvVoltar(ev) {
                 <?= htmlspecialchars($_SESSION['user_email'] ?? '') ?>
             </div>
             <a href="app.php?page=contas"><i class="bi bi-person"></i> O meu perfil</a>
+            <a href="#" id="install-app-btn" onclick="installPWA(); return false;" style="display:none;"><i class="bi bi-download"></i> Instalar Aplicação</a>
             <a href="logout.php" class="danger"><i class="bi bi-box-arrow-right"></i> Sair</a>
         </div>
     </div>
@@ -3641,6 +3649,32 @@ function toggleDark() {
 </script>
 
 
+
+<script>
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    var btn = document.getElementById('install-app-btn');
+    if (btn) btn.style.display = '';
+});
+function installPWA() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(function(result) {
+        if (result.outcome === 'accepted') {
+            var btn = document.getElementById('install-app-btn');
+            if (btn) btn.style.display = 'none';
+        }
+        deferredInstallPrompt = null;
+    });
+}
+window.addEventListener('appinstalled', function() {
+    var btn = document.getElementById('install-app-btn');
+    if (btn) btn.style.display = 'none';
+    deferredInstallPrompt = null;
+});
+</script>
 </body>
 </html>
 <?php ob_end_flush(); ?>

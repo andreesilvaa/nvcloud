@@ -1,5 +1,8 @@
 # Comandos rápidos — nvcloud em Docker
 
+#PASSWORDS
+-NVAdmin12345
+
 ## Arrancar nvcloud a partir do Ubuntu (WSL)
 
 1. Abrir app Ubuntu.
