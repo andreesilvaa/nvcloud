@@ -363,49 +363,34 @@ if ($page === 'clientes') {
     </div>
 </div>
 
-  <div class="panel" style="margin-bottom:20px;">
-    <form method="get">
-      <input type="hidden" name="page" value="clientes">
-
-      <div class="clientes-filtros">
-        <div class="clientes-filtro">
-          <label>Pesquisar</label>
-          <div class="quick-search-wrap" style="max-width:none;">
+<div class="pats-filtros" style="margin-bottom:20px;">
+    <form method="get" class="pats-filtros-row">
+        <input type="hidden" name="page" value="clientes">
+        <div class="pats-search">
             <i class="bi bi-search"></i>
-            <input type="text" name="q" value="<?= htmlspecialchars($clientesFiltros['q']) ?>" placeholder="Nome da conta, conta-mãe ou tipo">
-          </div>
+            <input type="text" name="q"
+                   value="<?= htmlspecialchars($clientesFiltros['q'] ?? '') ?>"
+                   placeholder="Nome da conta, conta-mãe ou tipo">
         </div>
-
-        <div class="clientes-filtro">
-          <label>Tipo</label>
-          <select name="type">
-            <option value="">-- Todos --</option>
-            <?php foreach ($clientesTipos as $tipo): ?>
-              <option value="<?= htmlspecialchars($tipo) ?>"
-                <?= $clientesFiltros['type'] === $tipo ? 'selected' : '' ?>>
-                <?= htmlspecialchars(tipoPt($tipo)) ?>
-              </option>
+        <select name="type">
+            <option value="">-- Todos os Tipos --</option>
+            <?php foreach ($clientesTipos as $t): ?>
+                <option value="<?= htmlspecialchars($t) ?>"
+                        <?= ($clientesFiltros['type'] ?? '') === $t ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(tipoPt($t)) ?>
+                </option>
             <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div class="clientes-filtro">
-          <label>Hierarquia</label>
-          <select name="hierarquia">
-            <option value="">-- Todas --</option>
-            <option value="com_parent" <?= $clientesFiltros['hierarquia'] === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
-            <option value="so_pais" <?= $clientesFiltros['hierarquia'] === 'so_pais' ? 'selected' : '' ?>>Só Contas-Mãe</option>
-            <option value="so_sem_parent" <?= $clientesFiltros['hierarquia'] === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
-          </select>
-        </div>
-
-        <div class="clientes-filtros-botoes">
-          <button type="submit" class="btn btn-blue">Filtrar</button>
-          <a href="app.php?page=clientes" class="btn btn-grey">Limpar</a>
-        </div>
-      </div>
+        </select>
+        <select name="hierarquia">
+            <option value="">-- Hierarquia --</option>
+            <option value="com_parent" <?= ($clientesFiltros['hierarquia'] ?? '') === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
+            <option value="so_pais"    <?= ($clientesFiltros['hierarquia'] ?? '') === 'so_pais'    ? 'selected' : '' ?>>Só Contas-Mãe</option>
+            <option value="so_sem_parent" <?= ($clientesFiltros['hierarquia'] ?? '') === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
+        </select>
+        <button type="submit" class="btn btn-blue"><i class="bi bi-funnel"></i> Filtrar</button>
+        <a href="app.php?page=clientes" class="btn btn-grey">Limpar</a>
     </form>
-  </div>
+</div>
 
   <div class="panel">
     <div class="panel-header-row">
@@ -429,6 +414,9 @@ if ($page === 'clientes') {
         .cli-contactos span{ display:inline-flex; align-items:center; gap:5px; color:#6b7280; }
         .cli-contactos span i{ color:#9ca3af; }
         .clientes-table td.col-contactos{ white-space:normal; }
+        .col-contactos .cli-contactos { display: none; }
+        .conta-nome-link { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; color: inherit; }
+        .conta-nome-link:hover { color: #1d4ed8; }
       </style>
       <?php
         // Célula de contactos/morada em linha (horizontal: ocupa largura, pouca altura)
@@ -482,7 +470,7 @@ if ($page === 'clientes') {
             <?php else: ?>
               <span style="display:inline-block; width:32px;"></span>
             <?php endif; ?>
-              <strong><?= htmlspecialchars($cliente['account_name']) ?></strong>
+              <strong class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars($cliente['account_name']) ?></strong>
           </td>
           <td>
               <?php $dotCor = $typeClass==='tipo-customer' ? '#16a34a' : ($typeClass==='tipo-prospect' ? '#2563eb' : ($typeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
@@ -510,7 +498,7 @@ if ($page === 'clientes') {
                       }
                 ?>
                 <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars($rowId) ?>" style="display:none;">
-                  <td class="cliente-child-name"><?= htmlspecialchars($filho['account_name']) ?></td>
+                    <td class="cliente-child-name"><span class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars($filho['account_name']) ?></span></td>
                   <td>
                     <?php $dotCorF = $childTypeClass==='tipo-customer' ? '#16a34a' : ($childTypeClass==='tipo-prospect' ? '#2563eb' : ($childTypeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
                     <span class="tipo-badge <?= $childTypeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCorF ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(tipoPt($filho['type'])) ?></span>
@@ -548,6 +536,14 @@ function nvCliDetalhe(btn){
     btn.classList.toggle('is-open', !aberto);
   }
 }
+</script>
+<script>
+    function cliToggleContacto(el) {
+        var row = el.closest('tr');
+        var cont = row.querySelector('.cli-contactos');
+        if (!cont) return;
+        cont.style.display = cont.style.display === 'flex' ? 'none' : 'flex';
+    }
 </script>
 
 

@@ -88,16 +88,48 @@ function nvDecodificarParteEml(string $corpoBruto, string $encoding): string
  */
 function nvExtrairCorpoEml(string $raw): string
 {
+	// A abordagem antiga assumia que dentro de cada parte MIME o cabeçalho
+	// "Content-Type" vinha SEMPRE antes do "Content-Transfer-Encoding". Os
+	// e-mails da Konica (gerados pelo Outlook/sistema deles) trazem-nos pela
+	// ORDEM INVERSA (CTE primeiro, CT depois). Com a regex antiga nenhuma
+	// parte casava, a função devolvia o $raw inteiro (e-mail por
+	// descodificar) e, como o corpo vinha em quoted-printable, qualquer
+	// texto com acentos — ex.: "solução proposta" — aparecia como
+	// "solu=C3=A7=C3=A3o" e nunca era encontrado. Resultado: a resolução
+	// ficava com o e-mail inteiro (60000 carateres) e os acentos partidos.
+	//
+	// Agora dividimos o e-mail pelas boundaries (suporta multipart aninhado)
+	// e, em cada parte, lemos os cabeçalhos por QUALQUER ordem.
 	$partes = [];
-	if (preg_match_all(
-		'/Content-Type:\s*(text\/plain|text\/html)[^\r\n]*\r?\n(?:[^\r\n]+\r?\n)*?Content-Transfer-Encoding:\s*([^\r\n]+)\r?\n(?:[^\r\n]+\r?\n)*\r?\n(.*?)(?=\r?\n--|\z)/is',
-		$raw, $mm, PREG_SET_ORDER
-	)) {
-		foreach ($mm as $m) {
-			$tipo = strtolower($m[1]);
-			if (isset($partes[$tipo])) continue; // mantém só a 1ª ocorrência de cada tipo
-			$partes[$tipo] = nvDecodificarParteEml($m[3], $m[2]);
+	$boundaries = [];
+	if (preg_match_all('/boundary="?([^"\r\n;]+)"?/i', $raw, $bm)) {
+		foreach ($bm[1] as $b) $boundaries[$b] = true;
+	}
+	if ($boundaries) {
+		$delim = implode('|', array_map(static fn($b) => preg_quote($b, '/'), array_keys($boundaries)));
+		$segmentos = preg_split('/--(?:' . $delim . ')(?:--)?[ \t]*\r?\n/', $raw);
+		foreach ($segmentos as $seg) {
+			// Cada segmento = cabeçalhos + linha em branco + corpo.
+			if (!preg_match('/^(.*?\r?\n)\r?\n(.*)$/s', $seg, $sp)) continue;
+			$head = $sp[1]; $body = $sp[2];
+			if (!preg_match('/Content-Type:\s*(text\/plain|text\/html)/i', $head, $ct)) continue;
+			$tipo = strtolower($ct[1]);
+			if (isset($partes[$tipo])) continue; // só a 1ª ocorrência de cada tipo
+			$enc = '';
+			if (preg_match('/Content-Transfer-Encoding:\s*([^\r\n;]+)/i', $head, $ce)) {
+				$enc = trim($ce[1]);
+			}
+			$partes[$tipo] = nvDecodificarParteEml($body, $enc);
 		}
+	}
+
+	// E-mail não-multipart: descodifica o corpo único conforme o CTE do topo.
+	if (!$partes && preg_match('/\r?\n\r?\n(.*)$/s', $raw, $mb)) {
+		$enc = '';
+		if (preg_match('/Content-Transfer-Encoding:\s*([^\r\n;]+)/i', $raw, $ce)) {
+			$enc = trim($ce[1]);
+		}
+		return nvDecodificarParteEml($mb[1], $enc);
 	}
 
 	if (isset($partes['text/plain']) && trim($partes['text/plain']) !== '') {
@@ -158,8 +190,16 @@ function nvParseKonicaEml(string $path): array
 	// Resolução (texto da solução proposta). O separador antes de "PAT" é
 	// normalmente "|", mas já se viu técnicos a escrever um "l" (L minúsculo)
 	// por engano no mesmo lugar — aceitamos os dois.
+	// Texto da solução proposta. No corpo Konica vem assim:
+	//   "A solução proposta para o seu Pedido: <TEXTO> | DataHora_Inicio: ..."
+	// ou seja, o TEXTO termina no primeiro "|" (separador dos campos
+	// DataHora_*/SN_*) e NÃO num "| PAT" — a versão antiga exigia "| PAT"
+	// logo a seguir, coisa que estes e-mails não têm, por isso a captura
+	// falhava sempre e a resolução acabava por ser o corpo inteiro.
+	// Aceitamos acentos partidos (solu[çc]ão) por precaução e paramos no
+	// primeiro "|", em "DataHora" ou no fim.
 	$resol = '';
-	if (preg_match('/solução proposta[^:]*:\s*(.+?)\s*[|l]\s*PAT/iu', $corpo, $m)) {
+	if (preg_match('/solu[çc][ãa]o\s+proposta[^:]*:\s*(.+?)\s*(?:\||DataHora|SN_|$)/iu', $corpo, $m)) {
 		$resol = trim($m[1]);
 	}
 
@@ -292,6 +332,18 @@ function nvParseFieldService(string $path, string $nome, string $textoExistente 
 	$cliente = '';
 	if (preg_match('/Entidade:\s*\[?\s*([^\]\n|]+)/i', $texto, $m)) {
 		$cliente = trim($m[1]);
+		// Limpeza do OCR: tira pontuação/traços iniciais ("— Loomis...") e
+		// corta no salto de coluna (2+ espaços) que o scan deixa entre o
+		// valor e o rótulo seguinte. Se o que sobra for ele próprio um
+		// rótulo do formulário (ex.: "Location / Local:") descarta-se —
+		// nesses casos o campo Entidade estava vazio e a regex apanhou a
+		// etiqueta a seguir.
+		$cliente = preg_replace('/^[\s\-–—:.\[\]]+/u', '', $cliente);
+		$cliente = preg_split('/\s{2,}/u', $cliente)[0];
+		$cliente = trim($cliente);
+		if ($cliente !== '' && (str_contains(strtolower($cliente), 'local') || str_ends_with($cliente, ':'))) {
+			$cliente = '';
+		}
 	}
 
 	// Field Service é manuscrito => peças/SNs NÃO são fiáveis. Não extraímos peças automaticamente.

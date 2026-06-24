@@ -69,10 +69,9 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 <style>
 /* ── Revisão de Peças ── */
 .rev-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 20px;
 }
@@ -463,13 +462,14 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
     ?>
     <div class="rev-header">
         <h2><i class="bi bi-clipboard-check"></i> Revisão de Peças</h2>
-        <div class="rev-toolbar" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div style="display:flex; justify-content:center; align-items:center;">
             <div class="seg-control">
                 <a href="app.php?page=revisao&mes=<?= e($mesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
                 <span class="seg-mid"><?= e($periodoLabel) ?></span>
                 <a href="app.php?page=revisao&mes=<?= e($mesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
             </div>
         </div>
+        <div></div>
     </div>
 
     <!-- KPIs -->

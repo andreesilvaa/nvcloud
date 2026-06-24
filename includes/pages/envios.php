@@ -1011,9 +1011,15 @@ foreach ($envios as $eStat) {
 </style>
 
 <div class="env-tabs" id="enviosTabs">
-  <button type="button" class="env-tab<?= $envTabInicial==='lista' ? ' is-active':'' ?>" data-tab="lista"><i class="bi bi-list-ul"></i> Lista de Envios <span class="pill"><?= $envStats['total'] ?></span></button>
-  <button type="button" class="env-tab<?= $envTabInicial==='importar' ? ' is-active':'' ?>" data-tab="importar"><i class="bi bi-cloud-arrow-up"></i> Importar</button>
-  <button type="button" class="env-tab" data-tab="stats"><i class="bi bi-bar-chart"></i> Estatísticas</button>
+  <button type="button" class="env-tab<?= $envTabInicial==='importar' ? ' is-active':'' ?>" data-tab="importar">
+    <i class="bi bi-cloud-arrow-up"></i> Importar
+  </button>
+  <button type="button" class="env-tab<?= $envTabInicial==='lista' ? ' is-active':'' ?>" data-tab="lista">
+    <i class="bi bi-list-ul"></i> Lista de Envios <span class="pill"><?= $envStats['total'] ?></span>
+  </button>
+  <button type="button" class="env-tab" data-tab="stats">
+    <i class="bi bi-bar-chart"></i> Estatísticas
+  </button>
 </div>
 
 <!-- ===== PANE: IMPORTAR ===== -->

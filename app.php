@@ -337,9 +337,27 @@ $pageTitles = [
   'analises' => 'Análises',
   ];
 
+$pageIcons = [
+    'dashboard'   => 'bi-speedometer2',
+    'inventario'  => 'bi-box-seam',
+    'pats'        => 'bi-headset',
+    'envios'      => 'bi-truck',
+    'clientes'    => 'bi-people',
+    'qrs'         => 'bi-qr-code',
+    'relatorios'  => 'bi-cart',
+    'revisao'     => 'bi-clipboard-check',
+    'analises'    => 'bi-bar-chart-line',
+    'contas'      => 'bi-person-lines-fill',
+    'auditoria'   => 'bi-shield-check',
+    'nvi'         => 'bi-robot',
+    'nova_peca'   => 'bi-plus-circle',
+    'historico'   => 'bi-clock-history',
+];
+$topbarIcon = $pageIcons[$page] ?? null;
+
   $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
   if ($page === 'envios') {
-    $topbarTitle = $vista === '1' ? 'Lista de Envios' : 'Novo Envio';
+    $topbarTitle = 'Envios';
   }
 
 // ------------------------------------------------------------
@@ -1424,7 +1442,7 @@ select{
 .legend-text{
   display:grid;
   grid-template-columns:repeat(2, minmax(150px, 240px));
-  column-gap:60px;
+  column-gap:20px;
   row-gap:4px;
   align-content:center;
 }
@@ -2479,7 +2497,10 @@ function nvVoltar(ev) {
 </div>
 
 <div class="topbar">
-    <div class="topbar-title"><?= htmlspecialchars($topbarTitle) ?></div>
+    <div class="topbar-title">
+        <?php if ($topbarIcon): ?><i class="bi <?= $topbarIcon ?>" style="margin-right:8px;"></i><?php endif; ?>
+        <?= htmlspecialchars($topbarTitle) ?>
+    </div>
 
     <div class="search-bar-wrap" id="searchBarWrap">
         <button type="button" onclick="toggleTopbarSearch()" id="searchBarBtn"

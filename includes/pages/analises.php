@@ -139,8 +139,8 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
 /* Opção A — cartões do resumo mensal em layout horizontal compacto (scoped: não afeta o Dashboard) */
 .kpi-resumo-compact .kpi-card{
     display:flex !important; flex-direction:row !important; align-items:center;
-    justify-content:flex-start; text-align:left; gap:14px; padding:12px 16px;
-    min-height:0 !important; height:auto !important;
+    justify-content:center !important; text-align:left; gap:14px; padding:12px 16px;
+    min-height:0 !important; height:auto !important; aspect-ratio:unset !important;
 }
 .kpi-resumo-compact .kpi-card > i{ font-size:26px !important; margin:0 !important; line-height:1; }
 .kpi-resumo-compact .kpi-card .kpi-body{ display:flex; flex-direction:column; gap:2px; }

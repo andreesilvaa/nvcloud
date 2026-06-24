@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
 }
 ?>
   <style>
-    .inv-toolbar{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .inv-toolbar{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
     .inv-toolbar .inv-filtros{ margin:0 0 0 auto; flex:0 1 auto; justify-content:flex-end; gap:12px; }
     .inv-toolbar .inv-filtros .clientes-filtro{ flex:0 1 165px; min-width:140px; }
     .inv-toolbar .inv-filtros .clientes-filtros-botoes{ margin-left:0; }
@@ -184,9 +184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
     </div>
 
     <div class="clientes-filtros-botoes">
-      <button class="btn btn-blue" type="submit"><i class="bi bi-search"></i> Filtrar</button>
       <a class="btn btn-grey" href="app.php?page=inventario">Limpar</a>
-    </div>
+      <button class="btn btn-blue" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+   </div>
     </form>
   </div>
 

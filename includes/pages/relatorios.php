@@ -313,10 +313,6 @@ foreach ($lista as $rTmp) {
             <span class="panel-count-badge"><?= count($lista) ?></span>
         </div>
         <div class="panel-header-actions" style="gap:10px;">
-            <div class="quick-search-wrap">
-                <i class="bi bi-search"></i>
-                <input type="text" class="quick-search-input" data-table="#tabelaRelatorios" data-empty="#tabelaRelatoriosVazia" placeholder="Pesquisa rápida na tabela…">
-            </div>
             <select class="rel-mes-filtro" onchange="nvRelFiltrarMes(this)" aria-label="Filtrar por mês">
                 <option value="">Todos os meses</option>
                 <?php foreach ($relMesesDisponiveis as $k => $lbl): ?>

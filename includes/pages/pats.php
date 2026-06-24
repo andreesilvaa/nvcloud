@@ -786,7 +786,7 @@ $kpiPatsUrgentes = countQuery($pdo, "SELECT COUNT(*) FROM pats WHERE prioridade=
             </div>
             <div class="panel-header-actions">
                 <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
-                <a href="exportar_pats_csv.php" class="btn btn-green" style="padding:8px 14px; font-size:13px;">
+                <a href="exportar_pats_csv.php" class="btn btn-green">
                     <i class="bi bi-download"></i> Exportar CSV
                 </a>
             </div>
