@@ -3,6 +3,10 @@
 #PASSWORDS
 -NVAdmin12345
 
+WATCH AUTOMÁTICO:
+cd ~/projects/nvcloud
+  ./watch.sh
+
 ## Arrancar nvcloud a partir do Ubuntu (WSL)
 
 1. Abrir app Ubuntu.
