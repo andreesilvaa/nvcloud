@@ -7,6 +7,7 @@ define('DB_NAME',    'stocks_db');
 define('DB_USER',    'root');
 define('DB_PASS',    '');           // password da BD (vazia em Laragon por defeito)
 define('DB_CHARSET', 'utf8mb4');
+define('EXTENSION_TOKEN', 'troca-isto-por-uma-string-aleatoria-longa'); // segredo partilhado com a extensão
 
 // Caminhos dos binários externos (só se quiseres sobrepor os do bootstrap.php)
 // define('PDFTOTEXT_BIN', 'C:/poppler/poppler-26.02.0/Library/bin/pdftotext.exe');

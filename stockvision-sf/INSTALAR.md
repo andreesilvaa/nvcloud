@@ -12,12 +12,14 @@ ANTES da linha:  $vista = $_GET['lista'] ?? '0';
 4. Seleciona a pasta  stockvision-sf/
 5. A extensão aparece na barra do browser
 
-### Passo 3 — Configurar o URL do StockVision
+### Passo 3 — Configurar o URL e o Token do StockVision
 1. Vai ao Salesforce e abre qualquer Work Order
 2. Clica no ícone da extensão
 3. No campo "URL do StockVision" confirma ou corrige o URL
-   Exemplo:  http://localhost/nvcloud/app.php
-4. O URL fica guardado automaticamente
+   Exemplo:  http://localhost/nvcloud/app.php  (ou https://stockvision.pt/app.php)
+4. No campo "Token da extensão" cola o valor de EXTENSION_TOKEN definido no config.php
+5. O URL e o token ficam guardados automaticamente (a extensão envia o token
+   no cabeçalho X-NV-Token, via POST — sem depender da sessão do site)
 
 ### Passo 4 — Usar
 1. Abre uma Work Order no Salesforce

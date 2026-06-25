@@ -59,6 +59,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     redirectTo('app.php?page=analises');
 }
 
+// ── Notificações personalizadas: criar / eliminar ──────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['notif_criar', 'notif_eliminar'], true)) {
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'] ?? '')) {
+        flashError('Ação inválida.'); redirectTo('app.php?page=analises');
+    }
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    if (($_POST['action']) === 'notif_criar') {
+        $titulo = trim($_POST['titulo'] ?? '');
+        $msg    = trim($_POST['mensagem'] ?? '');
+        $link   = trim($_POST['link'] ?? '');
+        if ($titulo === '' || $msg === '') {
+            flashError('Preenche o título e a mensagem da notificação.');
+        } else {
+            $pdo->prepare("INSERT INTO notificacoes_personalizadas (user_id, titulo, mensagem, link) VALUES (?,?,?,?)")
+                    ->execute([$uid, mb_substr($titulo,0,120), mb_substr($msg,0,255), $link !== '' ? mb_substr($link,0,255) : null]);
+            flashSuccess('Notificação criada.');
+        }
+    } else {
+        $pdo->prepare("DELETE FROM notificacoes_personalizadas WHERE id = ? AND user_id = ?")
+                ->execute([(int)($_POST['id'] ?? 0), $uid]);
+        flashSuccess('Notificação removida.');
+    }
+    redirectTo('app.php?page=analises');
+}
+
 // ── Resumo Mensal ──────────────────────────────────────────
 $periodo = preg_match('/^\d{4}-\d{2}$/', $_GET['mes'] ?? '') ? $_GET['mes'] : date('Y-m');
 
@@ -286,6 +311,48 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
             <?php endif; ?>
         </div>
     </form>
+
+    <div class="panel" style="margin-top:24px;">
+        <h4><i class="bi bi-bell"></i> As minhas notificações</h4>
+        <form method="post" action="app.php?page=analises" style="display:grid;grid-template-columns:1fr 2fr 1.5fr auto;gap:10px;align-items:end;margin-bottom:16px;">
+            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
+            <input type="hidden" name="action" value="notif_criar">
+            <div><label>Título</label><input type="text" name="titulo" maxlength="120" required placeholder="Ex.: Pedir material"></div>
+            <div><label>Mensagem</label><input type="text" name="mensagem" maxlength="255" required placeholder="Ex.: Encomendar cabeçotes Proxima"></div>
+            <div><label>Link (opcional)</label><input type="text" name="link" maxlength="255" placeholder="app.php?page=inventario"></div>
+            <button class="btn btn-blue" type="submit"><i class="bi bi-plus-lg"></i> Criar</button>
+        </form>
+
+        <?php
+        $minhasNotif = $pdo->prepare("SELECT id, titulo, mensagem, link, created_at FROM notificacoes_personalizadas WHERE user_id = ? ORDER BY created_at DESC");
+        $minhasNotif->execute([(int)($_SESSION['user_id'] ?? 0)]);
+        $listaNotif = $minhasNotif->fetchAll();
+        ?>
+        <?php if (!$listaNotif): ?>
+            <p style="color:#6b7280;">Ainda não criaste notificações.</p>
+        <?php else: ?>
+            <table class="table">
+                <thead><tr><th>Título</th><th>Mensagem</th><th>Criada</th><th class="actions">Ações</th></tr></thead>
+                <tbody>
+                <?php foreach ($listaNotif as $n): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($n['titulo']) ?></td>
+                        <td><?= htmlspecialchars($n['mensagem']) ?></td>
+                        <td><?= htmlspecialchars($n['created_at']) ?></td>
+                        <td class="actions">
+                            <form method="post" action="app.php?page=analises" onsubmit="return confirm('Remover esta notificação?');" style="display:inline;">
+                                <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <input type="hidden" name="action" value="notif_eliminar">
+                                <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
+                                <button class="btn btn-red" type="submit" title="Remover"><i class="bi bi-trash3"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
 
     <!-- O <select> com a alvo_nome real (escolhido conforme o tipo) é injetado via JS antes do submit -->
     <script>

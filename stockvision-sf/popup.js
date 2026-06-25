@@ -8,14 +8,20 @@ var svUrlPadrao = 'http://localhost/nvcloud/app.php';
 // ── Ao abrir o popup ───────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
 
-  // Carregar URL guardada
-  chrome.storage.local.get(['svUrl'], function (res) {
+  // Carregar URL + token guardados
+  chrome.storage.local.get(['svUrl', 'svToken'], function (res) {
     document.getElementById('svUrl').value = res.svUrl || svUrlPadrao;
+    document.getElementById('svToken').value = res.svToken || '';
   });
 
   // Guardar URL quando muda
   document.getElementById('svUrl').addEventListener('change', function () {
     chrome.storage.local.set({ svUrl: this.value.trim() });
+  });
+
+  // Guardar token quando muda
+  document.getElementById('svToken').addEventListener('change', function () {
+    chrome.storage.local.set({ svToken: this.value.trim() });
   });
 
   // Botões
@@ -105,18 +111,27 @@ function preencherPreview(d) {
   });
 }
 
-// ── Enviar para StockVision (abre nova aba) ───────────────
+// ── Enviar para StockVision (POST + X-NV-Token) ───────────
 function enviarParaStockVision() {
   if (!dadosWO) return;
 
-  var svUrl = document.getElementById('svUrl').value.trim() || svUrlPadrao;
-  chrome.storage.local.set({ svUrl: svUrl });
+  var svUrl  = document.getElementById('svUrl').value.trim()  || svUrlPadrao;
+  var svToken = document.getElementById('svToken').value.trim();
+  chrome.storage.local.set({ svUrl: svUrl, svToken: svToken });
+
+  var erroBox = document.getElementById('erroEnvio');
+  if (erroBox) erroBox.innerHTML = '';
+
+  if (!svToken) {
+    if (erroBox) erroBox.innerHTML = '<div class="erro">Define o "Token da extensão" (igual ao EXTENSION_TOKEN do config.php).</div>';
+    return;
+  }
 
   var btn = document.getElementById('btnEnviar');
   btn.disabled    = true;
-  btn.textContent = 'A abrir…';
+  btn.textContent = 'A enviar…';
 
-  // Construir URL com os dados como parâmetros GET
+  // Dados como corpo POST (form-encoded)
   var params = new URLSearchParams({
     action:        'importar_workorder',
     numero_wo:     dadosWO.numero_wo      || '',
@@ -131,11 +146,37 @@ function enviarParaStockVision() {
     prioridade:    dadosWO.prioridade     || 'Normal',
   });
 
-  // Abrir StockVision numa nova aba — sem fetch, sem CORS
-  chrome.tabs.create({ url: svUrl + '?' + params.toString() });
-
-  // Fechar o popup
-  window.close();
+  // POST com cabeçalho X-NV-Token (autenticação da extensão, sem CSRF de sessão).
+  fetch(svUrl, {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-NV-Token':   svToken
+    },
+    body: params.toString()
+  })
+  .then(function (resp) {
+    return resp.json().catch(function () {
+      throw new Error('Resposta inesperada (HTTP ' + resp.status + '). Confirma o URL e o token.');
+    });
+  })
+  .then(function (data) {
+    if (!data || !data.ok) {
+      throw new Error((data && data.erro) ? data.erro : 'Falha ao criar o PAT.');
+    }
+    // Sucesso: mostrar estado e link para o PAT criado.
+    var sub = document.getElementById('msgSuccessSub');
+    if (sub) sub.textContent = data.duplicado ? 'Este WO já estava importado.' : ('WO ' + (dadosWO.numero_wo || ''));
+    var link = document.getElementById('linkPat');
+    if (link) link.href = svUrl + '?page=pats&ver=' + (data.pat_id || '');
+    mostrarEstado('stateSuccess');
+    badge('PAT #' + (data.pat_id || ''), '#16a34a');
+  })
+  .catch(function (err) {
+    btn.disabled    = false;
+    btn.textContent = 'Copiar para StockVision';
+    if (erroBox) erroBox.innerHTML = '<div class="erro">' + (err.message || 'Erro ao enviar.') + '</div>';
+  });
 }
 
 // ── Auxiliares ─────────────────────────────────────────────

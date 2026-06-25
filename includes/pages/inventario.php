@@ -113,7 +113,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
 }
 ?>
   <style>
-    .inv-toolbar{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+      .inv-toolbar{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+      /* O botão "Ações" não tem label por cima; empurra-o para baixo a mesma
+         distância que a label ocupa, para alinhar com a linha dos campos. */
+      .inv-toolbar > .actions-dd{ margin-bottom:0; }
+      .inv-toolbar > .actions-dd > summary{ margin-top:22px; } /* ~ altura da label + gap */
     .inv-toolbar .inv-filtros{ margin:0 0 0 auto; flex:0 1 auto; justify-content:flex-end; gap:12px; }
     .inv-toolbar .inv-filtros .clientes-filtro{ flex:0 1 165px; min-width:140px; }
     .inv-toolbar .inv-filtros .clientes-filtros-botoes{ margin-left:0; }
@@ -121,8 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
   </style>
   <!-- Toolbar: Ações à esquerda · filtros + pesquisa SN + botões à direita -->
   <div class="inv-toolbar">
-    <details class="actions-dd">
-      <summary class="btn btn-teal"><i class="bi bi-lightning-charge"></i> Ações <i class="bi bi-chevron-down"></i></summary>
+      <div class="clientes-filtro" style="flex:0 0 auto;">
+          <label>&nbsp;</label>
+          <details class="actions-dd">
+              <summary class="btn btn-teal"><i class="bi bi-lightning-charge"></i> Ações <i class="bi bi-chevron-down"></i></summary>
       <div class="actions-dd-menu">
         <a class="is-primary" href="app.php?page=nova_peca"><i class="bi bi-plus-lg"></i> Adicionar Peça</a>
         <a href="app.php?page=qrs"><i class="bi bi-upc-scan"></i> Ler (QR / código)</a>
@@ -130,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'lo
         <a href="exportar_inventario_csv.php"><i class="bi bi-download"></i> Exportar CSV</a>
       </div>
     </details>
+   </div>
 
     <form method="get" class="clientes-filtros inv-filtros">
       <input type="hidden" name="page" value="inventario">

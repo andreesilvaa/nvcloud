@@ -22,7 +22,7 @@ function nvAplicarRelatorio(PDO $pdo, int $relId, array $decisoes, string $utili
 
 		// 1) PAT: mudar estado + preencher resolução (se PAT existe)
 		if ($rel['pat_id']) {
-			$pdo->prepare("UPDATE pats SET estado = 'Resolvido', resolucao = ? WHERE id = ?")
+			$pdo->prepare("UPDATE pats SET estado = '" . EstadoPat::RESOLVIDO . "', resolucao = ? WHERE id = ?")
 				->execute([$rel['resolucao_texto'], $rel['pat_id']]);
 			$pdo->prepare("INSERT INTO relatorios_log (relatorio_id,tipo,alvo_id,detalhe) VALUES (?,?,?,?)")
 				->execute([$relId,'pat_estado',$rel['pat_id'],'estado=Resolvido']);

@@ -9,6 +9,33 @@ require_once __DIR__ . '/bootstrap.php';
 
 session_start();
 
+// ── (S1) Importação de Work Order via extensão: CORS + auth por token ──
+// A extensão (origem Salesforce) faz POST cross-origin com o cabeçalho
+// X-NV-Token. Como o cookie de sessão não viaja cross-site (SameSite=Lax),
+// autenticamos por token ANTES do gate de sessão e respondemos em JSON.
+$__isImportWO = (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder');
+if ($__isImportWO) {
+    // config.php define EXTENSION_TOKEN; é carregado mais abaixo, mas aqui ainda
+    // não — garantir que está disponível antes de validar o token da extensão.
+    require_once __DIR__ . '/config.php';
+    $__origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if ($__origin !== '') {
+        header('Access-Control-Allow-Origin: ' . $__origin);
+        header('Vary: Origin');
+        header('Access-Control-Allow-Methods: POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, X-NV-Token');
+        header('Access-Control-Max-Age: 600');
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+    $__extTok = $_SERVER['HTTP_X_NV_TOKEN'] ?? '';
+    if (defined('EXTENSION_TOKEN') && EXTENSION_TOKEN !== '' && hash_equals(EXTENSION_TOKEN, $__extTok)) {
+        // Token válido → modo extensão (resposta em JSON; deixa passar o gate de sessão).
+        $GLOBALS['__wo_extensao'] = true;
+        $_SESSION['user_id']   = $_SESSION['user_id']   ?? 0;
+        $_SESSION['user_nome'] = $_SESSION['user_nome'] ?? 'Extensão';
+    }
+}
+
 $session_timeout = 8 * 60 * 60;
 
 if (!isset($_SESSION['user_id'])) {
@@ -125,15 +152,26 @@ function nvEnriquecerCliente(PDO $pdo, string $entidade): array
         }
     }
 
-    // 3. Palavra a palavra (significativas: >= 4 letras, a mais longa primeiro)
+    // 3. Palavra a palavra — mais estrito para evitar falsos positivos:
+    //    - ignora "palavras-vazias" comuns (loja, cliente, lda, sa...)
+    //    - exige tokens com >= 5 letras
+    //    - só aceita o match se for ÚNICO (um e um só cliente corresponde);
+    //      se houver ambiguidade, prefere não enriquecer a enriquecer mal.
     if (!$cli) {
+        $stop = ['loja','cliente','lda','sa','sociedade','portugal','centro','filial','agencia','agência'];
         $tokens = preg_split('/[^\p{L}\p{N}]+/u', $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $tokens = array_values(array_filter($tokens, fn($w) => mb_strlen($w) >= 4));
+        $tokens = array_values(array_filter($tokens, fn($w) =>
+                mb_strlen($w) >= 5 && !in_array(mb_strtolower($w), $stop, true)
+        ));
         usort($tokens, fn($a, $b) => mb_strlen($b) - mb_strlen($a));
+        $stmtCnt = $pdo->prepare("SELECT COUNT(DISTINCT account_name) FROM clientes_contactos WHERE account_name LIKE ?");
         foreach ($tokens as $w) {
-            $stmtLike->execute(['%' . $esc($w) . '%']);
-            $r = $stmtLike->fetch();
-            if ($r) { $cli = $r; break; }
+            $stmtCnt->execute(['%' . $esc($w) . '%']);
+            if ((int)$stmtCnt->fetchColumn() === 1) {     // match não-ambíguo
+                $stmtLike->execute(['%' . $esc($w) . '%']);
+                $cli = $stmtLike->fetch() ?: null;
+                if ($cli) break;
+            }
         }
     }
 
@@ -198,14 +236,37 @@ $action = $_GET['action'] ?? '';
 if (
     (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder')
 ) {
-    $tokenRecebido = $_GET['csrf'] ?? $_POST['csrf'] ?? '';
-    $viaExtensao = ($_SERVER['HTTP_X_SOURCE'] ?? '') === 'nv-extension';
-    if (!$viaExtensao && $tokenRecebido !== ($_SESSION['csrf_token'] ?? '')) {
+    // Só POST altera dados (nunca GET).
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        $_SESSION['mensagem_erro'] = 'Método não permitido.';
+        header('Location: app.php?page=pats');
+        exit;
+    }
+    // Aceita UMA de duas provas de origem:
+    //  (a) token CSRF da sessão (uso normal no site), OU
+    //  (b) token secreto da extensão (definido em config.php como EXTENSION_TOKEN).
+    $tokenRecebido = $_POST['csrf'] ?? '';
+    $tokenExtensao = $_SERVER['HTTP_X_NV_TOKEN'] ?? '';
+    $csrfOk = hash_equals($_SESSION['csrf_token'] ?? '', $tokenRecebido);
+    $extOk  = defined('EXTENSION_TOKEN') && EXTENSION_TOKEN !== ''
+            && hash_equals(EXTENSION_TOKEN, $tokenExtensao);
+    if (!$csrfOk && !$extOk) {
+        http_response_code(403);
         $_SESSION['mensagem_erro'] = 'Ação inválida.';
         header('Location: app.php?page=pats');
         exit;
     }
-    $source = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
+    $source = $_POST;
+    // Resposta JSON quando a chamada vem da extensão (modo X-NV-Token).
+    $respExt = function (array $payload, int $code = 200): void {
+        if (!empty($GLOBALS['__wo_extensao'])) {
+            http_response_code($code);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    };
     $numeroWo = trim($source['numero_wo'] ?? '');
     $entidade = trim($source['entidade'] ?? '');
     $localCliente = trim($source['local_cliente'] ?? $entidade);
@@ -236,6 +297,7 @@ if (
     $descricao    = $utf8($descricao);
 
     if ($numeroWo === '') {
+        $respExt(['ok' => false, 'erro' => 'Nº Work Order em falta.'], 422);
         $_SESSION['mensagem_erro'] = 'Nº Work Order em falta.';
         header('Location: app.php?page=pats');
         exit;
@@ -246,6 +308,7 @@ if (
     $stmtDup->execute([$numeroWo]);
     $existente = $stmtDup->fetchColumn();
     if ($existente) {
+        $respExt(['ok' => true, 'pat_id' => (int)$existente, 'duplicado' => true]);
         $_SESSION['mensagem_sucesso'] = 'Este WO já estava importado.';
         header('Location: app.php?page=pats&ver=' . (int)$existente);
         exit;
@@ -296,17 +359,37 @@ if (
         ]);
 
         $patId = (int)$pdo->lastInsertId();
+        $respExt(['ok' => true, 'pat_id' => $patId]);
         $_SESSION['mensagem_sucesso'] = 'PAT criado — WO ' . htmlspecialchars($numeroWo);
         header('Location: app.php?page=pats&ver=' . $patId);
         exit;
 
-    } catch (Exception $e) {
-        $_SESSION['mensagem_erro'] = 'Erro ao criar PAT: ' . $e->getMessage();
+    } catch (Throwable $e) {
+        error_log('[nvcloud] Erro ao criar PAT: ' . $e->getMessage());
+        \Sentry\captureException($e);
+        $respExt(['ok' => false, 'erro' => 'Não foi possível criar o PAT.'], 500);
+        $_SESSION['mensagem_erro'] = 'Não foi possível criar o PAT. Tenta novamente.';
         header('Location: app.php?page=pats');
         exit;
     }
 }
 
+// ── Dispensar (marcar como lidas) as notificações atuais ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'notif_dispensar') {
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'] ?? '')) {
+        $_SESSION['mensagem_erro'] = 'Ação inválida.';
+        header('Location: ' . ($_POST['voltar'] ?? 'app.php?page=dashboard')); exit;
+    }
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    $chaves = $_POST['chaves'] ?? [];
+    if (is_array($chaves) && $chaves) {
+        $ins = $pdo->prepare("INSERT IGNORE INTO notificacoes_lidas (user_id, chave) VALUES (?, ?)");
+        foreach ($chaves as $ch) {
+            if (preg_match('/^[a-f0-9]{32}$/', $ch)) { $ins->execute([$uid, $ch]); }
+        }
+    }
+    header('Location: ' . ($_POST['voltar'] ?? 'app.php?page=dashboard')); exit;
+}
 
 $vista = $_GET['lista'] ?? '0';
 // ============================================================
@@ -498,6 +581,35 @@ try {
             'msg'  => $nSemEstado . ' peça(s) sem estado atribuído',
             'link' => 'app.php?page=inventario',
         ];
+    }
+} catch (Throwable $e) { /* ignora */ }
+
+// ── Notificações personalizadas do utilizador ──────────────
+try {
+    $stCustom = $pdo->prepare(
+            "SELECT id, titulo, mensagem, link FROM notificacoes_personalizadas
+          WHERE user_id = ? AND ativo = 1 ORDER BY created_at DESC"
+    );
+    $stCustom->execute([(int)($_SESSION['user_id'] ?? 0)]);
+    foreach ($stCustom as $c) {
+        $notificacoes[] = [
+                'tipo' => 'custom',
+                'msg'  => htmlspecialchars($c['titulo']) . ' — ' . htmlspecialchars($c['mensagem']),
+                'link' => $c['link'] ?: 'app.php?page=analises',
+        ];
+    }
+} catch (Throwable $e) { /* tabela ausente — ignora */ }
+
+// ── Filtrar as que o utilizador já dispensou ───────────────
+try {
+    $dispostas = $pdo->prepare("SELECT chave FROM notificacoes_lidas WHERE user_id = ?");
+    $dispostas->execute([(int)($_SESSION['user_id'] ?? 0)]);
+    $lidas = $dispostas->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    if ($lidas) {
+        $notificacoes = array_values(array_filter($notificacoes, function ($n) use ($lidas) {
+            $chave = md5(($n['tipo'] ?? '') . '|' . ($n['msg'] ?? ''));
+            return !in_array($chave, $lidas, true);
+        }));
     }
 } catch (Throwable $e) { /* ignora */ }
 
@@ -1447,11 +1559,12 @@ select{
 }
 
 .legend-text{
-  display:grid;
-  grid-template-columns:repeat(2, minmax(150px, 240px));
-  column-gap:20px;
-  row-gap:4px;
-  align-content:center;
+    display:grid;
+    grid-template-columns:repeat(2, max-content); /* colunas só com a largura do texto */
+    column-gap:8px;                               /* antes 20px — aproxima as colunas */
+    row-gap:4px;
+    align-content:center;
+    justify-content:start;
 }
 
 .panel-grid,
@@ -1503,10 +1616,11 @@ select{
   }
 
   .legend-text{
-    grid-template-columns:repeat(2, minmax(160px, 1fr));
-    column-gap:18px;
+    grid-template-columns:repeat(2, max-content);
+    column-gap:8px;
     row-gap:12px;
     width:100%;
+    justify-content:start;
   }
 }
 
@@ -1528,10 +1642,11 @@ select{
 
     .legend-text {
         display: grid;
-        grid-template-columns:repeat(2, minmax(150px, 190px));
-        column-gap: 16px;
+        grid-template-columns:repeat(2, max-content);
+        column-gap: 8px;
         row-gap: 10px;
         align-content: center;
+        justify-content: center;
     }
 }
 
@@ -2542,9 +2657,23 @@ function nvVoltar(ev) {
                 <?php endif; ?>
             </button>
             <div class="notif-panel">
-                <div class="notif-panel-header">
-                    Notificações <?php if ($totalNotif > 0): ?>
-                        <span style="color:#6b7280;font-weight:400;">(<?= $totalNotif ?>)</span>
+                <div class="notif-panel-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <span>Notificações <?php if ($totalNotif > 0): ?>
+                            <span style="color:#6b7280;font-weight:400;">(<?= $totalNotif ?>)</span>
+                        <?php endif; ?></span>
+                    <?php if (!empty($notificacoes)): ?>
+                        <form method="post" action="app.php?page=<?= htmlspecialchars($page) ?>" style="margin:0;">
+                            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
+                            <input type="hidden" name="action" value="notif_dispensar">
+                            <input type="hidden" name="voltar" value="app.php?page=<?= htmlspecialchars($page) ?>">
+                            <?php foreach ($notificacoes as $n): ?>
+                                <input type="hidden" name="chaves[]" value="<?= md5(($n['tipo'] ?? '') . '|' . ($n['msg'] ?? '')) ?>">
+                            <?php endforeach; ?>
+                            <button type="submit" title="Dispensar todas"
+                                    style="background:none;border:none;color:#3f7fba;cursor:pointer;font-size:12px;font-weight:600;">
+                                Dispensar tudo
+                            </button>
+                        </form>
                     <?php endif; ?>
                 </div>
                 <?php if (empty($notificacoes)): ?>
@@ -2586,7 +2715,9 @@ function nvVoltar(ev) {
                 <?= htmlspecialchars($_SESSION['user_email'] ?? '') ?>
             </div>
             <a href="app.php?page=contas"><i class="bi bi-person"></i> O meu perfil</a>
-            <a href="#" id="install-app-btn" onclick="installPWA(); return false;" style="display:none;"><i class="bi bi-download"></i> Instalar Aplicação</a>
+            <a href="extensao/stockvision-sf.zip" download><i class="bi bi-puzzle"></i> Instalar extensão (Work Orders)</a>
+            <a href="#" onclick="mostrarAjudaExtensao(); return false;"><i class="bi bi-question-circle"></i> Como instalar a extensão</a>
+            <a href="#" id="install-app-btn" onclick="installPWA(); return false;"><i class="bi bi-download"></i> Instalar aplicação</a>
             <a href="logout.php" class="danger"><i class="bi bi-box-arrow-right"></i> Sair</a>
         </div>
     </div>
@@ -3658,16 +3789,31 @@ window.addEventListener('beforeinstallprompt', function(e) {
     var btn = document.getElementById('install-app-btn');
     if (btn) btn.style.display = '';
 });
+function mostrarAjudaExtensao() {
+    alert(
+        "Instalar a extensão Salesforce:\n\n" +
+        "1. Transfere e descomprime o ficheiro stockvision-sf.zip\n" +
+        "2. Abre chrome://extensions (ou edge://extensions)\n" +
+        "3. Ativa o \"Modo de programador\"\n" +
+        "4. Clica \"Carregar sem compressão\" e escolhe a pasta descomprimida\n" +
+        "5. Abre uma Work Order no Salesforce e clica no ícone da extensão"
+    );
+}
 function installPWA() {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then(function(result) {
-        if (result.outcome === 'accepted') {
-            var btn = document.getElementById('install-app-btn');
-            if (btn) btn.style.display = 'none';
-        }
-        deferredInstallPrompt = null;
-    });
+    if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt.userChoice.then(function(result) {
+            if (result.outcome === 'accepted') {
+                var btn = document.getElementById('install-app-btn');
+                if (btn) btn.style.display = 'none';
+            }
+            deferredInstallPrompt = null;
+        });
+    } else {
+        alert("Para instalar a app: no Chrome/Edge abre o menu (⋮) e escolhe " +
+              "\"Instalar StockVision\" / \"Adicionar ao ecrã principal\".\n" +
+              "No telemóvel (Android/iOS) usa \"Adicionar ao ecrã principal\" no menu do browser.");
+    }
 }
 window.addEventListener('appinstalled', function() {
     var btn = document.getElementById('install-app-btn');

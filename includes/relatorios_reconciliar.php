@@ -8,7 +8,7 @@ if (($_SESSION['user_role'] ?? '') !== 'admin') { http_response_code(403); exit(
 //   SN_Novo    (peça instalada no cliente) => estado destino "Cliente"
 function nvEstadoDestino(string $papel): string
 {
-	return $papel === 'recolha' ? 'Devolução' : 'Cliente';
+	return $papel === 'recolha' ? EstadoPeca::DEVOLUCAO : EstadoPeca::CLIENTE;
 }
 
 /**
@@ -51,6 +51,15 @@ function nvReconciliarRelatorio(PDO $pdo, array $parse, array $meta): array
 		$estado = 'revisao_manual';
 		$avisos[] = 'Relatório digitalizado (Field Service) — revisão manual obrigatória.';
 	}
+	// Salvaguarda de qualidade: se faltam os campos essenciais (PAT e cliente)
+	// o parsing provavelmente correu mal (layout novo, OCR fraco). Em vez de
+	// criar um plano possivelmente errado, força revisão manual.
+	$clienteVazio = trim((string)($parse['cliente'] ?? '')) === '';
+	$patVazio     = empty($parse['pat_numero']);
+	if ($patVazio && $clienteVazio) {
+		$estado = 'revisao_manual';
+		$avisos[] = 'Não foi possível extrair PAT nem cliente — revisão manual obrigatória.';
+	}
 
 	// 2) Inserir relatório
 	$ins = $pdo->prepare("
@@ -88,7 +97,7 @@ function nvReconciliarRelatorio(PDO $pdo, array $parse, array $meta): array
 			if ($row) {
 				$matchId = (int)$row['id'];
 				// Conflito de estado? (peça em estado "final" como Abater)
-				if (in_array($row['estado'], ['Abater'], true)) {
+				if (in_array($row['estado'], EstadoPeca::FINAIS, true)) {
 					$acao = 'rever';
 					$avisos[] = "SN $sn está em '{$row['estado']}' e o relatório quer '$destino' — conflito, requer decisão.";
 					$nRever++;

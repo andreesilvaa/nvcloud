@@ -346,7 +346,26 @@ function nvParseFieldService(string $path, string $nome, string $textoExistente 
 		}
 	}
 
-	// Field Service é manuscrito => peças/SNs NÃO são fiáveis. Não extraímos peças automaticamente.
+	// Field Service é manuscrito => peças/SNs NÃO são fiáveis para aplicar
+	// automaticamente. Mesmo assim, sugerimos candidatos a SN (tokens
+	// alfanuméricos com 6+ caracteres e pelo menos um dígito) para dar ao
+	// revisor um ponto de partida. Ficam marcados como 'novo' por defeito e
+	// 'forcar_revisao' continua true (nada é aplicado sem confirmação humana).
+	$pecasSugeridas = [];
+	if (preg_match_all('/\b(?=[A-Z0-9]*\d)[A-Z0-9]{6,}\b/i', $texto, $mSn)) {
+		$vistos = [];
+		foreach ($mSn[0] as $cand) {
+			$cand = strtoupper($cand);
+			if (isset($vistos[$cand])) continue;
+			$vistos[$cand] = true;
+			$pecasSugeridas[] = [
+				'papel' => 'novo', 'componente' => null,
+				'sn' => $cand, 'equip_ref' => null, 'sugerido' => true,
+			];
+			if (count($pecasSugeridas) >= 8) break; // não inundar o ecrã de revisão
+		}
+	}
+
 	return [
 		'fonte' => 'field_service',
 		'pat_numero' => $pat,
@@ -354,7 +373,7 @@ function nvParseFieldService(string $path, string $nome, string $textoExistente 
 		'cliente' => $cliente,
 		'resolucao' => trim(preg_replace('/\s+/', ' ', mb_substr($texto, 0, 1000))),
 		'data_intervencao' => null,
-		'pecas' => [],          // sempre vazio: obriga revisão manual
+		'pecas' => $pecasSugeridas,   // sugestões; revisão manual continua obrigatória
 		'forcar_revisao' => true,
 	];
 }

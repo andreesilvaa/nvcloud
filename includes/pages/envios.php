@@ -29,7 +29,12 @@
 // ============================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'importar_guia_envio') {
-    if (!isset($_FILES['guia_pdf']) || !is_array($_FILES['guia_pdf'])) {
+if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'] ?? '')) {
+    $_SESSION['mensagem_erro'] = 'Ação inválida.';
+    header('Location: app.php?page=envios');
+    exit;
+}
+if (!isset($_FILES['guia_pdf']) || !is_array($_FILES['guia_pdf'])) {{
         $_SESSION['mensagem_erro'] = 'Nenhum ficheiro PDF foi enviado.';
         header('Location: app.php?page=envios');
         exit;
@@ -52,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'im
 
     $uploadDir = __DIR__ . '/uploads/guias/';
     if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0777, true);
+        mkdir($uploadDir, 0775, true);
     }
 
     $nomeTemporario = 'guia_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
@@ -1030,7 +1035,7 @@ foreach ($envios as $eStat) {
    <div class="panel" style="height:100%;">
       <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Leitura de Guia de Transporte</h4>
       <form method="post" enctype="multipart/form-data" autocomplete="off">
-          <input type="hidden" name="form_type" value="importar_guia_envio">
+          <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
           <div style="margin-bottom:0;">
               <label for="guia_pdf_input" class="upload-pdf-box" id="uploadPdfBox">
                   <span class="upload-pdf-icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>

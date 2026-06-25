@@ -6,7 +6,7 @@
 // ============================================================
 
 require_once __DIR__ . '/vendor/autoload.php';
-
+require_once __DIR__ . '/includes/estados_const.php';
 // ============================================================
 // BINÁRIOS EXTERNOS (Poppler / Tesseract)
 // Caminhos centralizados aqui para não estarem hardcoded em vários ficheiros.

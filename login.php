@@ -14,20 +14,23 @@ if (isset($_SESSION['user_id']))
     exit;
     }
 
-require_once __DIR__ . '/config.php';
-
-$dsn = 'mysql:host=' . DB_HOST . ';port=3306;dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
-$options = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-];
-$pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+// Usa a ligação central (includes/db.php), que já trata erros de forma neutra
+// e não expõe stack traces ao utilizador.
+require_once __DIR__ . '/includes/db.php';
 $erro = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
+
+    // ── Throttle simples por sessão (bloqueia 60s após 5 falhas) ──
+    $agora = time();
+    $tent = $_SESSION['login_tent'] ?? ['n' => 0, 'ate' => 0];
+    if ($tent['n'] >= 5 && $agora < $tent['ate']) {
+        $erro = 'Demasiadas tentativas. Tenta novamente dentro de '
+                . max(1, (int)ceil(($tent['ate'] - $agora) / 1)) . ' segundos.';
+    }
 
     if ($email === '' || $password === '') {
         $erro = 'Preenche o email e a palavra-passe.';
@@ -38,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($userData && password_verify($password, $userData['password'])) {
             session_regenerate_id(true);
+            unset($_SESSION['login_tent']);
 
             $_SESSION['user_id'] = $userData['id'];
             $_SESSION['user_nome'] = $userData['nome'];
@@ -52,6 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: app.php?page=dashboard');
             exit;
         } else {
+            $tent['n']  = ($tent['n'] ?? 0) + 1;
+            $tent['ate'] = $agora + 60; // bloqueio de 60s a partir da 5.ª falha
+            $_SESSION['login_tent'] = $tent;
             $erro = 'Utilizador ou palavra-passe incorretos.';
         }
     }

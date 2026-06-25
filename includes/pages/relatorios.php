@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
     }
 
     $dir = __DIR__ . '/uploads/relatorios/';
-    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    if (!is_dir($dir)) { mkdir($dir, 0775, true); }
 
     $hash = hash_file('sha256', $f['tmp_name']);
     // anti-duplicado (mesmo ficheiro)
@@ -40,7 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
         flashSuccess('Relatório importado. Reveja e aprove.');
         redirectTo('app.php?page=relatorios&ver=' . $res['relatorio_id']);
     } catch (Throwable $e) {
-        flashError('Erro a processar relatório: ' . $e->getMessage());
+        error_log('[nvcloud] Erro a processar relatório: ' . $e->getMessage());
+        \Sentry\captureException($e);
+        flashError('Não foi possível processar o relatório. Verifica o ficheiro e tenta novamente.');
         redirectTo('app.php?page=relatorios');
     }
 }
@@ -213,6 +215,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'relat
                     <input type="hidden" name="action" value="relatorio_decidir">
                     <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
                     <input type="hidden" name="relatorio_id" value="<?= (int)$det['id'] ?>">
+
+                    <?php
+                    // ── Q4: sugestões de SN a partir do inventário ──────────────
+                    // Para relatórios Field Service (manuscritos) os SNs não são
+                    // fiáveis. Sugerimos peças que JÁ estão no inventário em
+                    // estado "Parceiro" com parceiro "Field NewVision", agrupadas
+                    // por Tipo (categoria), para o revisor confirmar/copiar.
+                    if (($det['fonte'] ?? '') === 'field_service'):
+                        $stSug = $pdo->prepare(
+                            "SELECT categoria, produto, sn
+                               FROM pecas
+                              WHERE estado = 'Parceiro' AND parceiro = 'Field NewVision'
+                                AND sn IS NOT NULL AND sn <> ''
+                              ORDER BY categoria ASC, produto ASC, sn ASC"
+                        );
+                        $stSug->execute();
+                        $sugestoes = $stSug->fetchAll();
+                        $sugPorTipo = [];
+                        foreach ($sugestoes as $sg) {
+                            $sugPorTipo[$sg['categoria'] !== '' ? $sg['categoria'] : 'Sem tipo'][] = $sg;
+                        }
+                    ?>
+                        <div style="border:1px dashed #c9a14a; background:#fffdf5; border-radius:8px; padding:12px 14px; margin:0 0 14px;">
+                            <div style="font-weight:600; color:#92400e; margin-bottom:8px;">
+                                <i class="bi bi-lightbulb"></i> SN sugerido — confirmar
+                                <span style="font-weight:400; color:#6b7280; font-size:12px;">(peças Field NewVision em estado &laquo;Parceiro&raquo;)</span>
+                            </div>
+                            <?php if (!$sugestoes): ?>
+                                <div style="color:#6b7280; font-size:13px;">Não há peças Field NewVision em &laquo;Parceiro&raquo; de momento.</div>
+                            <?php else: foreach ($sugPorTipo as $tipoSug => $itensSug): ?>
+                                <div style="margin-bottom:8px;">
+                                    <div style="font-size:12px; font-weight:600; color:#374151;"><?= e($tipoSug) ?></div>
+                                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                                        <?php foreach ($itensSug as $it): ?>
+                                            <button type="button" class="btn btn-grey" style="padding:3px 8px; font-size:12px;"
+                                                    title="Copiar SN — <?= e($it['produto']) ?>"
+                                                    onclick="if(navigator.clipboard){navigator.clipboard.writeText('<?= e($it['sn']) ?>');} this.innerHTML='<i class=\'bi bi-check2\'></i> <?= e($it['sn']) ?>';">
+                                                <?= e($it['produto']) ?> · <?= e($it['sn']) ?>
+                                            </button>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; endif; ?>
+                        </div>
+                    <?php endif; ?>
 
                     <?php foreach ($linhas as $l): if ($l['acao'] !== 'rever') continue; ?>
                         <div style="border:1px solid #e5e7eb; border-radius:6px; padding:10px 12px; margin:0 0 10px;">
