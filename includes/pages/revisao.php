@@ -70,10 +70,46 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 /* ── Revisão de Peças ── */
 .rev-header {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     margin-bottom: 20px;
+}
+.rev-header h2 { margin: 0; }
+.rev-header-nav { display: flex; align-items: center; justify-content: flex-end; }
+.rev-mes-picker {
+    display: inline-flex;
+    align-items: stretch;
+    background: #fff;
+    border: 1px solid #e5e9ef;
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+}
+.rev-mes-picker a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    color: #64748b;
+    text-decoration: none;
+    transition: background .15s, color .15s;
+}
+.rev-mes-picker a:hover { background: #f8fafc; color: #c9a14a; }
+.rev-mes-picker .rev-mes-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 18px;
+    min-width: 148px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    border-left: 1px solid #eef1f5;
+    border-right: 1px solid #eef1f5;
+    background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
 }
 .rev-header h2 {
     margin: 0;
@@ -462,14 +498,13 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
     ?>
     <div class="rev-header">
         <h2><i class="bi bi-clipboard-check"></i> Revisão de Peças</h2>
-        <div style="display:flex; justify-content:center; align-items:center;">
-            <div class="seg-control">
+        <div class="rev-header-nav">
+            <div class="rev-mes-picker">
                 <a href="app.php?page=revisao&mes=<?= e($mesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
-                <span class="seg-mid"><?= e($periodoLabel) ?></span>
+                <span class="rev-mes-label"><?= e($periodoLabel) ?></span>
                 <a href="app.php?page=revisao&mes=<?= e($mesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
             </div>
         </div>
-        <div></div>
     </div>
 
     <!-- KPIs -->

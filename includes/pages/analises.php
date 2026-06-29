@@ -4,249 +4,360 @@
 /** @var array $estados */
 /** @var array $parceiros */
 
-require_once __DIR__ . '/../revisoes.php';
-require_once __DIR__ . '/../sla.php';
+require_once __DIR__ . "/../revisoes.php";
+require_once __DIR__ . "/../sla.php";
 
 // ── SLA: criar / editar / ativar-desativar / eliminar regra ──────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['sla_guardar', 'sla_toggle', 'sla_eliminar'], true)) {
-    if (($_POST['csrf'] ?? '') !== ($_SESSION['csrf_token'] ?? '')) {
-        flashError('Ação inválida.');
-        redirectTo('app.php?page=analises');
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    in_array(
+        $_POST["action"] ?? "",
+        ["sla_guardar", "sla_toggle", "sla_eliminar"],
+        true,
+    )
+) {
+    if (($_POST["csrf"] ?? "") !== ($_SESSION["csrf_token"] ?? "")) {
+        flashError("Ação inválida.");
+        redirectTo("app.php?page=analises");
     }
     exigirAdmin();
 
-    $acaoSla = $_POST['action'];
+    $acaoSla = $_POST["action"];
 
-    if ($acaoSla === 'sla_guardar') {
-        $id         = (int)($_POST['id'] ?? 0);
-        $alvoTipo   = in_array($_POST['alvo_tipo'] ?? '', ['cliente', 'parceiro', 'global'], true) ? $_POST['alvo_tipo'] : 'global';
-        $alvoNome   = trim($_POST['alvo_nome'] ?? '');
-        $estadoRule = trim($_POST['estado'] ?? '');
-        $diasLimite = (int)($_POST['dias_limite'] ?? 0);
+    if ($acaoSla === "sla_guardar") {
+        $id = (int) ($_POST["id"] ?? 0);
+        $alvoTipo = in_array(
+            $_POST["alvo_tipo"] ?? "",
+            ["cliente", "parceiro", "global"],
+            true,
+        )
+            ? $_POST["alvo_tipo"]
+            : "global";
+        $alvoNome = trim($_POST["alvo_nome"] ?? "");
+        $estadoRule = trim($_POST["estado"] ?? "");
+        $diasLimite = (int) ($_POST["dias_limite"] ?? 0);
 
-        if ($estadoRule === '') {
-            flashError('Tens de escolher um estado para a regra.');
-            redirectTo('app.php?page=analises');
+        if ($estadoRule === "") {
+            flashError("Tens de escolher um estado para a regra.");
+            redirectTo("app.php?page=analises");
         }
         if ($diasLimite <= 0) {
-            flashError('O limite de dias tem de ser maior que zero.');
-            redirectTo('app.php?page=analises');
+            flashError("O limite de dias tem de ser maior que zero.");
+            redirectTo("app.php?page=analises");
         }
-        if ($alvoTipo !== 'global' && $alvoNome === '') {
-            flashError('Tens de escolher um ' . ($alvoTipo === 'parceiro' ? 'parceiro' : 'cliente') . ' para esta regra.');
-            redirectTo('app.php?page=analises');
+        if ($alvoTipo !== "global" && $alvoNome === "") {
+            flashError(
+                "Tens de escolher um " .
+                    ($alvoTipo === "parceiro" ? "parceiro" : "cliente") .
+                    " para esta regra.",
+            );
+            redirectTo("app.php?page=analises");
         }
-        if ($alvoTipo === 'global') {
+        if ($alvoTipo === "global") {
             $alvoNome = null;
         }
 
         if ($id > 0) {
-            $pdo->prepare("UPDATE sla_regras SET alvo_tipo=?, alvo_nome=?, estado=?, dias_limite=? WHERE id=?")
-                ->execute([$alvoTipo, $alvoNome, $estadoRule, $diasLimite, $id]);
-            flashSuccess('Regra de SLA atualizada.');
+            $pdo->prepare(
+                "UPDATE sla_regras SET alvo_tipo=?, alvo_nome=?, estado=?, dias_limite=? WHERE id=?",
+            )->execute([$alvoTipo, $alvoNome, $estadoRule, $diasLimite, $id]);
+            flashSuccess("Regra de SLA atualizada.");
         } else {
-            $pdo->prepare("INSERT INTO sla_regras (alvo_tipo, alvo_nome, estado, dias_limite, ativo) VALUES (?,?,?,?,1)")
-                ->execute([$alvoTipo, $alvoNome, $estadoRule, $diasLimite]);
-            flashSuccess('Regra de SLA criada.');
+            $pdo->prepare(
+                "INSERT INTO sla_regras (alvo_tipo, alvo_nome, estado, dias_limite, ativo) VALUES (?,?,?,?,1)",
+            )->execute([$alvoTipo, $alvoNome, $estadoRule, $diasLimite]);
+            flashSuccess("Regra de SLA criada.");
         }
-    } elseif ($acaoSla === 'sla_toggle') {
-        $pdo->prepare("UPDATE sla_regras SET ativo = 1 - ativo WHERE id = ?")->execute([(int)($_POST['id'] ?? 0)]);
-        flashSuccess('Estado da regra atualizado.');
-    } elseif ($acaoSla === 'sla_eliminar') {
-        $pdo->prepare("DELETE FROM sla_regras WHERE id = ?")->execute([(int)($_POST['id'] ?? 0)]);
-        flashSuccess('Regra de SLA eliminada.');
+    } elseif ($acaoSla === "sla_toggle") {
+        $pdo->prepare(
+            "UPDATE sla_regras SET ativo = 1 - ativo WHERE id = ?",
+        )->execute([(int) ($_POST["id"] ?? 0)]);
+        flashSuccess("Estado da regra atualizado.");
+    } elseif ($acaoSla === "sla_eliminar") {
+        $pdo->prepare("DELETE FROM sla_regras WHERE id = ?")->execute([
+            (int) ($_POST["id"] ?? 0),
+        ]);
+        flashSuccess("Regra de SLA eliminada.");
     }
-    redirectTo('app.php?page=analises');
+    redirectTo("app.php?page=analises");
 }
 
 // ── Notificações personalizadas: criar / eliminar ──────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['notif_criar', 'notif_eliminar'], true)) {
-    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'] ?? '')) {
-        flashError('Ação inválida.'); redirectTo('app.php?page=analises');
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    in_array($_POST["action"] ?? "", ["notif_criar", "notif_eliminar"], true)
+) {
+    if (!hash_equals($_SESSION["csrf_token"] ?? "", $_POST["csrf"] ?? "")) {
+        flashError("Ação inválida.");
+        redirectTo("app.php?page=analises");
     }
-    $uid = (int)($_SESSION['user_id'] ?? 0);
-    if (($_POST['action']) === 'notif_criar') {
-        $titulo = trim($_POST['titulo'] ?? '');
-        $msg    = trim($_POST['mensagem'] ?? '');
-        $link   = trim($_POST['link'] ?? '');
-        if ($titulo === '' || $msg === '') {
-            flashError('Preenche o título e a mensagem da notificação.');
+    $uid = (int) ($_SESSION["user_id"] ?? 0);
+    if ($_POST["action"] === "notif_criar") {
+        $titulo = trim($_POST["titulo"] ?? "");
+        $msg = trim($_POST["mensagem"] ?? "");
+        $link = trim($_POST["link"] ?? "");
+        if ($titulo === "" || $msg === "") {
+            flashError("Preenche o título e a mensagem da notificação.");
         } else {
-            $pdo->prepare("INSERT INTO notificacoes_personalizadas (user_id, titulo, mensagem, link) VALUES (?,?,?,?)")
-                    ->execute([$uid, mb_substr($titulo,0,120), mb_substr($msg,0,255), $link !== '' ? mb_substr($link,0,255) : null]);
-            flashSuccess('Notificação criada.');
+            $pdo->prepare(
+                "INSERT INTO notificacoes_personalizadas (user_id, titulo, mensagem, link) VALUES (?,?,?,?)",
+            )->execute([
+                $uid,
+                mb_substr($titulo, 0, 120),
+                mb_substr($msg, 0, 255),
+                $link !== "" ? mb_substr($link, 0, 255) : null,
+            ]);
+            flashSuccess("Notificação criada.");
         }
     } else {
-        $pdo->prepare("DELETE FROM notificacoes_personalizadas WHERE id = ? AND user_id = ?")
-                ->execute([(int)($_POST['id'] ?? 0), $uid]);
-        flashSuccess('Notificação removida.');
+        $pdo->prepare(
+            "DELETE FROM notificacoes_personalizadas WHERE id = ? AND user_id = ?",
+        )->execute([(int) ($_POST["id"] ?? 0), $uid]);
+        flashSuccess("Notificação removida.");
     }
-    redirectTo('app.php?page=analises');
+    redirectTo("app.php?page=analises");
 }
 
 // ── Resumo Mensal ──────────────────────────────────────────
-$periodo = preg_match('/^\d{4}-\d{2}$/', $_GET['mes'] ?? '') ? $_GET['mes'] : date('Y-m');
+$periodo = preg_match('/^\d{4}-\d{2}$/', $_GET["mes"] ?? "")
+    ? $_GET["mes"]
+    : date("Y-m");
 
 $kpi = function (PDO $pdo, string $sql, array $p = []) {
     $s = $pdo->prepare($sql);
     $s->execute($p);
-    return (int)$s->fetchColumn();
+    return (int) $s->fetchColumn();
 };
-$entradas  = $kpi($pdo, "SELECT COUNT(*) FROM pecas WHERE DATE_FORMAT(created_at,'%Y-%m') = ?", [$periodo]);
-$movEstado = $kpi($pdo, "SELECT COUNT(*) FROM historico WHERE campo='estado' AND DATE_FORMAT(data_alteracao,'%Y-%m') = ?", [$periodo]);
-$revFeitas = $kpi($pdo, "SELECT COUNT(*) FROM revisoes_peca WHERE periodo = ? AND decisao <> 'pendente'", [$periodo]);
-$revPend   = $kpi($pdo, "SELECT COUNT(*) FROM revisoes_peca WHERE periodo = ? AND decisao = 'pendente'", [$periodo]);
+$entradas = $kpi(
+    $pdo,
+    "SELECT COUNT(*) FROM pecas WHERE DATE_FORMAT(created_at,'%Y-%m') = ?",
+    [$periodo],
+);
+$movEstado = $kpi(
+    $pdo,
+    "SELECT COUNT(*) FROM historico WHERE campo='estado' AND DATE_FORMAT(data_alteracao,'%Y-%m') = ?",
+    [$periodo],
+);
+$revFeitas = $kpi(
+    $pdo,
+    "SELECT COUNT(*) FROM revisoes_peca WHERE periodo = ? AND decisao <> 'pendente'",
+    [$periodo],
+);
+$revPend = $kpi(
+    $pdo,
+    "SELECT COUNT(*) FROM revisoes_peca WHERE periodo = ? AND decisao = 'pendente'",
+    [$periodo],
+);
 
-// ── Movimentos (12 meses) ───────────────────────────────────
-$entradasMes = $pdo->query("
+// ── Movimentos (12 meses desktop, 4 meses mobile) ───────────────────────────────────
+$isMobile =
+    (isset($_SERVER["HTTP_USER_AGENT"]) &&
+        preg_match(
+            "/(android|iphone|ipad|mobile)/i",
+            $_SERVER["HTTP_USER_AGENT"],
+        )) ||
+    (isset($_GET["mobile"]) && $_GET["mobile"] === "1");
+$mesesInterval = $isMobile ? 4 : 12;
+
+$entradasMes = $pdo
+    ->query(
+        "
     SELECT DATE_FORMAT(created_at,'%Y-%m') AS mes, COUNT(*) total
     FROM pecas
-    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$mesesInterval} MONTH)
     GROUP BY mes ORDER BY mes
-")->fetchAll();
+",
+    )
+    ->fetchAll();
 
-$saidasMes = $pdo->query("
+$saidasMes = $pdo
+    ->query(
+        "
     SELECT DATE_FORMAT(data_alteracao,'%Y-%m') AS mes, COUNT(*) total
     FROM historico
     WHERE campo='estado' AND depois IN ('Cliente','Parceiro','Fornecedor (Reparação)')
-      AND data_alteracao >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      AND data_alteracao >= DATE_SUB(CURDATE(), INTERVAL {$mesesInterval} MONTH)
     GROUP BY mes ORDER BY mes
-")->fetchAll();
+",
+    )
+    ->fetchAll();
 
 $movIdx = [];
-foreach ($entradasMes as $mLin) { $movIdx[$mLin['mes']]['ent'] = (int)$mLin['total']; }
-foreach ($saidasMes   as $mLin) { $movIdx[$mLin['mes']]['sai'] = (int)$mLin['total']; }
+foreach ($entradasMes as $mLin) {
+    $movIdx[$mLin["mes"]]["ent"] = (int) $mLin["total"];
+}
+foreach ($saidasMes as $mLin) {
+    $movIdx[$mLin["mes"]]["sai"] = (int) $mLin["total"];
+}
 ksort($movIdx);
 
 // ── SLA — quebras + regras existentes ───────────────────────
 $slaQuebras = nvSlaQuebras($pdo);
 
-$slaRegras = $pdo->query("
+$slaRegras = $pdo
+    ->query(
+        "
     SELECT * FROM sla_regras
     ORDER BY ativo DESC, (alvo_tipo='global') DESC, alvo_tipo ASC, estado ASC
-")->fetchAll();
+",
+    )
+    ->fetchAll();
 
 $slaEdit = null;
-if (($_GET['sla_edit'] ?? '') !== '') {
+if (($_GET["sla_edit"] ?? "") !== "") {
     $stmt = $pdo->prepare("SELECT * FROM sla_regras WHERE id = ?");
-    $stmt->execute([(int)$_GET['sla_edit']]);
+    $stmt->execute([(int) $_GET["sla_edit"]]);
     $slaEdit = $stmt->fetch() ?: null;
 }
 
-$listaClientesSla = $pdo->query("
-    SELECT DISTINCT account_name FROM clientes
-    WHERE account_name IS NOT NULL AND account_name <> ''
-    ORDER BY account_name ASC
-")->fetchAll(PDO::FETCH_COLUMN);
+$clienteSlaAtual =
+    ($slaEdit["alvo_tipo"] ?? "") === "cliente"
+        ? $slaEdit["alvo_nome"] ?? ""
+        : "";
+// Nota: a lista completa de clientes (milhares de linhas) já NÃO é
+// carregada aqui. Era inserida sempre, em todas as visitas a esta
+// página, mesmo que ninguém usasse o filtro "Cliente" — isso pesava
+// bastante o HTML/DOM da página (3500+ <option>). Agora só é pedida
+// via clientes_lista_api.php quando o utilizador escolhe "Cliente".
 
-$mesesPt = ['01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'Jun',
-            '07'=>'Jul','08'=>'Ago','09'=>'Set','10'=>'Out','11'=>'Nov','12'=>'Dez'];
+$mesesPt = [
+    "01" => "Jan",
+    "02" => "Fev",
+    "03" => "Mar",
+    "04" => "Abr",
+    "05" => "Mai",
+    "06" => "Jun",
+    "07" => "Jul",
+    "08" => "Ago",
+    "09" => "Set",
+    "10" => "Out",
+    "11" => "Nov",
+    "12" => "Dez",
+];
 ?>
 
 <!-- ══ RESUMO MENSAL ══ -->
 <?php
 // Seletor de mês como segmented control (igual à Revisão), alinhado à direita
-$anMesesPt = [1=>'Janeiro',2=>'Fevereiro',3=>'Março',4=>'Abril',5=>'Maio',6=>'Junho',7=>'Julho',8=>'Agosto',9=>'Setembro',10=>'Outubro',11=>'Novembro',12=>'Dezembro'];
-$anTs           = strtotime($periodo . '-01');
-$anMesPrev      = date('Y-m', strtotime('-1 month', $anTs));
-$anMesNext      = date('Y-m', strtotime('+1 month', $anTs));
-$anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
+$anMesesPt = [
+    1 => "Janeiro",
+    2 => "Fevereiro",
+    3 => "Março",
+    4 => "Abril",
+    5 => "Maio",
+    6 => "Junho",
+    7 => "Julho",
+    8 => "Agosto",
+    9 => "Setembro",
+    10 => "Outubro",
+    11 => "Novembro",
+    12 => "Dezembro",
+];
+$anTs = strtotime($periodo . "-01");
+$anMesPrev = date("Y-m", strtotime("-1 month", $anTs));
+$anMesNext = date("Y-m", strtotime("+1 month", $anTs));
+$anPeriodoLabel = $anMesesPt[(int) date("n", $anTs)] . " " . date("Y", $anTs);
 ?>
-<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
-    <h4 style="margin:0;"><i class="bi bi-calendar3" style="color:#c9a14a; margin-right:6px;"></i>Resumo Mensal</h4>
-    <div class="seg-control">
-        <a href="app.php?page=analises&mes=<?= e($anMesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
-        <span class="seg-mid"><?= e($anPeriodoLabel) ?></span>
-        <a href="app.php?page=analises&mes=<?= e($anMesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
+<div style="display:flex; align-items:center; justify-content:center; margin-bottom:16px;" class="analises-header-row">
+    <div class="rev-mes-picker analises-mes-picker">
+        <a href="app.php?page=analises&mes=<?= e(
+            $anMesPrev,
+        ) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
+        <span class="rev-mes-label"><?= e($anPeriodoLabel) ?></span>
+        <a href="app.php?page=analises&mes=<?= e(
+            $anMesNext,
+        ) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
     </div>
 </div>
 <style>
-/* Opção A — cartões do resumo mensal em layout horizontal compacto (scoped: não afeta o Dashboard) */
-.kpi-resumo-compact .kpi-card{
-    display:flex !important; flex-direction:row !important; align-items:center;
-    justify-content:center !important; text-align:left; gap:14px; padding:12px 16px;
-    min-height:0 !important; height:auto !important; aspect-ratio:unset !important;
+/* Resumo Mensal: usa exatamente o mesmo .kpi-card do Dashboard, sem
+   variante própria — mantém a página visualmente consistente com o
+   resto do site em vez de ter o seu próprio layout. */
+@media (max-width:768px){
+  .kpi-resumo-compact{ grid-template-columns:repeat(2,1fr) !important; }
 }
-.kpi-resumo-compact .kpi-card > i{ font-size:26px !important; margin:0 !important; line-height:1; }
-.kpi-resumo-compact .kpi-card .kpi-body{ display:flex; flex-direction:column; gap:2px; }
-.kpi-resumo-compact .kpi-card .num{ font-size:24px !important; margin:0 !important; line-height:1.1; }
-.kpi-resumo-compact .kpi-card .kpi-lbl{ font-size:12.5px; color:#6b7280; }
-@media (max-width:768px){ .kpi-resumo-compact{ grid-template-columns:repeat(2,1fr) !important; } }
 </style>
-<div class="kpi-row kpi-resumo-compact" style="grid-template-columns:repeat(4, 1fr); margin-bottom:10px;">
+<div class="kpi-row kpi-resumo-compact" style="grid-template-columns:repeat(4, 1fr); margin-bottom:20px;">
     <div class="kpi-card">
         <i class="bi bi-box-seam" style="color:#c9a14a;"></i>
-        <div class="kpi-body">
-            <div class="num"><?= $entradas ?></div>
-            <div class="kpi-lbl">Peças novas</div>
-        </div>
+        <div class="num"><?= $entradas ?></div>
+        <div>Peças novas</div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-arrow-left-right" style="color:#3d82c4;"></i>
-        <div class="kpi-body">
-            <div class="num"><?= $movEstado ?></div>
-            <div class="kpi-lbl">Mudanças de estado</div>
-        </div>
+        <div class="num"><?= $movEstado ?></div>
+        <div>Mudanças de estado</div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-check2-square" style="color:#59b94f;"></i>
-        <div class="kpi-body">
-            <div class="num"><?= $revFeitas ?></div>
-            <div class="kpi-lbl">Revisões feitas</div>
-        </div>
+        <div class="num"><?= $revFeitas ?></div>
+        <div>Revisões feitas</div>
     </div>
     <div class="kpi-card">
         <i class="bi bi-hourglass-split" style="color:#f59e0b;"></i>
-        <div class="kpi-body">
-            <div class="num"><?= $revPend ?></div>
-            <div class="kpi-lbl">Revisões pendentes</div>
-        </div>
+        <div class="num"><?= $revPend ?></div>
+        <div>Revisões pendentes</div>
     </div>
 </div>
-<p class="small-note" style="margin-bottom:20px;">Valores referentes a <?= e(($mesesPt[substr($periodo,5,2)] ?? substr($periodo,5,2)) . '/' . substr($periodo,0,4)) ?>. Os totais de revisão estão ligados à página "Revisão".</p>
 
-<!-- ══ MOVIMENTOS (12 MESES) ══ -->
+<!-- ══ MOVIMENTOS (<?= $mesesInterval ?> MESES) ══ -->
 <div class="panel" style="margin-bottom:20px;">
-    <h4 style="margin-bottom:16px;"><i class="bi bi-graph-up-arrow" style="color:#c9a14a; margin-right:6px;"></i>Movimentos de Stock (últimos 12 meses)</h4>
-    <div style="overflow-x:auto;">
-        <table class="table envios-table">
+    <h4 style="margin-bottom:16px;"><i class="bi bi-graph-up-arrow" style="color:#c9a14a; margin-right:6px;"></i>Movimentos de Stock <span class="mobile-stock-count">(últimos <?= $mesesInterval ?> meses)</span></h4>
+    <div class="table-responsive">
+        <table class="table envios-table table-card-stack">
             <thead>
             <tr><th>Mês</th><th>Entradas</th><th>Saídas</th><th>Saldo</th></tr>
             </thead>
             <tbody>
             <?php if (empty($movIdx)): ?>
-                <tr><td colspan="4" class="envios-vazio">Sem movimentos nos últimos 12 meses.</td></tr>
+                <tr><td colspan="4" class="envios-vazio">Sem movimentos nos últimos <?= $mesesInterval ?> meses.</td></tr>
             <?php else: ?>
                 <?php foreach ($movIdx as $mesChave => $v):
-                    $ent = (int)($v['ent'] ?? 0);
-                    $sai = (int)($v['sai'] ?? 0);
+
+                    $ent = (int) ($v["ent"] ?? 0);
+                    $sai = (int) ($v["sai"] ?? 0);
                     $saldo = $ent - $sai;
-                    $corSaldo = $saldo > 0 ? '#15803d' : ($saldo < 0 ? '#b91c1c' : '#6b7280');
-                    $rotulo = ($mesesPt[substr($mesChave,5,2)] ?? substr($mesChave,5,2)) . ' ' . substr($mesChave,0,4);
+                    $corSaldo =
+                        $saldo > 0
+                            ? "#15803d"
+                            : ($saldo < 0
+                                ? "#b91c1c"
+                                : "#6b7280");
+                    $rotulo =
+                        ($mesesPt[substr($mesChave, 5, 2)] ??
+                            substr($mesChave, 5, 2)) .
+                        " " .
+                        substr($mesChave, 0, 4);
                     ?>
                     <tr>
-                        <td><?= e($rotulo) ?></td>
-                        <td><?= $ent ?></td>
-                        <td><?= $sai ?></td>
-                        <td style="color:<?= $corSaldo ?>; font-weight:700;"><?= $saldo > 0 ? '+' : '' ?><?= $saldo ?></td>
+                        <td data-label="Mês"><?= e($rotulo) ?></td>
+                        <td data-label="Entradas"><?= $ent ?></td>
+                        <td data-label="Saídas"><?= $sai ?></td>
+                        <td data-label="Saldo" style="color:<?= $corSaldo ?>; font-weight:700;"><?= ($saldo >
+0
+    ? "+"
+    : "") . $saldo ?></td>
                     </tr>
-                <?php endforeach; ?>
+                <?php
+                endforeach; ?>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
-    <p class="small-note">"Saídas" conta peças que passaram a Cliente, Parceiro ou Fornecedor (Reparação) nesse mês.</p>
 </div>
 
 <!-- ══ REGRAS DE SLA (configuração) ══ -->
-<div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; align-items:start; margin-bottom:20px;">
-<div class="panel">
-    <h4 style="margin-bottom:16px;"><i class="bi bi-sliders" style="color:#c9a14a; margin-right:6px;"></i><?= $slaEdit ? 'Editar Regra de SLA' : 'Nova Regra de SLA' ?></h4>
+<div class="sla-config-grid">
+<div class="panel sla-panel-form">
+    <h4 style="margin-bottom:16px;"><i class="bi bi-sliders" style="color:#c9a14a; margin-right:6px;"></i><?= $slaEdit
+        ? "Editar Regra de SLA"
+        : "Nova Regra de SLA" ?></h4>
 
     <form method="post" action="app.php?page=analises" id="formSlaRegra">
         <input type="hidden" name="action" value="sla_guardar">
         <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
-        <input type="hidden" name="id" value="<?= (int)($slaEdit['id'] ?? 0) ?>">
+        <input type="hidden" name="id" value="<?= (int) ($slaEdit["id"] ??
+            0) ?>">
 
         <div class="sla-form-secao">
             <span class="sla-form-secao-titulo"><i class="bi bi-bullseye"></i>Âmbito da regra</span>
@@ -254,9 +365,21 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
                 <div>
                     <label>Aplica-se a</label>
                     <select name="alvo_tipo" id="slaAlvoTipo" onchange="nvSlaAlvoToggle()">
-                        <option value="global" <?= ($slaEdit['alvo_tipo'] ?? 'global') === 'global' ? 'selected' : '' ?>>Todos (Global)</option>
-                        <option value="parceiro" <?= ($slaEdit['alvo_tipo'] ?? '') === 'parceiro' ? 'selected' : '' ?>>Um Parceiro</option>
-                        <option value="cliente" <?= ($slaEdit['alvo_tipo'] ?? '') === 'cliente' ? 'selected' : '' ?>>Um Cliente</option>
+                        <option value="global" <?= ($slaEdit["alvo_tipo"] ??
+                            "global") ===
+                        "global"
+                            ? "selected"
+                            : "" ?>>Todos (Global)</option>
+                        <option value="parceiro" <?= ($slaEdit["alvo_tipo"] ??
+                            "") ===
+                        "parceiro"
+                            ? "selected"
+                            : "" ?>>Um Parceiro</option>
+                        <option value="cliente" <?= ($slaEdit["alvo_tipo"] ??
+                            "") ===
+                        "cliente"
+                            ? "selected"
+                            : "" ?>>Um Cliente</option>
                     </select>
                 </div>
                 <div>
@@ -265,7 +388,13 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
                         <select name="alvo_nome_parceiro" id="slaAlvoNomeParceiro">
                             <option value="">-- Selecione o parceiro --</option>
                             <?php foreach ($parceiros as $p): ?>
-                                <option value="<?= e($p) ?>" <?= ($slaEdit['alvo_tipo'] ?? '') === 'parceiro' && ($slaEdit['alvo_nome'] ?? '') === $p ? 'selected' : '' ?>><?= e($p) ?></option>
+                                <option value="<?= e($p) ?>" <?= ($slaEdit[
+    "alvo_tipo"
+] ??
+    "") ===
+    "parceiro" && ($slaEdit["alvo_nome"] ?? "") === $p
+    ? "selected"
+    : "" ?>><?= e($p) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -273,9 +402,11 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
                         <label>Cliente</label>
                         <select name="alvo_nome_cliente" id="slaAlvoNomeCliente">
                             <option value="">-- Selecione o cliente --</option>
-                            <?php foreach ($listaClientesSla as $c): ?>
-                                <option value="<?= e($c) ?>" <?= ($slaEdit['alvo_tipo'] ?? '') === 'cliente' && ($slaEdit['alvo_nome'] ?? '') === $c ? 'selected' : '' ?>><?= e($c) ?></option>
-                            <?php endforeach; ?>
+                            <?php if ($clienteSlaAtual !== ""): ?>
+                                <option value="<?= e(
+                                    $clienteSlaAtual,
+                                ) ?>" selected><?= e($clienteSlaAtual) ?></option>
+                            <?php endif; ?>
                         </select>
                     </div>
                     <div id="slaAlvoGlobalNota" class="sla-form-nota">
@@ -293,74 +424,62 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
                     <select name="estado" required>
                         <option value="">-- Selecione o estado --</option>
                         <?php foreach ($estados as $est): ?>
-                            <option value="<?= e($est) ?>" <?= ($slaEdit['estado'] ?? '') === $est ? 'selected' : '' ?>><?= e($est) ?></option>
+                            <option value="<?= e($est) ?>" <?= ($slaEdit[
+    "estado"
+] ??
+    "") ===
+$est
+    ? "selected"
+    : "" ?>><?= e($est) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div>
                     <label>Limite (dias)</label>
-                    <input type="number" name="dias_limite" min="1" required value="<?= e($slaEdit['dias_limite'] ?? '') ?>" placeholder="ex.: 15">
+                    <input type="number" name="dias_limite" min="1" required value="<?= e(
+                        $slaEdit["dias_limite"] ?? "",
+                    ) ?>" placeholder="ex.: 15">
                 </div>
             </div>
         </div>
 
         <div style="display:flex; gap:10px;">
-            <button class="btn btn-teal" type="submit"><?= $slaEdit ? 'Atualizar Regra' : 'Criar Regra' ?></button>
+            <button class="btn btn-teal" type="submit"><?= $slaEdit
+                ? "Atualizar Regra"
+                : "Criar Regra" ?></button>
             <?php if ($slaEdit): ?>
                 <a class="btn btn-grey" href="app.php?page=analises" onclick="nvVoltar(event)">Cancelar</a>
             <?php endif; ?>
         </div>
     </form>
 
-    <div class="panel" style="margin-top:24px;">
-        <h4><i class="bi bi-bell"></i> As minhas notificações</h4>
-        <form method="post" action="app.php?page=analises" style="display:grid;grid-template-columns:1fr 2fr 1.5fr auto;gap:10px;align-items:end;margin-bottom:16px;">
-            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
-            <input type="hidden" name="action" value="notif_criar">
-            <div><label>Título</label><input type="text" name="titulo" maxlength="120" required placeholder="Ex.: Pedir material"></div>
-            <div><label>Mensagem</label><input type="text" name="mensagem" maxlength="255" required placeholder="Ex.: Encomendar cabeçotes Proxima"></div>
-            <div><label>Link (opcional)</label><input type="text" name="link" maxlength="255" placeholder="app.php?page=inventario"></div>
-            <button class="btn btn-blue" type="submit"><i class="bi bi-plus-lg"></i> Criar</button>
-        </form>
-
-        <?php
-        $minhasNotif = $pdo->prepare("SELECT id, titulo, mensagem, link, created_at FROM notificacoes_personalizadas WHERE user_id = ? ORDER BY created_at DESC");
-        $minhasNotif->execute([(int)($_SESSION['user_id'] ?? 0)]);
-        $listaNotif = $minhasNotif->fetchAll();
-        ?>
-        <?php if (!$listaNotif): ?>
-            <p style="color:#6b7280;">Ainda não criaste notificações.</p>
-        <?php else: ?>
-            <table class="table">
-                <thead><tr><th>Título</th><th>Mensagem</th><th>Criada</th><th class="actions">Ações</th></tr></thead>
-                <tbody>
-                <?php foreach ($listaNotif as $n): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($n['titulo']) ?></td>
-                        <td><?= htmlspecialchars($n['mensagem']) ?></td>
-                        <td><?= htmlspecialchars($n['created_at']) ?></td>
-                        <td class="actions">
-                            <form method="post" action="app.php?page=analises" onsubmit="return confirm('Remover esta notificação?');" style="display:inline;">
-                                <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
-                                <input type="hidden" name="action" value="notif_eliminar">
-                                <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
-                                <button class="btn btn-red" type="submit" title="Remover"><i class="bi bi-trash3"></i></button>
-                            </form>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
-    </div>
-
     <!-- O <select> com a alvo_nome real (escolhido conforme o tipo) é injetado via JS antes do submit -->
     <script>
+        let slaClientesCarregados = false;
+        function nvSlaCarregarClientes() {
+            if (slaClientesCarregados) return;
+            slaClientesCarregados = true;
+            const sel = document.getElementById('slaAlvoNomeCliente');
+            const valorAtual = sel.value;
+            fetch('clientes_lista_api.php')
+                .then(function (r) { return r.json(); })
+                .then(function (lista) {
+                    lista.forEach(function (nome) {
+                        if (nome === valorAtual) return; // já está presente (selecionado)
+                        const opt = document.createElement('option');
+                        opt.value = nome;
+                        opt.textContent = nome;
+                        sel.appendChild(opt);
+                    });
+                })
+                .catch(function () {});
+        }
         function nvSlaAlvoToggle() {
             const tipo = document.getElementById('slaAlvoTipo').value;
             document.getElementById('slaAlvoParceiroWrap').style.display = (tipo === 'parceiro') ? '' : 'none';
             document.getElementById('slaAlvoClienteWrap').style.display  = (tipo === 'cliente')  ? '' : 'none';
             document.getElementById('slaAlvoGlobalNota').style.display   = (tipo === 'global')   ? '' : 'none';
+            if (tipo === 'cliente') nvSlaCarregarClientes();
         }
         nvSlaAlvoToggle();
         document.getElementById('formSlaRegra').addEventListener('submit', function () {
@@ -378,11 +497,66 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
 
 </div>
 
-<div class="panel">
+<div class="panel sla-panel-notif">
+    <h4><i class="bi bi-bell"></i> As minhas notificações</h4>
+    <form method="post" action="app.php?page=analises" class="sla-notif-form">
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars(
+            $csrfToken,
+        ) ?>">
+        <input type="hidden" name="action" value="notif_criar">
+        <div><label>Título</label><input type="text" name="titulo" maxlength="120" required placeholder="Ex.: Pedir material"></div>
+        <div class="sla-notif-form-row full"><label>Mensagem</label><input type="text" name="mensagem" maxlength="255" required placeholder="Ex.: Encomendar cabeçotes Proxima"></div>
+        <div class="sla-notif-form-row">
+            <div><label>Link (opcional)</label><input type="text" name="link" maxlength="255" placeholder="app.php?page=inventario"></div>
+            <div style="display:flex;align-items:flex-end;"><button class="btn btn-blue" type="submit" style="width:100%;"><i class="bi bi-plus-lg"></i> Criar</button></div>
+        </div>
+    </form>
+
+    <?php
+    $minhasNotif = $pdo->prepare(
+        "SELECT id, titulo, mensagem, link, created_at FROM notificacoes_personalizadas WHERE user_id = ? ORDER BY created_at DESC",
+    );
+    $minhasNotif->execute([(int) ($_SESSION["user_id"] ?? 0)]);
+    $listaNotif = $minhasNotif->fetchAll();
+    ?>
+    <?php if (!$listaNotif): ?>
+        <p style="color:#6b7280;">Ainda não criaste notificações.</p>
+    <?php else: ?>
+        <div class="table-responsive">
+        <table class="table table-card-stack">
+            <thead><tr><th>Título</th><th>Mensagem</th><th>Criada</th><th class="actions">Ações</th></tr></thead>
+            <tbody>
+            <?php foreach ($listaNotif as $n): ?>
+                <tr>
+                    <td data-label="Título"><?= htmlspecialchars($n["titulo"]) ?></td>
+                    <td data-label="Mensagem"><?= htmlspecialchars($n["mensagem"]) ?></td>
+                    <td data-label="Criada"><?= htmlspecialchars($n["created_at"]) ?></td>
+                    <td class="actions">
+                        <form method="post" action="app.php?page=analises" onsubmit="return confirm('Remover esta notificação?');" style="display:inline;">
+                            <input type="hidden" name="csrf" value="<?= htmlspecialchars(
+                                $csrfToken,
+                            ) ?>">
+                            <input type="hidden" name="action" value="notif_eliminar">
+                            <input type="hidden" name="id" value="<?= (int) $n[
+                                "id"
+                            ] ?>">
+                            <button class="btn btn-red" type="submit" title="Remover"><i class="bi bi-trash3"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+    <?php endif; ?>
+</div>
+</div>
+
+<div class="panel" style="margin-bottom:20px;">
     <h4 style="margin-bottom:16px;"><i class="bi bi-list-check" style="color:#c9a14a; margin-right:6px;"></i>Regras de SLA</h4>
 
-    <div style="overflow-x:auto;">
-        <table class="table envios-table">
+    <div class="table-responsive">
+        <table class="table envios-table table-card-stack">
             <thead>
             <tr><th>Aplica-se a</th><th>Estado</th><th>Ações</th></tr>
             </thead>
@@ -392,37 +566,67 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
             <?php else: ?>
                 <?php foreach ($slaRegras as $r): ?>
                     <?php
-                        $alvoLabel = $r['alvo_tipo'] === 'global' ? 'Global' : ($r['alvo_tipo'] === 'parceiro' ? 'Parceiro' : 'Cliente');
-                        $alvoDetalhe = $r['alvo_tipo'] === 'global' ? 'Todos os parceiros e clientes' : ($alvoLabel . ': ' . $r['alvo_nome']);
-                        $dias = (int)$r['dias_limite'];
+                    $alvoLabel =
+                        $r["alvo_tipo"] === "global"
+                            ? "Global"
+                            : ($r["alvo_tipo"] === "parceiro"
+                                ? "Parceiro"
+                                : "Cliente");
+                    $alvoDetalhe =
+                        $r["alvo_tipo"] === "global"
+                            ? "Todos os parceiros e clientes"
+                            : $alvoLabel . ": " . $r["alvo_nome"];
+                    $dias = (int) $r["dias_limite"];
                     ?>
                     <tr>
-                        <td>
-                            <?php if ($r['alvo_tipo'] === 'global'): ?>
+                        <td data-label="Aplica-se a">
+                            <?php if ($r["alvo_tipo"] === "global"): ?>
                                 <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#e0e7ff; color:#3730a3;">Global</span>
                             <?php else: ?>
-                                <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#fef3c7; color:#92400e;"><?= e($alvoLabel) ?></span>
+                                <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#fef3c7; color:#92400e;"><?= e(
+                                    $alvoLabel,
+                                ) ?></span>
                             <?php endif; ?>
                         </td>
-                        <td><?= e($r['estado']) ?></td>
+                        <td data-label="Estado"><?= e($r["estado"]) ?></td>
                         <td class="actions">
-                            <a class="btn btn-yellow" href="app.php?page=analises&sla_edit=<?= (int)$r['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                            <a class="btn btn-yellow" href="app.php?page=analises&sla_edit=<?= (int) $r[
+                                "id"
+                            ] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
                             <button type="button" class="btn btn-grey" title="Detalhes" aria-label="Detalhes"
-                                onclick='nvSlaDetalhes(<?= json_encode($alvoDetalhe) ?>, <?= json_encode($r['estado']) ?>, <?= $dias ?>, <?= $r['ativo'] ? 'true' : 'false' ?>)'>
+                                onclick='nvSlaDetalhes(<?= json_encode(
+                                    $alvoDetalhe,
+                                ) ?>, <?= json_encode(
+    $r["estado"],
+) ?>, <?= $dias ?>, <?= $r["ativo"] ? "true" : "false" ?>)'>
                                 <i class="bi bi-info-circle"></i>
                             </button>
                             <form method="post" action="app.php?page=analises" style="display:inline-block;">
                                 <input type="hidden" name="action" value="sla_toggle">
-                                <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
-                                <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-                                <button type="submit" class="btn <?= $r['ativo'] ? 'btn-green' : 'btn-grey' ?>" title="<?= $r['ativo'] ? 'Desativar' : 'Ativar' ?>" aria-label="<?= $r['ativo'] ? 'Desativar' : 'Ativar' ?>">
-                                    <i class="bi <?= $r['ativo'] ? 'bi-toggle2-on' : 'bi-toggle2-off' ?>"></i>
+                                <input type="hidden" name="csrf" value="<?= e(
+                                    $csrfToken,
+                                ) ?>">
+                                <input type="hidden" name="id" value="<?= (int) $r[
+                                    "id"
+                                ] ?>">
+                                <button type="submit" class="btn <?= $r["ativo"]
+                                    ? "btn-green"
+                                    : "btn-grey" ?>" title="<?= $r["ativo"]
+    ? "Desativar"
+    : "Ativar" ?>" aria-label="<?= $r["ativo"] ? "Desativar" : "Ativar" ?>">
+                                    <i class="bi <?= $r["ativo"]
+                                        ? "bi-toggle2-on"
+                                        : "bi-toggle2-off" ?>"></i>
                                 </button>
                             </form>
                             <form method="post" action="app.php?page=analises" style="display:inline-block;" onsubmit="return confirm('Eliminar esta regra de SLA?');">
                                 <input type="hidden" name="action" value="sla_eliminar">
-                                <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
-                                <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                                <input type="hidden" name="csrf" value="<?= e(
+                                    $csrfToken,
+                                ) ?>">
+                                <input type="hidden" name="id" value="<?= (int) $r[
+                                    "id"
+                                ] ?>">
                                 <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
                             </form>
                         </td>
@@ -433,9 +637,33 @@ $anPeriodoLabel = $anMesesPt[(int)date('n', $anTs)] . ' ' . date('Y', $anTs);
         </table>
     </div>
 </div>
-</div>
 
 <style>
+.sla-config-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:20px;
+    align-items:start;
+    margin-bottom:20px;
+}
+.sla-panel-form .form-grid{ grid-template-columns:1fr 1fr; gap:14px; }
+.sla-panel-form .form-grid > div{ min-width:0; }
+.sla-notif-form{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    margin-bottom:16px;
+}
+.sla-notif-form-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+}
+.sla-notif-form-row.full{ grid-template-columns:1fr; }
+@media (max-width:1100px){
+    .sla-config-grid{ grid-template-columns:1fr; }
+    .sla-panel-form .form-grid{ grid-template-columns:1fr; }
+}
 .sla-form-secao{
     margin-bottom:20px;
     padding-bottom:18px;
@@ -535,7 +763,9 @@ document.addEventListener('keydown', function (e) {
     <div class="panel-header-row">
         <div class="panel-header-left">
             <h4 style="margin:0;"><i class="bi bi-exclamation-triangle" style="color:#c9a14a; margin-right:6px;"></i>SLA — Quebras Ativas</h4>
-            <span class="panel-count-badge" style="<?= $slaQuebras ? 'background:#fee2e2;color:#b91c1c;' : '' ?>"><?= count($slaQuebras) ?></span>
+            <span class="panel-count-badge" style="<?= $slaQuebras
+                ? "background:#fee2e2;color:#b91c1c;"
+                : "" ?>"><?= count($slaQuebras) ?></span>
         </div>
     </div>
 
@@ -547,35 +777,59 @@ document.addEventListener('keydown', function (e) {
     <?php else: ?>
         <div class="sla-cards-grid">
             <?php foreach ($slaQuebras as $sq):
-                $dias = (int)$sq['dias'];
-                $limite = (int)$sq['dias_limite'];
+
+                $dias = (int) $sq["dias"];
+                $limite = (int) $sq["dias_limite"];
                 $excesso = $limite > 0 ? $dias / $limite : 2;
-                $sev = $excesso >= 2 ? 'alta' : ($excesso >= 1.3 ? 'media' : 'baixa');
-                $sevCor = ['alta' => '#dc2626', 'media' => '#d97706', 'baixa' => '#ca8a04'][$sev];
-                $sevBg  = ['alta' => '#fef2f2', 'media' => '#fffbeb', 'baixa' => '#fefce8'][$sev];
-                $sevTxt = ['alta' => 'Crítico', 'media' => 'Atenção', 'baixa' => 'Ligeiro'][$sev];
-                $pct = max(8, min(100, (int)round(($dias / max(1, $limite)) * 100)));
-            ?>
+                $sev =
+                    $excesso >= 2
+                        ? "alta"
+                        : ($excesso >= 1.3
+                            ? "media"
+                            : "baixa");
+                $sevCor = [
+                    "alta" => "#dc2626",
+                    "media" => "#d97706",
+                    "baixa" => "#ca8a04",
+                ][$sev];
+                $sevBg = [
+                    "alta" => "#fef2f2",
+                    "media" => "#fffbeb",
+                    "baixa" => "#fefce8",
+                ][$sev];
+                $sevTxt = [
+                    "alta" => "Crítico",
+                    "media" => "Atenção",
+                    "baixa" => "Ligeiro",
+                ][$sev];
+                $pct = max(
+                    8,
+                    min(100, (int) round(($dias / max(1, $limite)) * 100)),
+                );
+                ?>
             <div class="sla-card" style="border-left-color:<?= $sevCor ?>;">
                 <div class="sla-card-top">
                     <div>
-                        <div class="sla-card-titulo"><?= e($sq['produto']) ?></div>
-                        <div class="sla-card-sn"><?= e($sq['sn']) ?: '—' ?></div>
+                        <div class="sla-card-titulo"><?= e(
+                            $sq["produto"],
+                        ) ?></div>
+                        <div class="sla-card-sn"><?= e($sq["sn"]) ?:
+                            "—" ?></div>
                     </div>
                     <span class="sla-card-badge" style="background:<?= $sevBg ?>; color:<?= $sevCor ?>;"><?= $sevTxt ?></span>
                 </div>
 
                 <div class="sla-card-row">
                     <span><i class="bi bi-flag" style="color:#9ca3af; margin-right:5px;"></i>Estado</span>
-                    <strong><?= e($sq['estado']) ?></strong>
+                    <strong><?= e($sq["estado"]) ?></strong>
                 </div>
                 <div class="sla-card-row">
                     <span><i class="bi bi-building" style="color:#9ca3af; margin-right:5px;"></i>Parceiro</span>
-                    <strong><?= e($sq['parceiro'] ?: '—') ?></strong>
+                    <strong><?= e($sq["parceiro"] ?: "—") ?></strong>
                 </div>
                 <div class="sla-card-row">
                     <span><i class="bi bi-person" style="color:#9ca3af; margin-right:5px;"></i>Cliente</span>
-                    <strong><?= e($sq['cliente_nome'] ?? '') ?: '—' ?></strong>
+                    <strong><?= e($sq["cliente_nome"] ?? "") ?: "—" ?></strong>
                 </div>
 
                 <div class="sla-card-progress">
@@ -585,7 +839,8 @@ document.addEventListener('keydown', function (e) {
                     </div>
                 </div>
             </div>
-            <?php endforeach; ?>
+            <?php
+            endforeach; ?>
         </div>
     <?php endif; ?>
 </div>

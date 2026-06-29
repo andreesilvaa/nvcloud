@@ -14,11 +14,29 @@ rsync -avz --progress \
   --exclude='.github' \
   --exclude='.idea' \
   --exclude='.vscode' \
+  --exclude='.idx' \
+  --exclude='.scannerwork' \
+  --exclude='.claude' \
+  --exclude='.kiro' \
   --exclude='node_modules' \
   --exclude='.env' \
+  --exclude='config.php' \
   --exclude='*.bak*' \
+  --exclude='*.patch' \
+  --exclude='*.bat' \
+  --exclude='*.sh' \
+  --exclude='*.py' \
+  --exclude='*.ps1' \
+  --exclude='*.tmp' \
+  --exclude='Jenkinsfile' \
+  --exclude='qodana.yaml' \
+  --exclude='sonar-project.properties' \
+  --exclude='composer.lock' \
+  --exclude='_old_icons_backup' \
+  --exclude='tools/' \
   --exclude='docker/' \
   --exclude='docs/' \
+  --exclude='docker-compose.yml' \
   -e "ssh -i $KEY -o StrictHostKeyChecking=no" \
   "$LOCAL/" "$SERVER:$REMOTE/"
 

@@ -1,0 +1,1198 @@
+﻿/* ════════════════════════════════════════════════════════════════
+   SELECIONADOR DE MÊS ("pill") — partilhado entre Revisão e Análises
+   Estava definido só dentro do <style> da página Revisão; a página
+   Análises usa as mesmas classes mas nunca tinha o estilo base, por
+   isso aparecia sem o "cartão" à volta dos botões/data.
+════════════════════════════════════════════════════════════════ */
+.rev-mes-picker {
+    display: inline-flex;
+    align-items: stretch;
+    background: #fff;
+    border: 1px solid #e5e9ef;
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.rev-mes-picker a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    color: #64748b;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.rev-mes-picker a:hover {
+    background: #f8fafc;
+    color: #c9a14a;
+}
+.rev-mes-picker .rev-mes-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 18px;
+    min-width: 148px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    border-left: 1px solid #eef1f5;
+    border-right: 1px solid #eef1f5;
+    background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+}
+
+/* ============================================================
+   Mobile Responsive CSS — NVCloud / StockVision
+   All rules target screens ≤ 768px (unless explicitly noted).
+   Desktop layout is NEVER changed here.
+   ============================================================ */
+
+/* ═══════════════════════════════════════════════════════════
+   BASE — prevent horizontal overflow
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    html,
+    body {
+        overflow-x: hidden;
+        width: 100%;
+    }
+    .desktop-only {
+        display: none !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOPBAR — mobile layout
+   Toggle: near-left · Title: centred · Right section: far-right
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .topbar {
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        gap: 0;
+        height: 56px;
+    }
+
+    /* Sidebar toggle — a small nudge right so it doesn't look glued to the edge */
+    .topbar-menu-toggle {
+        flex-shrink: 0;
+        display: flex !important;
+        padding: 0 12px 0 22px; /* movido ainda mais para a direita */
+        margin: 0;
+    }
+
+    /* Page icon + title: absolutely centred, bold and legible */
+    .topbar-title {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+        max-width: calc(100% - 180px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .topbar-title i {
+        font-size: 17px;
+        pointer-events: none;
+    }
+
+    /* Right section: pushed to the far right */
+    .topbar-right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-right: 4px;
+    }
+
+    /* Profile trigger: compact (avatar only) */
+    .user-trigger {
+        padding: 4px 6px;
+        gap: 0;
+    }
+    .user-trigger span,
+    .user-trigger .desktop-only,
+    .user-trigger i.bi-chevron-down {
+        display: none !important;
+    }
+
+    /* Hide search bar */
+    .search-bar-wrap {
+        display: none;
+    }
+
+    .notif-btn {
+        padding: 6px 8px;
+    }
+    .topbar i {
+        font-size: 18px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR — full height, items distributed, footer always visible
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Sidebar: 240px wide, fills the full screen height */
+    .sidebar {
+        height: 100dvh; /* accounts for mobile browser chrome (address bar) */
+        height: 100vh; /* fallback for older browsers */
+        overflow: hidden;
+    }
+
+    /* ──────────────────────────────────────────────────────────
+       BRAND: centre the StockVision logo
+    ────────────────────────────────────────────────────────── */
+    .sidebar.mobile-open .brand {
+        justify-content: center; /* centre the logo horizontally */
+        padding: 0 16px;
+    }
+    .sidebar.mobile-open .brand img {
+        width: 120px;
+        height: auto;
+        display: block;
+        opacity: 1;
+    }
+
+    /* ──────────────────────────────────────────────────────────
+       SIDEBAR ITEMS: distribute links across the full height
+       • flex: 1            → fills remaining height (between brand & footer)
+       • display: flex      → makes it a flex container itself
+       • flex-direction: column
+       • justify-content: space-evenly → items spread top-to-bottom;
+                                         equal gaps at edges & between items
+       • overflow-y: auto   → scrolls when screen is very small
+    ────────────────────────────────────────────────────────── */
+    .sidebar-items {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-evenly; /* distribute items to fill all height */
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .sidebar-items::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* ──────────────────────────────────────────────────────────
+       FOOTER LOGO: pinned at the bottom, slightly raised
+    ────────────────────────────────────────────────────────── */
+    .sidebar .footer-logo {
+        flex-shrink: 0; /* never collapse */
+        font-size: 13px;
+        padding: 12px 22px 18px; /* extra bottom padding keeps it off the edge */
+        text-align: center; /* centre the NEWVISION text too */
+    }
+
+    /* ──────────────────────────────────────────────────────────
+       SUBMENUS
+    ────────────────────────────────────────────────────────── */
+    .sidebar:not(.mobile-open) .sidebar-group .sidebar-submenu {
+        display: none !important;
+    }
+    .sidebar.mobile-open .sidebar-submenu {
+        display: none;
+    }
+    .sidebar.mobile-open .sidebar-group.open .sidebar-submenu {
+        display: block;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN CONTENT
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .main {
+        padding: 76px 12px 24px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABLES — base mobile rules
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    table {
+        font-size: 12px;
+    }
+    .table-responsive {
+        overflow-x: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid #e5e9ef;
+        border-radius: 12px;
+        background: #fff;
+    }
+    /* Remove height limits on mobile so tables show fully */
+    .table-responsive.scroll-oculto,
+    .table-responsive.scroll-limitado {
+        max-height: none !important;
+        overflow-y: visible !important;
+        overflow-x: auto !important;
+    }
+
+    /* Plain tables that don't have a dedicated .mv-cards mobile view
+       (Categorias, Fabricantes, Parceiros, etc.): drop the "spreadsheet
+       grid" look — no vertical borders, soft row separators, light
+       zebra striping — so they read more like the rest of the site
+       instead of a bare HTML table. */
+    .table-responsive table.table {
+        border: none;
+    }
+    .table-responsive table.table th,
+    .table-responsive table.table td {
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        border-bottom: 1px solid #f1f3f6;
+        padding: 10px 12px;
+    }
+    .table-responsive table.table thead th {
+        background: #f8fafc;
+    }
+    .table-responsive table.table tbody tr:nth-child(even) {
+        background: #fafbfc;
+    }
+    .table-responsive table.table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    body.dark-mode .table-responsive {
+        border-color: #374151;
+        background: #1e2533;
+    }
+    body.dark-mode .table-responsive table.table th,
+    body.dark-mode .table-responsive table.table td {
+        border-bottom-color: #2b3647;
+    }
+
+    /* Tabelas convertidas em cartões: cada linha (<tr>) torna-se um
+       cartão próprio. CADA célula mostra o rótulo NUMA LINHA e o valor
+       na linha de baixo (em vez de lado a lado) — isto elimina por
+       completo a possibilidade de transbordo horizontal quando o valor
+       é mais largo do que o espaço disponível, porque cada parte fica
+       sempre 100% da largura do cartão, nunca lado a lado a competir
+       por espaço. Aplicar class="table-card-stack" à <table> e
+       data-label="..." a cada <td>. */
+    .table-card-stack {
+        table-layout: fixed !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    .table-card-stack thead {
+        display: none;
+    }
+    .table-card-stack,
+    .table-card-stack tbody,
+    .table-card-stack tr,
+    .table-card-stack td {
+        display: block;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+    .table-card-stack tbody tr {
+        border: 1px solid #e5e9ef !important;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        padding: 10px 14px;
+        background: #fff;
+        overflow: hidden;
+    }
+    .table-card-stack tbody tr:nth-child(even) {
+        background: #fff !important;
+    }
+    .table-card-stack td {
+        border: none !important;
+        padding: 6px 0 !important;
+        white-space: normal !important;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+    .table-card-stack td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        margin-bottom: 2px;
+    }
+    .table-card-stack td[data-label=""]::before,
+    .table-card-stack td:not([data-label])::before {
+        content: none;
+        margin-bottom: 0;
+    }
+    .table-card-stack td.actions {
+        display: flex !important;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding-top: 10px !important;
+        border-top: 1px solid #f1f3f6 !important;
+        margin-top: 4px;
+    }
+    .table-card-stack td.actions::before {
+        content: none !important;
+    }
+    body.dark-mode .table-card-stack tbody tr {
+        background: #1e2533 !important;
+        border-color: #374151 !important;
+    }
+    body.dark-mode .table-card-stack td {
+        color: #e2e8f0;
+    }
+    body.dark-mode .table-card-stack td.actions {
+        border-top-color: #2b3647 !important;
+    }
+
+    /* Garantia definitiva (por especificidade, não por ordem no ficheiro):
+       quando uma tabela tem as duas classes (ex.: Movimentos de Stock,
+       Regras de SLA), as regras de .envios-table NUNCA podem voltar a
+       sobrepor-se às do table-card-stack. */
+    .envios-table.table-card-stack td,
+    .envios-table.table-card-stack th {
+        white-space: normal !important;
+        padding: 6px 0 !important;
+        word-break: break-word !important;
+    }
+
+    /* Versão com coluna de ações à direita (Categorias, Estados,
+       Parceiros, Produtos): em vez de Editar/Apagar numa linha de
+       rodapé a toda a largura, ficam numa coluna fixa à direita do
+       cartão, empilhados (Editar acima, Apagar abaixo). */
+    .tcs-actions-right tbody tr {
+        display: flex !important;
+        align-items: center;
+        gap: 12px;
+    }
+    .tcs-actions-right tbody tr td.tcs-content {
+        flex: 1;
+        min-width: 0;
+        padding: 0 !important;
+    }
+    .tcs-actions-right .tcs-field {
+        padding: 6px 0;
+    }
+    .tcs-actions-right .tcs-field::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #9ca3af;
+        margin-bottom: 2px;
+    }
+    .tcs-actions-right tbody tr td.actions {
+        display: flex !important;
+        flex-direction: column;
+        gap: 8px;
+        border-top: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        flex-shrink: 0;
+    }
+    .tcs-actions-right tbody tr td.actions form {
+        margin: 0;
+    }
+    .tcs-actions-right tbody tr td.actions .btn {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    body.dark-mode .tcs-actions-right .tcs-field::before {
+        color: #9ca3af;
+    }
+}
+
+/* Stacked table helper classes (legacy — kept for compatibility) */
+.table-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.table-stack-card {
+    border: 1px solid #e5e9ef;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+}
+.table-stack-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+}
+.table-stack-row:last-child {
+    margin-bottom: 0;
+}
+.table-stack-label {
+    font-weight: 600;
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+.table-stack-val {
+    font-size: 13px;
+    color: #111827;
+    word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODALS / BUTTONS / FILTERS
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .modal {
+        max-height: 90vh;
+        max-width: 95vw;
+    }
+    .btn {
+        padding: 9px 14px;
+        font-size: 13px;
+    }
+    .filters,
+    .filters2 {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DASHBOARD — mobile improvements
+═══════════════════════════════════════════════════════════ */
+
+/* "Fornecedor(Reparação)" label: show short version on mobile only */
+@media (min-width: 769px) {
+    .forn-rep-short {
+        display: none;
+    }
+    .forn-rep-full {
+        display: inline;
+    }
+}
+@media (max-width: 768px) {
+    .forn-rep-full {
+        display: none;
+    }
+    .forn-rep-short {
+        display: inline;
+    }
+}
+
+@media (max-width: 768px) {
+    /* KPI row: 2 columns */
+    .kpi-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+
+    /* Hide "Peças em Laboratório" KPI on mobile (Dashboard only) */
+    .kpi-laboratorio {
+        display: none !important;
+    }
+
+    /* Legend spacing: items closer together, columns sized to content */
+    .legend-text {
+        display: grid;
+        grid-template-columns: repeat(2, max-content);
+        column-gap: 22px;
+        row-gap: 8px;
+        justify-content: center;
+    }
+    .legend-item {
+        font-size: 13px;
+    }
+
+    /* Estado das Peças chart: stack vertically and keep centred.
+       Bulletproof centring: a fixed max-width + margin:0 auto on a flex
+       item centres it horizontally regardless of the parent's
+       align-items value, which avoids fighting the !important rules
+       and fixed widths declared inline in app.php for desktop/tablet
+       breakpoints (260px/280px + -40px offset). */
+    .estado-layout {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    .estado-chart-box {
+        width: 100% !important;
+        max-width: 240px !important;
+        flex-shrink: 0 !important;
+        margin: 0 auto !important;
+        display: flex !important;
+        justify-content: center !important;
+    }
+    .estado-chart-box canvas {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 240px !important;
+        max-height: 240px !important;
+        margin: 0 auto !important;
+        display: block !important;
+    }
+    .panel-estado {
+        text-align: center;
+    }
+    .legend-container {
+        display: none !important;
+    }
+
+    /* Ranking de Parceiros + Peças Paradas: full-width stacked */
+    .panel-grid-2 {
+        grid-template-columns: 1fr !important;
+        gap: 14px;
+    }
+
+    /* KPI card: compact */
+    .kpi-card {
+        aspect-ratio: auto;
+        min-height: auto;
+        padding: 14px 10px;
+    }
+    .kpi-card i {
+        font-size: 22px !important;
+    }
+    .kpi-card .num {
+        font-size: 20px !important;
+    }
+    .kpi-card div:last-child {
+        font-size: 11px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INVENTÁRIO — mobile improvements
+   Original table design preserved; action buttons go vertical
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Toolbar: Ações + Limpar + Filtrar on ONE horizontal line */
+    .inv-toolbar-bar {
+        flex-direction: row !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .inv-toolbar-bar-right {
+        margin-left: auto;
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    /* Hide "Ações" column header text */
+    .table th.actions {
+        font-size: 0 !important;
+        color: transparent !important;
+        padding: 0 6px !important;
+    }
+
+    /* Action buttons: vertical stack in the right column */
+    .table td.actions {
+        vertical-align: middle;
+        padding: 6px 6px !important;
+        white-space: nowrap;
+    }
+    .table td.actions > a.btn,
+    .table td.actions > button.btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0 !important;
+        margin-bottom: 3px;
+    }
+    .table td.actions > a.btn:last-child,
+    .table td.actions > button.btn:last-child {
+        margin-bottom: 0;
+    }
+    .table td.actions > form {
+        display: block !important;
+        margin-bottom: 3px;
+    }
+    .table td.actions > form:last-child {
+        margin-bottom: 0;
+    }
+    .table td.actions > form > button.btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0 !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PATs — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* KPI cards: compact 3-column grid */
+    .clientes-kpis {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 8px;
+        margin-bottom: 14px !important;
+    }
+    .cliente-kpi {
+        padding: 8px 6px !important;
+        min-height: 0 !important;
+        border-radius: 10px;
+        background: #f8fafc;
+        border: 1px solid #e5e9ef;
+        text-align: center;
+    }
+    .cliente-kpi .label {
+        font-size: 10px !important;
+        color: #6b7280;
+        font-weight: 600;
+        margin-bottom: 2px;
+        line-height: 1.2;
+    }
+    .cliente-kpi .valor {
+        font-size: 18px !important;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    /* PATs: mostrar apenas Abertos, Em Curso e Urgentes Ativos no mobile */
+    .kpi-pat-total,
+    .kpi-pat-concluidos {
+        display: none !important;
+    }
+
+    /* Painel com tabelas largas (ex.: Componentes Trocados, Ciclo de vida):
+       impede que o conteúdo forece o painel a ficar mais largo que o ecrã */
+    .panel {
+        min-width: 0;
+    }
+
+    /* Tabelas editáveis (Módulos / Componentes Trocados no PAT): em vez de
+       obrigar a scroll lateral, cada linha passa a ser um cartão com os
+       campos em coluna, com o rótulo da coluna por cima de cada input. */
+    .editable-stack-table thead {
+        display: none;
+    }
+    .editable-stack-table,
+    .editable-stack-table tbody,
+    .editable-stack-table tr,
+    .editable-stack-table td {
+        display: block;
+        width: 100%;
+    }
+    .editable-stack-table tbody tr {
+        border: 1px solid #e5e9ef;
+        border-radius: 10px;
+        padding: 12px 14px 14px;
+        margin-bottom: 10px;
+        background: #fff;
+        position: relative;
+    }
+    .editable-stack-table td {
+        border: none !important;
+        padding: 6px 0 !important;
+    }
+    .editable-stack-table .td-mobile-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        margin-bottom: 3px;
+    }
+    .editable-stack-table .td-remove-cell {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: auto;
+        padding: 0 !important;
+    }
+
+    /* Filtrar + Limpar buttons on the RIGHT of the filter row */
+    .pats-filtros-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .pats-search {
+        flex: 0 0 100% !important; /* own full row */
+    }
+    .pats-filtros-row > button[type="submit"] {
+        margin-left: auto;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CLIENTES — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Hide KPI cards on the Clientes page */
+    .clientes-page-kpis {
+        display: none !important;
+    }
+
+    /* Hide "Conta-Mãe" column (3rd) */
+    .clientes-table th:nth-child(3),
+    .clientes-table td:nth-child(3) {
+        display: none !important;
+    }
+
+    /* Hide "Contactos/Morada" column (4th — was 4, now 3 after hiding col 3) */
+    .clientes-table th:nth-child(4),
+    .clientes-table td:nth-child(4) {
+        display: none !important;
+    }
+
+    /* Expanded contact row: horizontal contacts */
+    .cli-contact-expanded-cell {
+        padding: 4px 10px 12px !important;
+        background: #f9fafb;
+    }
+    body.dark-mode .cli-contact-expanded-cell {
+        background: #1a2030;
+    }
+    .cli-contact-expanded .cli-contactos {
+        display: flex !important;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        font-size: 12px;
+        padding-top: 4px;
+    }
+    .conta-nome-link.is-expanded {
+        color: #c9a14a;
+        font-weight: 700;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENVIOS — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Tabs: single scrollable horizontal row */
+    .env-tabs {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 0;
+        border-bottom: 2px solid #e5e9ef;
+        margin-bottom: 14px;
+    }
+    .env-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .env-tab {
+        flex-shrink: 0;
+        padding: 10px 14px;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+
+    /* Import page: Leitura de Guia ON TOP, Novo Envio BELOW (vertical stack).
+       align-items:stretch overrides the inline align-items:start left over
+       from the desktop grid layout, which was stopping the panels from
+       filling the full width on mobile. */
+    .envios-import-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 14px !important;
+    }
+    .envios-import-grid > .panel {
+        height: auto !important;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Lista de Envios: compact, horizontally scrollable */
+    .envios-table {
+        font-size: 12px;
+    }
+    .envios-table th,
+    .envios-table td {
+        padding: 8px 10px !important;
+        white-space: nowrap;
+    }
+
+    /* Estatísticas KPI cards: restore original auto-fit grid */
+    .env-stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px;
+    }
+    .env-stat {
+        padding: 12px 14px;
+    }
+    .env-stat .n {
+        font-size: 24px !important;
+    }
+    .env-stat .l {
+        font-size: 12px;
+    }
+
+    /* Estatísticas: os cartões preenchem toda a altura disponível do ecrã,
+       em vez de ficarem encolhidos no topo */
+    .env-tabpane[data-pane="stats"] .panel {
+        min-height: calc(100dvh - 200px);
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+    .env-tabpane[data-pane="stats"] .env-stats-grid {
+        flex: 1;
+        grid-template-rows: repeat(2, 1fr);
+    }
+    .env-tabpane[data-pane="stats"] .env-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REVISÃO — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Hide the entire header (h2 + original month picker position) */
+    .rev-header {
+        display: none !important;
+    }
+
+    /* Month picker placeholder inserted by JS after .rev-kpis */
+    .rev-mes-picker-mobile {
+        display: flex;
+        justify-content: center;
+        margin: 12px 0 16px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   N-VI — mobile
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .section-title {
+        font-size: 18px;
+        margin-bottom: 14px;
+    }
+    /* Página ocupa toda a altura disponível do ecrã */
+    .nvi-page {
+        min-height: calc(100dvh - 130px);
+        display: flex;
+        flex-direction: column;
+    }
+    .nvi-page form {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .nvi-page .nvi-actions {
+        margin-top: auto;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIGURAÇÕES > CONTAS
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Contas form: clean mobile layout */
+    .contas-layout {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px;
+    }
+    .conta-form-panel {
+        border-radius: 14px;
+    }
+    .conta-form-panel h4 {
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+    }
+    .conta-form-sec {
+        margin-bottom: 16px;
+    }
+    .conta-form-actions {
+        margin-top: 8px;
+    }
+
+    /* Contas table: full table, no height limit */
+    .table-responsive.scroll-oculto {
+        max-height: none !important;
+        overflow-y: visible !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIGURAÇÕES > ANÁLISES — mobile
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Small note below KPIs: hide */
+    .kpi-resumo-compact ~ p.small-note {
+        display: none !important;
+    }
+
+    /* Hide month count in Movimentos title */
+    .mobile-stock-count {
+        display: none !important;
+    }
+
+    /* SLA config grid: single column */
+    .sla-config-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px;
+    }
+    .sla-panel-form .form-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px;
+    }
+    .sla-panel-form .form-grid > div {
+        width: 100%;
+        min-width: 0;
+    }
+    .sla-notif-form {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .sla-notif-form-row {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px;
+    }
+    .sla-notif-form label {
+        display: block;
+    }
+    .sla-notif-form input[type="text"],
+    .sla-notif-form input[type="number"] {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .sla-form-nota {
+        height: auto;
+        padding: 10px 14px;
+    }
+    .sla-cards-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .sla-config-grid > .panel {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CONFIGURAÇÕES > GERAL — mobile (ocupa a altura total do ecrã)
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .config-geral-page {
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100dvh - 130px);
+    }
+    .config-geral-page > .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .config-geral-page .panel-body {
+        flex: 1;
+        display: flex;
+    }
+    .config-geral-page .panel-body > div {
+        flex: 1;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        grid-template-rows: repeat(4, 1fr);
+        gap: 12px !important;
+    }
+    .config-geral-page .panel-body > div > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE VIEW CARDS
+   Shared card styles for Inventário, PATs, Envios, Clientes,
+   Relatórios. Same pattern as the Revisão page cards.
+═══════════════════════════════════════════════════════════ */
+
+/* Always hide cards on desktop; always show table */
+.mv-cards {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    /* Hide the table wrapper, show the card list */
+    .mv-table-wrap {
+        display: none !important;
+    }
+    .mv-cards {
+        display: block;
+    }
+
+    /* Individual card */
+    .mv-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+        margin-bottom: 10px;
+    }
+    body.dark-mode .mv-card {
+        background: #1e2533;
+        border-color: #374151;
+    }
+
+    /* Header row: title/sub on left, badge on right */
+    .mv-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .mv-card-title {
+        font-weight: 700;
+        font-size: 14px;
+        color: #1e293b;
+        line-height: 1.3;
+    }
+    body.dark-mode .mv-card-title {
+        color: #f1f5f9;
+    }
+    .mv-card-title a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .mv-card-title a:hover {
+        color: #c9a14a;
+    }
+    .mv-card-sub {
+        font-size: 11.5px;
+        color: #6b7280;
+        margin-top: 2px;
+        font-family: monospace;
+    }
+    .mv-card-sub.mv-card-sub-text {
+        font-family: inherit;
+    }
+
+    /* Label → value rows */
+    .mv-card-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-top: 1px solid #f1f5f9;
+        font-size: 12px;
+        gap: 8px;
+    }
+    body.dark-mode .mv-card-row {
+        border-color: #1f2937;
+    }
+    .mv-card-row-label {
+        color: #9ca3af;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 10px;
+        flex-shrink: 0;
+    }
+    .mv-card-row-val {
+        color: #374151;
+        text-align: right;
+        word-break: break-word;
+    }
+    body.dark-mode .mv-card-row-val {
+        color: #d1d5db;
+    }
+
+    /* Footer: action buttons */
+    .mv-card-footer {
+        margin-top: 10px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+    .mv-card-footer .btn {
+        padding: 7px 10px;
+        font-size: 13px;
+    }
+    .mv-card-footer form {
+        margin: 0;
+    }
+
+    /* Empty state inside cards container */
+    .mv-cards-empty {
+        text-align: center;
+        padding: 32px 16px;
+        color: #9ca3af;
+    }
+    .mv-cards-empty i {
+        font-size: 32px;
+        display: block;
+        margin-bottom: 8px;
+        opacity: 0.4;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QR's — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* QR reader: stack camera + search vertically */
+    .qr-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 14px !important;
+    }
+    #reader {
+        max-width: 100% !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RELATÓRIOS — mobile improvements
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Lista de Relatórios: compact, horizontally scrollable */
+    #tabelaRelatorios th,
+    #tabelaRelatorios td {
+        padding: 8px 10px !important;
+        white-space: nowrap;
+        font-size: 12px;
+    }
+
+    /* Month filter: compact */
+    .rel-mes-filtro {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+}

@@ -19,7 +19,6 @@
       </form>
     </div>
   <?php else: ?>
-    <h1 class="section-title"><i class="bi bi-folder2" style="color:#c9a14a; margin-right:8px;"></i>Lista de Categorias</h1>
     <div class="panel">
       <div class="panel-header-row">
         <div class="panel-header-left">
@@ -34,13 +33,15 @@
         </div>
       </div>
       <div class="table-responsive">
-        <table class="table" id="tabelaCategorias">
+        <table class="table table-card-stack tcs-actions-right" id="tabelaCategorias">
           <thead><tr><th style="width:90px;">ID</th><th>Categoria</th><th class="actions" style="width:70px;">Ações</th></tr></thead>
           <tbody>
             <?php foreach ($tabListas as $row): ?>
               <tr>
-                <td>#<?= (int)$row['id'] ?></td>
-                <td><?= htmlspecialchars($row['nome']) ?></td>
+                <td class="tcs-content">
+                  <div class="tcs-field" data-label="ID">#<?= (int)$row['id'] ?></div>
+                  <div class="tcs-field" data-label="Categoria"><?= htmlspecialchars($row['nome']) ?></div>
+                </td>
                 <td class="actions">
                   <a class="btn btn-yellow" href="app.php?page=categorias&edit=<?= (int)$row['id'] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
                   <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar esta categoria? Esta ação é irreversível.');">

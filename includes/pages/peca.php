@@ -23,7 +23,7 @@ if ($pecaId > 0) {
   <div class="panel">
     <p style="color:#6b7280;">Não foi encontrada nenhuma peça com o ID indicado.</p>
     <div style="margin-top:14px;">
-      <a class="btn btn-yellow" href="app.php?page=inventario">← Voltar à lista de peças</a>
+      <a class="btn btn-yellow" href="app.php?page=inventario" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
     </div>
   </div>
 
@@ -83,7 +83,7 @@ if ($pecaId > 0) {
       <a class="btn btn-green" href="app.php?page=etiqueta&id=<?= (int)$pecaDetalhe['id'] ?>">
         <i class="bi bi-upc-scan"></i> Imprimir Etiqueta
       </a>
-      <a class="btn" style="background:#f1f5f9; color:#374151; margin-left:auto;" href="app.php?page=inventario">
+      <a class="btn" style="background:#f1f5f9; color:#374151; margin-left:auto;" href="app.php?page=inventario" onclick="nvVoltar(event)">
         ← Voltar à lista de peças
       </a>
     </div>

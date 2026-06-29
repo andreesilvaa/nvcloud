@@ -1,7 +1,7 @@
 <?php
 ob_start();
 
-require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . "/bootstrap.php";
 
 // ============================================================
 // 1. SESSÃO E AUTENTICAÇÃO
@@ -13,93 +13,114 @@ session_start();
 // A extensão (origem Salesforce) faz POST cross-origin com o cabeçalho
 // X-NV-Token. Como o cookie de sessão não viaja cross-site (SameSite=Lax),
 // autenticamos por token ANTES do gate de sessão e respondemos em JSON.
-$__isImportWO = (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder');
+$__isImportWO =
+    ($_GET["action"] ?? "") === "importar_workorder" ||
+    ($_POST["action"] ?? "") === "importar_workorder";
 if ($__isImportWO) {
     // config.php define EXTENSION_TOKEN; é carregado mais abaixo, mas aqui ainda
     // não — garantir que está disponível antes de validar o token da extensão.
-    require_once __DIR__ . '/config.php';
-    $__origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($__origin !== '') {
-        header('Access-Control-Allow-Origin: ' . $__origin);
-        header('Vary: Origin');
-        header('Access-Control-Allow-Methods: POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-NV-Token');
-        header('Access-Control-Max-Age: 600');
+    require_once __DIR__ . "/config.php";
+    $__origin = $_SERVER["HTTP_ORIGIN"] ?? "";
+    $__allowedOrigins = [
+        "https://www.stockvision.pt",
+        "https://stockvision.pt",
+        "chrome-extension://",  // extensão Chrome (prefixo)
+    ];
+    $__originAllowed = false;
+    foreach ($__allowedOrigins as $ao) {
+        if ($__origin === $ao || str_starts_with($__origin, $ao)) {
+            $__originAllowed = true;
+            break;
+        }
     }
-    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-    $__extTok = $_SERVER['HTTP_X_NV_TOKEN'] ?? '';
-    if (defined('EXTENSION_TOKEN') && EXTENSION_TOKEN !== '' && hash_equals(EXTENSION_TOKEN, $__extTok)) {
+    if ($__origin !== "" && $__originAllowed) {
+        header("Access-Control-Allow-Origin: " . $__origin);
+        header("Vary: Origin");
+        header("Access-Control-Allow-Methods: POST, OPTIONS");
+        header("Access-Control-Allow-Headers: Content-Type, X-NV-Token");
+        header("Access-Control-Max-Age: 600");
+    }
+    if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
+        http_response_code(204);
+        exit();
+    }
+    $__extTok = $_SERVER["HTTP_X_NV_TOKEN"] ?? "";
+    if (
+        defined("EXTENSION_TOKEN") &&
+        EXTENSION_TOKEN !== "" &&
+        hash_equals(EXTENSION_TOKEN, $__extTok)
+    ) {
         // Token válido → modo extensão (resposta em JSON; deixa passar o gate de sessão).
-        $GLOBALS['__wo_extensao'] = true;
-        $_SESSION['user_id']   = $_SESSION['user_id']   ?? 0;
-        $_SESSION['user_nome'] = $_SESSION['user_nome'] ?? 'Extensão';
+        $GLOBALS["__wo_extensao"] = true;
+        $_SESSION["user_id"] = $_SESSION["user_id"] ?? 0;
+        $_SESSION["user_nome"] = $_SESSION["user_nome"] ?? "Extensão";
     }
 }
 
 $session_timeout = 8 * 60 * 60;
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
 }
 
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > $session_timeout)) {
+if (
+    isset($_SESSION["LAST_ACTIVITY"]) &&
+    time() - $_SESSION["LAST_ACTIVITY"] > $session_timeout
+) {
     $_SESSION = [];
     session_destroy();
-    header('Location: login.php?expired=1');
-    exit;
+    header("Location: login.php?expired=1");
+    exit();
 }
 
-$_SESSION['LAST_ACTIVITY'] = time();
-
+$_SESSION["LAST_ACTIVITY"] = time();
 
 // Token CSRF para ações sensíveis
-if (empty($_SESSION['csrf_token'])) {
+if (empty($_SESSION["csrf_token"])) {
     try {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     } catch (\Random\RandomException $e) {
-        error_log('[nvcloud] Falha ao gerar token CSRF: ' . $e->getMessage());
+        error_log("[nvcloud] Falha ao gerar token CSRF: " . $e->getMessage());
         http_response_code(500);
-        die('Erro de segurança ao iniciar a sessão. Tentar novamente.');
+        die("Erro de segurança ao iniciar a sessão. Tentar novamente.");
     }
-
 }
-$csrfToken = $_SESSION['csrf_token'];
+$csrfToken = $_SESSION["csrf_token"];
 
 // ============================================================
 // 2. FUNÇÕES AUXILIARES GERAIS
 // ============================================================
 
-
 #[\NoReturn]
 function redirectTo(string $url): void
 {
-    header('Location: ' . $url);
-    exit;
+    header("Location: " . $url);
+    exit();
 }
 
 function utilizadorEhAdmin(): bool
 {
-    return ($_SESSION['user_role'] ?? 'user') === 'admin';
+    return ($_SESSION["user_role"] ?? "user") === "admin";
 }
 
 #[\NoReturn]
 function exigirAdmin(): void
 {
     if (!utilizadorEhAdmin()) {
-        flashError('Não tens permissão para executar esta ação.');
-        redirectTo('app.php?page=dashboard');
+        flashError("Não tens permissão para executar esta ação.");
+        redirectTo("app.php?page=dashboard");
     }
 }
 
 function flashSuccess(string $message): void
 {
-    $_SESSION['mensagem_sucesso'] = $message;
+    $_SESSION["mensagem_sucesso"] = $message;
 }
 
 function flashError(string $message): void
 {
-    $_SESSION['mensagem_erro'] = $message;
+    $_SESSION["mensagem_erro"] = $message;
 }
 
 function pullSessionArray(string $key): array
@@ -112,7 +133,7 @@ function pullSessionArray(string $key): array
 
 function e($value): string
 {
-    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
 }
 
 /**
@@ -124,30 +145,42 @@ function e($value): string
  */
 function nvEnriquecerCliente(PDO $pdo, string $entidade): array
 {
-    $vazio = ['morada' => '', 'contacto' => ''];
+    $vazio = ["morada" => "", "contacto" => ""];
     $entidade = trim($entidade);
-    if ($entidade === '') return $vazio;
+    if ($entidade === "") {
+        return $vazio;
+    }
 
-    $cols  = "mailing_street, mailing_city, mailing_zip, mailing_country, phone, mobile, email";
+    $cols =
+        "mailing_street, mailing_city, mailing_zip, mailing_country, phone, mobile, email";
     $ordem = "ORDER BY (mailing_street IS NOT NULL AND mailing_street <> '') DESC,
                        (phone IS NOT NULL AND phone <> '') DESC, id ASC";
     // Escapar wildcards de LIKE (\, %, _) — nomes com '_' davam falsos positivos.
-    $esc = fn(string $s): string => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $s);
+    $esc = fn(string $s): string => str_replace(
+        ["\\", "%", "_"],
+        ["\\\\", "\\%", "\\_"],
+        $s,
+    );
 
-    $stmtLike = $pdo->prepare("SELECT $cols FROM clientes_contactos WHERE account_name LIKE ? $ordem LIMIT 1");
+    $stmtLike = $pdo->prepare(
+        "SELECT $cols FROM clientes_contactos WHERE account_name LIKE ? $ordem LIMIT 1",
+    );
     $cli = null;
 
     // 1. Match exato
-    $st = $pdo->prepare("SELECT $cols FROM clientes_contactos WHERE account_name = ? $ordem LIMIT 1");
+    $st = $pdo->prepare(
+        "SELECT $cols FROM clientes_contactos WHERE account_name = ? $ordem LIMIT 1",
+    );
     $st->execute([$entidade]);
     $cli = $st->fetch() ?: null;
 
     // 2. Frase das 2 primeiras palavras (ex.: "EDP Comercial")
     if (!$cli) {
-        $palavras = preg_split('/\s+/u', $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $frase = implode(' ', array_slice($palavras, 0, 2));
-        if ($frase !== '') {
-            $stmtLike->execute(['%' . $esc($frase) . '%']);
+        $palavras =
+            preg_split("/\s+/u", $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $frase = implode(" ", array_slice($palavras, 0, 2));
+        if ($frase !== "") {
+            $stmtLike->execute(["%" . $esc($frase) . "%"]);
             $cli = $stmtLike->fetch() ?: null;
         }
     }
@@ -158,49 +191,85 @@ function nvEnriquecerCliente(PDO $pdo, string $entidade): array
     //    - só aceita o match se for ÚNICO (um e um só cliente corresponde);
     //      se houver ambiguidade, prefere não enriquecer a enriquecer mal.
     if (!$cli) {
-        $stop = ['loja','cliente','lda','sa','sociedade','portugal','centro','filial','agencia','agência'];
-        $tokens = preg_split('/[^\p{L}\p{N}]+/u', $entidade, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $tokens = array_values(array_filter($tokens, fn($w) =>
-                mb_strlen($w) >= 5 && !in_array(mb_strtolower($w), $stop, true)
-        ));
+        $stop = [
+            "loja",
+            "cliente",
+            "lda",
+            "sa",
+            "sociedade",
+            "portugal",
+            "centro",
+            "filial",
+            "agencia",
+            "agência",
+        ];
+        $tokens =
+            preg_split(
+                "/[^\p{L}\p{N}]+/u",
+                $entidade,
+                -1,
+                PREG_SPLIT_NO_EMPTY,
+            ) ?:
+            [];
+        $tokens = array_values(
+            array_filter(
+                $tokens,
+                fn($w) => mb_strlen($w) >= 5 &&
+                    !in_array(mb_strtolower($w), $stop, true),
+            ),
+        );
         usort($tokens, fn($a, $b) => mb_strlen($b) - mb_strlen($a));
-        $stmtCnt = $pdo->prepare("SELECT COUNT(DISTINCT account_name) FROM clientes_contactos WHERE account_name LIKE ?");
+        $stmtCnt = $pdo->prepare(
+            "SELECT COUNT(DISTINCT account_name) FROM clientes_contactos WHERE account_name LIKE ?",
+        );
         foreach ($tokens as $w) {
-            $stmtCnt->execute(['%' . $esc($w) . '%']);
-            if ((int)$stmtCnt->fetchColumn() === 1) {     // match não-ambíguo
-                $stmtLike->execute(['%' . $esc($w) . '%']);
+            $stmtCnt->execute(["%" . $esc($w) . "%"]);
+            if ((int) $stmtCnt->fetchColumn() === 1) {
+                // match não-ambíguo
+                $stmtLike->execute(["%" . $esc($w) . "%"]);
                 $cli = $stmtLike->fetch() ?: null;
-                if ($cli) break;
+                if ($cli) {
+                    break;
+                }
             }
         }
     }
 
-    if (!$cli) return $vazio;
+    if (!$cli) {
+        return $vazio;
+    }
 
-    $morada = implode(', ', array_filter([
-        $cli['mailing_street']  ?? '',
-        $cli['mailing_city']    ?? '',
-        $cli['mailing_zip']     ?? '',
-        $cli['mailing_country'] ?? '',
-    ]));
-    $contacto = ($cli['phone'] ?? '') ?: ($cli['mobile'] ?? '') ?: ($cli['email'] ?? '') ?: '';
+    $morada = implode(
+        ", ",
+        array_filter([
+            $cli["mailing_street"] ?? "",
+            $cli["mailing_city"] ?? "",
+            $cli["mailing_zip"] ?? "",
+            $cli["mailing_country"] ?? "",
+        ]),
+    );
+    $contacto =
+        $cli["phone"] ?? "" ?:
+        $cli["mobile"] ?? "" ?:
+        $cli["email"] ?? "" ?:
+        "";
 
-    return ['morada' => $morada, 'contacto' => $contacto];
+    return ["morada" => $morada, "contacto" => $contacto];
 }
-
 
 // ============================================================
 // 3. BASE DE DADOS
 // ============================================================
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/clientes.php';
-require_once __DIR__ . '/includes/relatorios_parser.php';
-require_once __DIR__ . '/includes/relatorios_reconciliar.php';
-require_once __DIR__ . '/includes/relatorios_aplicar.php';
-require_once __DIR__ . '/includes/fluxo_pecas.php';
+require_once __DIR__ . "/config.php";
+require_once __DIR__ . "/includes/clientes.php";
+require_once __DIR__ . "/includes/relatorios_parser.php";
+require_once __DIR__ . "/includes/relatorios_reconciliar.php";
+require_once __DIR__ . "/includes/relatorios_aplicar.php";
+require_once __DIR__ . "/includes/fluxo_pecas.php";
 
-$dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+$dsn =
+    "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
 
 $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -209,272 +278,332 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    require_once __DIR__ . "/includes/schema_migrate.php";
 } catch (Exception $e) {
-    die('Erro de ligação à base de dados: ' . $e->getMessage());
+    die("Erro de ligação à base de dados: " . $e->getMessage());
 }
 
 // ============================================================
 // 4. ESTADO DA PÁGINA / ROUTING SIMPLES
 // ============================================================
 
-$page = $_GET['page'] ?? 'dashboard';
+$page = $_GET["page"] ?? "dashboard";
+
+if (!isset($_SESSION["must_change_password"])) {
+    $stPwd = $pdo->prepare(
+        "SELECT must_change_password FROM utilizadores WHERE id = ?",
+    );
+    $stPwd->execute([(int) $_SESSION["user_id"]]);
+    $_SESSION["must_change_password"] = (int) $stPwd->fetchColumn();
+}
+if (!empty($_SESSION["must_change_password"])) {
+    header("Location: change_password.php");
+    exit();
+}
 // "Obriga" suave: 1.ª visita do mês leva os utilizadores de escritório à revisão.
-$areasObrigadas = ['Escritorio','TI'];
-if (in_array($_SESSION['user_area'] ?? '', $areasObrigadas, true)
-        && $page !== 'revisao'
-        && ($_SESSION['rev_lembrete_mes'] ?? '') !== date('Y-m')
-        && empty($_GET['adiar'])) {
-    require_once __DIR__ . '/includes/revisoes.php';
+$areasObrigadas = ["Escritorio", "TI"];
+if (
+    in_array($_SESSION["user_area"] ?? "", $areasObrigadas, true) &&
+    $page !== "revisao" &&
+    ($_SESSION["rev_lembrete_mes"] ?? "") !== date("Y-m") &&
+    empty($_GET["adiar"])
+) {
+    require_once __DIR__ . "/includes/revisoes.php";
     nvGerarRevisoesDoMes($pdo, 30);
+    $__revisoesGeradas = true;
     if (nvRevisoesPendentes($pdo) > 0) {
-        $_SESSION['rev_lembrete_mes'] = date('Y-m');   // só lembra uma vez por mês
-        header('Location: app.php?page=revisao&from=auto');
-        exit;
+        $_SESSION["rev_lembrete_mes"] = date("Y-m"); // só lembra uma vez por mês
+        header("Location: app.php?page=revisao&from=auto");
+        exit();
     }
 }
-$action = $_GET['action'] ?? '';
+$action = $_GET["action"] ?? "";
 if (
-    (($_GET['action'] ?? '') === 'importar_workorder' || ($_POST['action'] ?? '') === 'importar_workorder')
+    ($_GET["action"] ?? "") === "importar_workorder" ||
+    ($_POST["action"] ?? "") === "importar_workorder"
 ) {
     // Só POST altera dados (nunca GET).
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
         http_response_code(405);
-        $_SESSION['mensagem_erro'] = 'Método não permitido.';
-        header('Location: app.php?page=pats');
-        exit;
+        $_SESSION["mensagem_erro"] = "Método não permitido.";
+        header("Location: app.php?page=pats");
+        exit();
     }
     // Aceita UMA de duas provas de origem:
     //  (a) token CSRF da sessão (uso normal no site), OU
     //  (b) token secreto da extensão (definido em config.php como EXTENSION_TOKEN).
-    $tokenRecebido = $_POST['csrf'] ?? '';
-    $tokenExtensao = $_SERVER['HTTP_X_NV_TOKEN'] ?? '';
-    $csrfOk = hash_equals($_SESSION['csrf_token'] ?? '', $tokenRecebido);
-    $extOk  = defined('EXTENSION_TOKEN') && EXTENSION_TOKEN !== ''
-            && hash_equals(EXTENSION_TOKEN, $tokenExtensao);
+    $tokenRecebido = $_POST["csrf"] ?? "";
+    $tokenExtensao = $_SERVER["HTTP_X_NV_TOKEN"] ?? "";
+    $csrfOk = hash_equals($_SESSION["csrf_token"] ?? "", $tokenRecebido);
+    $extOk =
+        defined("EXTENSION_TOKEN") &&
+        EXTENSION_TOKEN !== "" &&
+        hash_equals(EXTENSION_TOKEN, $tokenExtensao);
     if (!$csrfOk && !$extOk) {
         http_response_code(403);
-        $_SESSION['mensagem_erro'] = 'Ação inválida.';
-        header('Location: app.php?page=pats');
-        exit;
+        $_SESSION["mensagem_erro"] = "Ação inválida.";
+        header("Location: app.php?page=pats");
+        exit();
     }
     $source = $_POST;
     // Resposta JSON quando a chamada vem da extensão (modo X-NV-Token).
     $respExt = function (array $payload, int $code = 200): void {
-        if (!empty($GLOBALS['__wo_extensao'])) {
+        if (!empty($GLOBALS["__wo_extensao"])) {
             http_response_code($code);
-            header('Content-Type: application/json; charset=utf-8');
+            header("Content-Type: application/json; charset=utf-8");
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-            exit;
+            exit();
         }
     };
-    $numeroWo = trim($source['numero_wo'] ?? '');
-    $entidade = trim($source['entidade'] ?? '');
-    $localCliente = trim($source['local_cliente'] ?? $entidade);
-    $contacto = trim($source['contacto'] ?? '');
-    $tecnico = trim($source['tecnico'] ?? '');
-    $morada = trim($source['morada'] ?? '');
-    $descricao = trim($source['descricao'] ?? '');
-    $dataRec = trim($source['data_recepcao'] ?? '');
-    $dataLim = trim($source['data_limite'] ?? '');
-    $prioridade = in_array($source['prioridade'] ?? '', ['Normal','Urgente'])
-            ? $source['prioridade'] : 'Normal';
-
+    $numeroWo = trim($source["numero_wo"] ?? "");
+    $entidade = trim($source["entidade"] ?? "");
+    $localCliente = trim($source["local_cliente"] ?? $entidade);
+    $contacto = trim($source["contacto"] ?? "");
+    $tecnico = trim($source["tecnico"] ?? "");
+    $morada = trim($source["morada"] ?? "");
+    $descricao = trim($source["descricao"] ?? "");
+    $dataRec = trim($source["data_recepcao"] ?? "");
+    $dataLim = trim($source["data_limite"] ?? "");
+    $prioridade = in_array($source["prioridade"] ?? "", ["Normal", "Urgente"])
+        ? $source["prioridade"]
+        : "Normal";
 
     // Garantir UTF-8 válido (a extensão lê o DOM do Salesforce e pode trazer
     // bytes mal-formados que, sob STRICT_TRANS_TABLES, rebentariam o INSERT).
     $utf8 = function ($s) {
-        $s = (string)$s;
-        return ($s === '' || mb_check_encoding($s, 'UTF-8'))
+        $s = (string) $s;
+        return $s === "" || mb_check_encoding($s, "UTF-8")
             ? $s
-            : mb_convert_encoding($s, 'UTF-8', 'Windows-1252');
+            : mb_convert_encoding($s, "UTF-8", "Windows-1252");
     };
-    $numeroWo     = $utf8($numeroWo);
-    $entidade     = $utf8($entidade);
+    $numeroWo = $utf8($numeroWo);
+    $entidade = $utf8($entidade);
     $localCliente = $utf8($localCliente);
-    $contacto     = $utf8($contacto);
-    $tecnico      = $utf8($tecnico);
-    $morada       = $utf8($morada);
-    $descricao    = $utf8($descricao);
+    $contacto = $utf8($contacto);
+    $tecnico = $utf8($tecnico);
+    $morada = $utf8($morada);
+    $descricao = $utf8($descricao);
 
-    if ($numeroWo === '') {
-        $respExt(['ok' => false, 'erro' => 'Nº Work Order em falta.'], 422);
-        $_SESSION['mensagem_erro'] = 'Nº Work Order em falta.';
-        header('Location: app.php?page=pats');
-        exit;
+    if ($numeroWo === "") {
+        $respExt(["ok" => false, "erro" => "Nº Work Order em falta."], 422);
+        $_SESSION["mensagem_erro"] = "Nº Work Order em falta.";
+        header("Location: app.php?page=pats");
+        exit();
     }
 
     // Verificar duplicado
-    $stmtDup = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? LIMIT 1");
+    $stmtDup = $pdo->prepare(
+        "SELECT id FROM pats WHERE numero_pat = ? LIMIT 1",
+    );
     $stmtDup->execute([$numeroWo]);
     $existente = $stmtDup->fetchColumn();
     if ($existente) {
-        $respExt(['ok' => true, 'pat_id' => (int)$existente, 'duplicado' => true]);
-        $_SESSION['mensagem_sucesso'] = 'Este WO já estava importado.';
-        header('Location: app.php?page=pats&ver=' . (int)$existente);
-        exit;
+        $respExt([
+            "ok" => true,
+            "pat_id" => (int) $existente,
+            "duplicado" => true,
+        ]);
+        $_SESSION["mensagem_sucesso"] = "Este WO já estava importado.";
+        header("Location: app.php?page=pats&ver=" . (int) $existente);
+        exit();
     }
 
     // "Contact" é a label do campo no Salesforce (campo vazio), não um contacto.
-    if ($contacto === 'Contact') $contacto = '';
+    if ($contacto === "Contact") {
+        $contacto = "";
+    }
 
     // ── Enriquecer com clientes_contactos (isolado — nunca bloqueia o INSERT) ──
     try {
-        if ($entidade !== '' && ($morada === '' || $contacto === '')) {
+        if ($entidade !== "" && ($morada === "" || $contacto === "")) {
             $info = nvEnriquecerCliente($pdo, $entidade);
-            if ($morada === ''   && $info['morada']   !== '') $morada   = $info['morada'];
-            if ($contacto === '' && $info['contacto'] !== '') $contacto = $info['contacto'];
+            if ($morada === "" && $info["morada"] !== "") {
+                $morada = $info["morada"];
+            }
+            if ($contacto === "" && $info["contacto"] !== "") {
+                $contacto = $info["contacto"];
+            }
         }
     } catch (Throwable $eCli) {
         // Enriquecimento falhou — continua sem enriquecer, não bloqueia o PAT
-        error_log('Erro enriquecimento clientes_contactos: ' . $eCli->getMessage());
+        error_log(
+            "Erro enriquecimento clientes_contactos: " . $eCli->getMessage(),
+        );
     }
 
     // ── Converter datas ───────────────────────────────────
-    $converterData = function(?string $iso): ?string {
-        if (!$iso) return null;
+    $converterData = function (?string $iso): ?string {
+        if (!$iso) {
+            return null;
+        }
         $ts = strtotime($iso);
-        return $ts ? date('Y-m-d H:i:s', $ts) : null;
+        return $ts ? date("Y-m-d H:i:s", $ts) : null;
     };
 
     // ── INSERT do PAT ─────────────────────────────────────
     try {
-        $pdo->prepare("
+        $pdo->prepare(
+            "
             INSERT INTO pats
               (numero_pat, revisao, entidade, local_cliente, contacto, tecnico, morada,
                data_recepcao, data_limite, descricao,
                prioridade, estado, criado_por, created_at)
             VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Aberto', ?, NOW())
-        ")->execute([
-                $numeroWo,
-                $entidade,
-                $localCliente,
-                $contacto,
-                $tecnico,
-                $morada,
-                $converterData($dataRec),
-                $converterData($dataLim),
-                $descricao,
-                $prioridade,
-                $_SESSION['user_nome'] ?? 'Extensão',
+        ",
+        )->execute([
+            $numeroWo,
+            $entidade,
+            $localCliente,
+            $contacto,
+            $tecnico,
+            $morada,
+            $converterData($dataRec),
+            $converterData($dataLim),
+            $descricao,
+            $prioridade,
+            $_SESSION["user_nome"] ?? "Extensão",
         ]);
 
-        $patId = (int)$pdo->lastInsertId();
-        $respExt(['ok' => true, 'pat_id' => $patId]);
-        $_SESSION['mensagem_sucesso'] = 'PAT criado — WO ' . htmlspecialchars($numeroWo);
-        header('Location: app.php?page=pats&ver=' . $patId);
-        exit;
-
+        $patId = (int) $pdo->lastInsertId();
+        $respExt(["ok" => true, "pat_id" => $patId]);
+        $_SESSION["mensagem_sucesso"] =
+            "PAT criado — WO " . htmlspecialchars($numeroWo);
+        header("Location: app.php?page=pats&ver=" . $patId);
+        exit();
     } catch (Throwable $e) {
-        error_log('[nvcloud] Erro ao criar PAT: ' . $e->getMessage());
+        error_log("[nvcloud] Erro ao criar PAT: " . $e->getMessage());
         \Sentry\captureException($e);
-        $respExt(['ok' => false, 'erro' => 'Não foi possível criar o PAT.'], 500);
-        $_SESSION['mensagem_erro'] = 'Não foi possível criar o PAT. Tenta novamente.';
-        header('Location: app.php?page=pats');
-        exit;
+        $respExt(
+            ["ok" => false, "erro" => "Não foi possível criar o PAT."],
+            500,
+        );
+        $_SESSION["mensagem_erro"] =
+            "Não foi possível criar o PAT. Tenta novamente.";
+        header("Location: app.php?page=pats");
+        exit();
     }
 }
 
 // ── Dispensar (marcar como lidas) as notificações atuais ───
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'notif_dispensar') {
-    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'] ?? '')) {
-        $_SESSION['mensagem_erro'] = 'Ação inválida.';
-        header('Location: ' . ($_POST['voltar'] ?? 'app.php?page=dashboard')); exit;
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["action"] ?? "") === "notif_dispensar"
+) {
+    if (!hash_equals($_SESSION["csrf_token"] ?? "", $_POST["csrf"] ?? "")) {
+        $_SESSION["mensagem_erro"] = "Ação inválida.";
+        header("Location: " . ($_POST["voltar"] ?? "app.php?page=dashboard"));
+        exit();
     }
-    $uid = (int)($_SESSION['user_id'] ?? 0);
-    $chaves = $_POST['chaves'] ?? [];
+    $uid = (int) ($_SESSION["user_id"] ?? 0);
+    $chaves = $_POST["chaves"] ?? [];
     if (is_array($chaves) && $chaves) {
-        $ins = $pdo->prepare("INSERT IGNORE INTO notificacoes_lidas (user_id, chave) VALUES (?, ?)");
+        $ins = $pdo->prepare(
+            "INSERT IGNORE INTO notificacoes_lidas (user_id, chave) VALUES (?, ?)",
+        );
         foreach ($chaves as $ch) {
-            if (preg_match('/^[a-f0-9]{32}$/', $ch)) { $ins->execute([$uid, $ch]); }
+            if (preg_match('/^[a-f0-9]{32}$/', $ch)) {
+                $ins->execute([$uid, $ch]);
+            }
         }
     }
-    header('Location: ' . ($_POST['voltar'] ?? 'app.php?page=dashboard')); exit;
+    header("Location: " . ($_POST["voltar"] ?? "app.php?page=dashboard"));
+    exit();
 }
 
-$vista = $_GET['lista'] ?? '0';
+$vista = $_GET["lista"] ?? "0";
 // ============================================================
 // 5. DADOS FIXOS DA APLICAÇÃO
 // ============================================================
 
 $pageTitles = [
-  'dashboard' => 'Dashboard',
-  'clientes' => 'Clientes',
-  'inventario' => 'Inventário',
-  'inventory' => 'Inventário',
-  'nova_peca' => 'Nova Peça',
-  'historico' => 'Histórico da Peça',
-  'pats' => "Pat's",
-  'envios' => 'Envios',
-  'qrs' => "QR's",
-  'qr' => "QR's",
-  'relatorios' => 'Relatórios',
-  'contas' =>'Contas',
-  'auditoria' => 'Auditoria',
-  'categorias' => 'Categorias',
-  'estados' => 'Estados',
-  'parceiros' => 'Parceiros',
-  'produtos' => 'Produtos',
-  'nvi' => 'N-Vi',
-  'configuracoes' => 'Configurações',
-  'revisao' => 'Revisão',
-  'analises' => 'Análises',
-  ];
+    "dashboard" => "Dashboard",
+    "clientes" => "Clientes",
+    "inventario" => "Inventário",
+    "inventory" => "Inventário",
+    "nova_peca" => "Nova Peça",
+    "historico" => "Histórico da Peça",
+    "pats" => "Pat's",
+    "envios" => "Envios",
+    "qrs" => "QR's",
+    "qr" => "QR's",
+    "relatorios" => "Relatórios",
+    "contas" => "Contas",
+    "auditoria" => "Auditoria",
+    "categorias" => "Categorias",
+    "estados" => "Estados",
+    "parceiros" => "Parceiros",
+    "produtos" => "Produtos",
+    "nvi" => "N-Vi",
+    "configuracoes" => "Geral",
+    "revisao" => "Revisão",
+    "analises" => "Análises",
+];
 
 $pageIcons = [
-    'dashboard'   => 'bi-speedometer2',
-    'inventario'  => 'bi-box-seam',
-    'pats'        => 'bi-headset',
-    'envios'      => 'bi-truck',
-    'clientes'    => 'bi-people',
-    'qrs'         => 'bi-qr-code',
-    'relatorios'  => 'bi-cart',
-    'revisao'     => 'bi-clipboard-check',
-    'analises'    => 'bi-bar-chart-line',
-    'contas'      => 'bi-person-lines-fill',
-    'auditoria'   => 'bi-shield-check',
-    'nvi'         => 'bi-robot',
-    'nova_peca'   => 'bi-plus-circle',
-    'historico'   => 'bi-clock-history',
+    "dashboard" => "bi-speedometer2",
+    "inventario" => "bi-box-seam",
+    "pats" => "bi-headset",
+    "envios" => "bi-truck",
+    "clientes" => "bi-people",
+    "qrs" => "bi-qr-code",
+    "relatorios" => "bi-cart",
+    "revisao" => "bi-clipboard-check",
+    "analises" => "bi-bar-chart-line",
+    "contas" => "bi-person-lines-fill",
+    "auditoria" => "bi-shield-check",
+    "nvi" => "bi-robot",
+    "nova_peca" => "bi-plus-circle",
+    "historico" => "bi-clock-history",
+    "estados" => "bi-toggles",
+    "parceiros" => "bi-building",
+    "produtos" => "bi-tag",
+    "categorias" => "bi-folder",
+    "configuracoes" => "bi-gear",
+    "tabelas" => "bi-table",
 ];
 $topbarIcon = $pageIcons[$page] ?? null;
 
-  $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
-  if ($page === 'envios') {
-    $topbarTitle = 'Envios';
-  }
+$topbarTitle = $pageTitles[$page] ?? ucfirst($page);
+if ($page === "envios") {
+    $topbarTitle = "Envios";
+}
 
 // ------------------------------------------------------------
 // Listas de referência — agora vêm das tabelas de gestão (BD),
 // geríveis nas páginas Categorias / Estados / Parceiros / Produtos.
 // ------------------------------------------------------------
-$estados    = $pdo->query("SELECT nome FROM estados ORDER BY nome ASC")->fetchAll(PDO::FETCH_COLUMN);
-$parceiros  = $pdo->query("SELECT empresa FROM parceiros ORDER BY empresa ASC")->fetchAll(PDO::FETCH_COLUMN);
-$categorias = $pdo->query("SELECT nome FROM categorias ORDER BY nome ASC")->fetchAll(PDO::FETCH_COLUMN);
+$estados = $pdo
+    ->query("SELECT nome FROM estados ORDER BY nome ASC")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$parceiros = $pdo
+    ->query("SELECT empresa FROM parceiros ORDER BY empresa ASC")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$categorias = $pdo
+    ->query("SELECT nome FROM categorias ORDER BY nome ASC")
+    ->fetchAll(PDO::FETCH_COLUMN);
 
 // Cascata categoria => [produtos], construída a partir da tabela `produtos`.
 $catalogoProdutos = [];
 foreach ($categorias as $catNome) {
     $catalogoProdutos[$catNome] = [];
 }
-foreach ($pdo->query(
-    "SELECT c.nome AS categoria, p.nome AS produto
+foreach (
+    $pdo->query(
+        "SELECT c.nome AS categoria, p.nome AS produto
        FROM produtos p
        JOIN categorias c ON c.id = p.categoria_id
-      ORDER BY c.nome ASC, p.nome ASC"
-) as $linhaCat) {
-    $catalogoProdutos[$linhaCat['categoria']][] = $linhaCat['produto'];
+      ORDER BY c.nome ASC, p.nome ASC",
+    )
+    as $linhaCat
+) {
+    $catalogoProdutos[$linhaCat["categoria"]][] = $linhaCat["produto"];
 }
 
-$estadoEnvio = [
-  'Rascunho',
-  'Ativa',
-  'Concluida',
-  'Cancelada'
-];
+$estadoEnvio = ["Rascunho", "Ativa", "Concluida", "Cancelada"];
 
-
-function countQuery(\PDO $pdo, string $sql): int {
-    return (int)$pdo->query($sql)->fetchColumn();
+function countQuery(\PDO $pdo, string $sql): int
+{
+    return (int) $pdo->query($sql)->fetchColumn();
 }
 
 // Notificações
@@ -488,9 +617,13 @@ $stmtUrg = $pdo->query("
 ");
 foreach ($stmtUrg->fetchAll() as $p) {
     $notificacoes[] = [
-        'tipo' => 'urgente',
-        'msg' => 'PAT urgente: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — ' . htmlspecialchars($p['entidade']),
-        'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+        "tipo" => "urgente",
+        "msg" =>
+            "PAT urgente: " .
+            htmlspecialchars($p["numero_pat"] . "/" . $p["revisao"]) .
+            " — " .
+            htmlspecialchars($p["entidade"]),
+        "link" => "app.php?page=pats&ver=" . (int) $p["id"],
     ];
 }
 
@@ -504,31 +637,37 @@ $stmtPrazo = $pdo->query("
 ");
 foreach ($stmtPrazo->fetchAll() as $p) {
     $notificacoes[] = [
-       'tipo' => 'prazo',
-       'msg' => 'Prazo a expirar: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — ' . date('d/m/Y', strtotime($p['data_limite'])),
-       'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+        "tipo" => "prazo",
+        "msg" =>
+            "Prazo a expirar: " .
+            htmlspecialchars($p["numero_pat"] . "/" . $p["revisao"]) .
+            " — " .
+            date("d/m/Y", strtotime($p["data_limite"])),
+        "link" => "app.php?page=pats&ver=" . (int) $p["id"],
     ];
 }
 
 // PEÇAS SUSPEITAS (estado "em curso" parado há muito tempo)
-require_once __DIR__ . '/includes/pecas_suspeitas.php';
-$pecasSuspeitas = nvPecasSuspeitas($pdo, ['dias' => 30]);
+require_once __DIR__ . "/includes/pecas_suspeitas.php";
+$pecasSuspeitas = nvPecasSuspeitas($pdo, ["dias" => 30]);
 if (count($pecasSuspeitas) > 0) {
     $notificacoes[] = [
-        'tipo' => 'suspeita',
-        'msg' => count($pecasSuspeitas) . ' peça(s) por rever - estado parado há +30 dias',
-        'link' => 'app.php?page=revisao',
+        "tipo" => "suspeita",
+        "msg" =>
+            count($pecasSuspeitas) .
+            " peça(s) por rever - estado parado há +30 dias",
+        "link" => "app.php?page=revisao",
     ];
 }
 
-require_once __DIR__ . '/includes/revisoes.php';
-nvGerarRevisoesDoMes($pdo, 30);
+require_once __DIR__ . "/includes/revisoes.php";
+if (empty($__revisoesGeradas)) { nvGerarRevisoesDoMes($pdo, 30); }
 $revPendentes = nvRevisoesPendentes($pdo);
 if ($revPendentes > 0) {
     $notificacoes[] = [
-            'tipo' => 'suspeita',
-            'msg'  => $revPendentes . ' peça(s) por rever este mês',
-            'link' => 'app.php?page=revisao',
+        "tipo" => "suspeita",
+        "msg" => $revPendentes . " peça(s) por rever este mês",
+        "link" => "app.php?page=revisao",
     ];
 }
 
@@ -542,76 +681,107 @@ $stmtAtraso = $pdo->query("
 ");
 foreach ($stmtAtraso->fetchAll() as $p) {
     $notificacoes[] = [
-        'tipo' => 'atraso',
-        'msg'  => 'PAT em atraso: ' . htmlspecialchars($p['numero_pat'].'/'.$p['revisao']) . ' — prazo ' . date('d/m/Y', strtotime($p['data_limite'])),
-        'link' => 'app.php?page=pats&ver=' . (int)$p['id'],
+        "tipo" => "atraso",
+        "msg" =>
+            "PAT em atraso: " .
+            htmlspecialchars($p["numero_pat"] . "/" . $p["revisao"]) .
+            " — prazo " .
+            date("d/m/Y", strtotime($p["data_limite"])),
+        "link" => "app.php?page=pats&ver=" . (int) $p["id"],
     ];
 }
 
 // Envios em rascunho por finalizar
 try {
-    $nDraft = (int)$pdo->query("SELECT COUNT(*) FROM envios WHERE estado = 'Rascunho'")->fetchColumn();
+    $nDraft = (int) $pdo
+        ->query("SELECT COUNT(*) FROM envios WHERE estado = 'Rascunho'")
+        ->fetchColumn();
     if ($nDraft > 0) {
         $notificacoes[] = [
-            'tipo' => 'envio',
-            'msg'  => $nDraft . ' envio(s) em rascunho por finalizar',
-            'link' => 'app.php?page=envios',
+            "tipo" => "envio",
+            "msg" => $nDraft . " envio(s) em rascunho por finalizar",
+            "link" => "app.php?page=envios",
         ];
     }
-} catch (Throwable $e) { /* tabela ausente — ignora */ }
+} catch (Throwable $e) {
+    /* tabela ausente — ignora */
+}
 
 // Relatórios à espera de validação
 try {
-    $nRel = (int)$pdo->query("SELECT COUNT(*) FROM relatorios WHERE estado IN ('por_confirmar','revisao_manual')")->fetchColumn();
+    $nRel = (int) $pdo
+        ->query(
+            "SELECT COUNT(*) FROM relatorios WHERE estado IN ('por_confirmar','revisao_manual')",
+        )
+        ->fetchColumn();
     if ($nRel > 0) {
         $notificacoes[] = [
-            'tipo' => 'relatorio',
-            'msg'  => $nRel . ' relatório(s) à espera de validação',
-            'link' => 'app.php?page=relatorios',
+            "tipo" => "relatorio",
+            "msg" => $nRel . " relatório(s) à espera de validação",
+            "link" => "app.php?page=relatorios",
         ];
     }
-} catch (Throwable $e) { /* tabela ausente — ignora */ }
+} catch (Throwable $e) {
+    /* tabela ausente — ignora */
+}
 
 // Qualidade de dados: peças sem estado atribuído
 try {
-    $nSemEstado = (int)$pdo->query("SELECT COUNT(*) FROM pecas WHERE estado IS NULL OR TRIM(estado) = ''")->fetchColumn();
+    $nSemEstado = (int) $pdo
+        ->query(
+            "SELECT COUNT(*) FROM pecas WHERE estado IS NULL OR TRIM(estado) = ''",
+        )
+        ->fetchColumn();
     if ($nSemEstado > 0) {
         $notificacoes[] = [
-            'tipo' => 'suspeita',
-            'msg'  => $nSemEstado . ' peça(s) sem estado atribuído',
-            'link' => 'app.php?page=inventario',
+            "tipo" => "suspeita",
+            "msg" => $nSemEstado . " peça(s) sem estado atribuído",
+            "link" => "app.php?page=inventario",
         ];
     }
-} catch (Throwable $e) { /* ignora */ }
+} catch (Throwable $e) {
+    /* ignora */
+}
 
 // ── Notificações personalizadas do utilizador ──────────────
 try {
     $stCustom = $pdo->prepare(
-            "SELECT id, titulo, mensagem, link FROM notificacoes_personalizadas
-          WHERE user_id = ? AND ativo = 1 ORDER BY created_at DESC"
+        "SELECT id, titulo, mensagem, link FROM notificacoes_personalizadas
+          WHERE user_id = ? AND ativo = 1 ORDER BY created_at DESC",
     );
-    $stCustom->execute([(int)($_SESSION['user_id'] ?? 0)]);
+    $stCustom->execute([(int) ($_SESSION["user_id"] ?? 0)]);
     foreach ($stCustom as $c) {
         $notificacoes[] = [
-                'tipo' => 'custom',
-                'msg'  => htmlspecialchars($c['titulo']) . ' — ' . htmlspecialchars($c['mensagem']),
-                'link' => $c['link'] ?: 'app.php?page=analises',
+            "tipo" => "custom",
+            "msg" =>
+                htmlspecialchars($c["titulo"]) .
+                " — " .
+                htmlspecialchars($c["mensagem"]),
+            "link" => $c["link"] ?: "app.php?page=analises",
         ];
     }
-} catch (Throwable $e) { /* tabela ausente — ignora */ }
+} catch (Throwable $e) {
+    /* tabela ausente — ignora */
+}
 
 // ── Filtrar as que o utilizador já dispensou ───────────────
 try {
-    $dispostas = $pdo->prepare("SELECT chave FROM notificacoes_lidas WHERE user_id = ?");
-    $dispostas->execute([(int)($_SESSION['user_id'] ?? 0)]);
+    $dispostas = $pdo->prepare(
+        "SELECT chave FROM notificacoes_lidas WHERE user_id = ?",
+    );
+    $dispostas->execute([(int) ($_SESSION["user_id"] ?? 0)]);
     $lidas = $dispostas->fetchAll(PDO::FETCH_COLUMN) ?: [];
     if ($lidas) {
-        $notificacoes = array_values(array_filter($notificacoes, function ($n) use ($lidas) {
-            $chave = md5(($n['tipo'] ?? '') . '|' . ($n['msg'] ?? ''));
-            return !in_array($chave, $lidas, true);
-        }));
+        $notificacoes = array_values(
+            array_filter($notificacoes, function ($n) use ($lidas) {
+                $chave = md5(($n["tipo"] ?? "") . "|" . ($n["msg"] ?? ""));
+                return !in_array($chave, $lidas, true);
+            }),
+        );
     }
-} catch (Throwable $e) { /* ignora */ }
+} catch (Throwable $e) {
+    /* ignora */
+}
 
 $totalNotif = count($notificacoes);
 
@@ -619,16 +789,32 @@ $totalNotif = count($notificacoes);
 // DADOS — PATs
 // ══════════════════════════════════════════════
 
-$estadoData = $pdo->query("SELECT estado, COUNT(*) total FROM pecas GROUP BY estado ORDER BY total DESC")->fetchAll();
+$estadoData = $pdo
+    ->query(
+        "SELECT estado, COUNT(*) total FROM pecas GROUP BY estado ORDER BY total DESC",
+    )
+    ->fetchAll();
 
-$categoriaData = $pdo->query("SELECT categoria, COUNT(*) total FROM pecas GROUP BY categoria ORDER BY total DESC LIMIT 12")->fetchAll();
+$categoriaData = $pdo
+    ->query(
+        "SELECT categoria, COUNT(*) total FROM pecas GROUP BY categoria ORDER BY total DESC LIMIT 12",
+    )
+    ->fetchAll();
 
-$parceiroData = $pdo->query("SELECT parceiro, COUNT(*) total FROM pecas GROUP BY parceiro ORDER BY total DESC LIMIT 10")->fetchAll();
+$parceiroData = $pdo
+    ->query(
+        "SELECT parceiro, COUNT(*) total FROM pecas GROUP BY parceiro ORDER BY total DESC LIMIT 10",
+    )
+    ->fetchAll();
 
-$pendentesCliente = (int)$pdo->query("SELECT COUNT(*) FROM pecas WHERE cliente_pendente = 1")->fetchColumn();
+$pendentesCliente = (int) $pdo
+    ->query("SELECT COUNT(*) FROM pecas WHERE cliente_pendente = 1")
+    ->fetchColumn();
 
-$trendRows = $pdo->query("
-    SELECT 
+$trendRows = $pdo
+    ->query(
+        "
+    SELECT
       DATE_FORMAT(created_at, '%Y-%m') AS mes_ordem,
       DATE_FORMAT(created_at, '%b %Y') AS mes,
       COUNT(*) AS total
@@ -636,9 +822,13 @@ $trendRows = $pdo->query("
     WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY DATE_FORMAT(created_at, '%Y-%m'), DATE_FORMAT(created_at, '%b %Y')
     ORDER BY mes_ordem ASC
-  ")->fetchAll();
+  ",
+    )
+    ->fetchAll();
 
-$patTrendRows = $pdo->query("
+$patTrendRows = $pdo
+    ->query(
+        "
     SELECT
       DATE_FORMAT(created_at, '%Y-%m') AS mes_ordem,
       DATE_FORMAT(created_at, '%b %Y') AS mes,
@@ -647,9 +837,13 @@ $patTrendRows = $pdo->query("
     WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY DATE_FORMAT(created_at, '%Y-%m'), DATE_FORMAT(created_at, '%b %Y')
     ORDER BY mes_ordem ASC
-  ")->fetchAll();
+  ",
+    )
+    ->fetchAll();
 
-$actividadeRecente = $pdo->query("
+$actividadeRecente = $pdo
+    ->query(
+        "
     SELECT
         h.peca_id, h.campo, h.antes, h.depois,
         h.utilizador, h.data_alteracao,
@@ -659,106 +853,129 @@ $actividadeRecente = $pdo->query("
     WHERE h.peca_id > 0
     ORDER BY h.data_alteracao DESC, h.id DESC
     LIMIT 18
-")->fetchAll();
+",
+    )
+    ->fetchAll();
 
 /*=================
   AUDITORIA
 ==================*/
 
-function active(string $p, string $page): string {
-    return $p === $page ? 'active-link' : '';
+function active(string $p, string $page): string
+{
+    return $p === $page ? "active-link" : "";
 }
 
 // Tradução do tipo de cliente para português (apenas apresentação;
 // o valor original mantém-se na BD para KPIs e filtros).
-function tipoPt(string $type): string {
+function tipoPt(string $type): string
+{
     $type = trim($type);
-    if ($type === '') {
-        return 'Sem tipo';
+    if ($type === "") {
+        return "Sem tipo";
     }
     $mapa = [
-        'customer'                => 'Cliente',
-        'end customer'            => 'Cliente Final',
-        'own shop'                => 'Loja Própria',
-        'prospect'                => 'Potencial Cliente',
-        'exclusive agent'         => 'Agente Exclusivo',
-        'partner'                 => 'Parceiro',
-        'partner - portugal'      => 'Parceiro - Portugal',
-        'partner - international'  => 'Parceiro - Internacional',
-        'partner - spain'         => 'Parceiro - Espanha',
-        'partner - latam'         => 'Parceiro - LATAM',
+        "customer" => "Cliente",
+        "end customer" => "Cliente Final",
+        "own shop" => "Loja Própria",
+        "prospect" => "Potencial Cliente",
+        "exclusive agent" => "Agente Exclusivo",
+        "partner" => "Parceiro",
+        "partner - portugal" => "Parceiro - Portugal",
+        "partner - international" => "Parceiro - Internacional",
+        "partner - spain" => "Parceiro - Espanha",
+        "partner - latam" => "Parceiro - LATAM",
     ];
-    return $mapa[mb_strtolower($type, 'UTF-8')] ?? $type;
+    return $mapa[mb_strtolower($type, "UTF-8")] ?? $type;
 }
 
 // Cor de cada estado — MESMA palete do gráfico de pizza do Dashboard (estadoColors).
-function estadoCorHex(string $estado): string {
+function estadoCorHex(string $estado): string
+{
     static $cores = [
-        'Disponível'             => '#28a745',
-        'PAT'                    => '#6f42c1',
-        'Laboratório'            => '#2470dc',
-        'Abater'                 => '#dc3545',
-        'Cliente'                => '#20c997',
-        'Desconhecido'           => '#ffc107',
-        'Devolução'              => '#17a2b8',
-        'Fornecedor(Reparação)'  => '#fd7e14',
-        'Fornecedor (Reparação)' => '#fd7e14',
-        'OT'                     => '#495057',
-        'Parceiro'               => '#8c564b',
-        'Spares'                 => '#47372A',
-        'Trânsito'               => '#6c757d',
+        "Disponível" => "#28a745",
+        "PAT" => "#6f42c1",
+        "Laboratório" => "#2470dc",
+        "Abater" => "#dc3545",
+        "Cliente" => "#20c997",
+        "Desconhecido" => "#ffc107",
+        "Devolução" => "#17a2b8",
+        "Fornecedor(Reparação)" => "#fd7e14",
+        "Fornecedor (Reparação)" => "#fd7e14",
+        "Parceiro" => "#8c564b",
+        "Spares" => "#47372A",
+        "Trânsito" => "#6c757d",
     ];
-    return $cores[trim($estado)] ?? '#6c757d';
+    return $cores[trim($estado)] ?? "#6c757d";
 }
 
 // Bolha (badge) colorida do estado para a tabela do Inventário.
-function estadoBolha(string $estado): string {
-    if (trim($estado) === '') {
-        return '';
+function estadoBolha(string $estado): string
+{
+    if (trim($estado) === "") {
+        return "";
     }
     $bg = estadoCorHex($estado);
     $r = hexdec(substr($bg, 1, 2));
     $g = hexdec(substr($bg, 3, 2));
     $b = hexdec(substr($bg, 5, 2));
     $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b; // luminância → contraste
-    $txt = $lum > 160 ? '#1c1f24' : '#ffffff';
-    return '<span class="estado-bolha" style="background:' . $bg . '; color:' . $txt . ';">'
-        . htmlspecialchars($estado) . '</span>';
+    $txt = $lum > 160 ? "#1c1f24" : "#ffffff";
+    return '<span class="estado-bolha" style="background:' .
+        $bg .
+        "; color:" .
+        $txt .
+        ';">' .
+        htmlspecialchars($estado) .
+        "</span>";
 }
 
 // Célula de contactos/morada para a página Clientes (dados do Report .xlsx).
-function contactoCelula(array $map, string $nome): string {
+function contactoCelula(array $map, string $nome): string
+{
     $c = $map[$nome] ?? null;
     if (!$c) {
         return '<span style="color:#9ca3af;">—</span>';
     }
     $linhas = [];
-    if (!empty($c['emails'])) {
-        $linhas[] = '📧 ' . htmlspecialchars($c['emails']);
+    if (!empty($c["emails"])) {
+        $linhas[] = "📧 " . htmlspecialchars($c["emails"]);
     }
-    $tel = implode(', ', array_filter([$c['phones'] ?? '', $c['mobiles'] ?? '']));
-    if ($tel !== '') {
-        $linhas[] = '📞 ' . htmlspecialchars($tel);
+    $tel = implode(
+        ", ",
+        array_filter([$c["phones"] ?? "", $c["mobiles"] ?? ""]),
+    );
+    if ($tel !== "") {
+        $linhas[] = "📞 " . htmlspecialchars($tel);
     }
-    $morada = implode(', ', array_filter([$c['street'] ?? '', $c['city'] ?? '', $c['zip'] ?? '', $c['country'] ?? '']));
-    if ($morada !== '') {
-        $linhas[] = '📍 ' . htmlspecialchars($morada);
+    $morada = implode(
+        ", ",
+        array_filter([
+            $c["street"] ?? "",
+            $c["city"] ?? "",
+            $c["zip"] ?? "",
+            $c["country"] ?? "",
+        ]),
+    );
+    if ($morada !== "") {
+        $linhas[] = "📍 " . htmlspecialchars($morada);
     }
     if (!$linhas) {
         return '<span style="color:#9ca3af;">—</span>';
     }
-    $extra = ((int)($c['n'] ?? 1) > 1)
-        ? '<div style="color:#9ca3af; font-size:11px; margin-top:2px;">' . (int)$c['n'] . ' contactos</div>'
-        : '';
-    return '<div style="font-size:12px; line-height:1.5; max-width:340px; word-break:break-word;">'
-        . implode('<br>', $linhas) . '</div>' . $extra;
+    $extra =
+        (int) ($c["n"] ?? 1) > 1
+            ? '<div style="color:#9ca3af; font-size:11px; margin-top:2px;">' .
+                (int) $c["n"] .
+                " contactos</div>"
+            : "";
+    return '<div style="font-size:12px; line-height:1.5; max-width:340px; word-break:break-word;">' .
+        implode("<br>", $linhas) .
+        "</div>" .
+        $extra;
 }
 
-
-
-
 // ============================================================
-
 ?>
 
 
@@ -772,34 +989,36 @@ function contactoCelula(array $map, string $nome): string {
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="StockVision">
-<link rel="apple-touch-icon" href="/stockvision-sf/icons/icon-192.png">
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js"); }</script>
 <title>StockVision</title>
-<link rel="icon" type="image/png" href="/assets/favicon.png">
-<link rel="apple-touch-icon" href="/assets/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/icon.svg?v=14">
+<link rel="apple-touch-icon" href="/icon.svg?v=14">
 <link rel="stylesheet" href="fonts.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link 
+<link
   rel="stylesheet"
   href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script
   src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"
   defer
 ></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="https://unpkg.com/html5-qrcode" defer></script>
 
-<!-- SIDEBAR-180px/BARRA DOURADA/ --> 
+<!-- SIDEBAR-180px/BARRA DOURADA/ -->
 <style>
+
+/* Evitar flash branco ao carregar em modo escuro */
+html.dark-mode-pre body { background: #111827 !important; }
 
 html, body {
     width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
-    scrollbar-width: none; 
+    scrollbar-width: none;
     }
 
 html::-webkit-scrollbar,
@@ -873,6 +1092,27 @@ body{
   height: 32px;
 }
 
+.topbar-title{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-menu-toggle{
+  display: none;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 .sidebar .brand img{
   width: 110px;
   height: auto;
@@ -899,6 +1139,14 @@ body{
 .sidebar a span{
   white-space: nowrap;
   }
+
+.sidebar-items {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.sidebar-items::-webkit-scrollbar { display: none; }
 
 .sidebar-group{
   width:100%;
@@ -1136,12 +1384,50 @@ body{
 .sidebar.collapsed .footer-logo{
   text-align: center;
   padding: 14px 6px;
-  font-size: 9px;
+  font-size: 8px;
+  letter-spacing: .04em;
+  word-break: break-all;
+  line-height: 1.3;
   }
 
 .sidebar.collapsed .footer-logo span{
   display: none;
   }
+
+/* Sidebar colapsada: ícones todos visíveis sem scroll */
+.sidebar.collapsed {
+  overflow-y: visible;
+  overflow-x: visible;
+  }
+.sidebar.collapsed .sidebar-items {
+  overflow-y: visible;
+  overflow-x: visible;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  scrollbar-width: none;
+  }
+.sidebar.collapsed .sidebar-items::-webkit-scrollbar { display: none; }
+
+/* Reduzir padding vertical dos itens quando collapsed para caber tudo */
+.sidebar.collapsed a {
+  padding: 8px 0 !important;
+}
+.sidebar.collapsed .sidebar-parent {
+  padding: 8px 0 !important;
+}
+/* Em ecrãs com pouca altura, reduzir ainda mais */
+@media (max-height: 700px) {
+  .sidebar.collapsed a,
+  .sidebar.collapsed .sidebar-parent {
+    padding: 5px 0 !important;
+  }
+  .sidebar.collapsed a i,
+  .sidebar.collapsed .sidebar-parent-left i {
+    font-size: 17px !important;
+  }
+}
 
 
 
@@ -1170,6 +1456,19 @@ body{
 
 
 /*Dashboard Cartões */
+.dash-atividade-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+@media (max-width:640px){
+  .dash-atividade-grid{ grid-template-columns:1fr; }
+}
+body.dark-mode .rev-mes-picker{ background:#1f2937; border-color:#374151; box-shadow:none; }
+body.dark-mode .rev-mes-picker .rev-mes-label{ color:#f3f4f6; border-color:#374151; background:#111827; }
+body.dark-mode .rev-mes-picker a{ color:#9ca3af; }
+body.dark-mode .rev-mes-picker a:hover{ background:#374151; color:#e0bd6e; }
+
 .kpi-row{
          display:grid;
          grid-template-columns:repeat(7, 1fr);
@@ -1195,7 +1494,7 @@ body{
           flex-direction:column;
           justify-content:center;
           align-items:center;
-          overflow:hidden; 
+          overflow:hidden;
          }
 
 .kpi-card i{
@@ -1225,7 +1524,7 @@ body{
 
 .contas-layout{
   display:grid;
-  grid-template-columns:380px 1fr;
+  grid-template-columns:minmax(320px, 400px) 1fr;
   gap:24px;
   align-items:start;
   margin-top:20px;
@@ -1236,6 +1535,55 @@ body{
   width:100%;
   box-sizing:border-box;
 }
+
+.conta-form-panel{
+  background:linear-gradient(180deg, #fff 0%, #fafbfc 100%);
+  border:1px solid #e5e9ef;
+}
+.conta-form-panel h4{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-bottom:14px;
+  margin-bottom:18px !important;
+  border-bottom:1px solid #eef1f5;
+}
+.conta-form-panel h4 i{ color:#c9a14a; }
+.conta-form-sec{ margin-bottom:20px; }
+.conta-form-sec-title{
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:#c9a14a;
+  margin:0 0 12px;
+}
+.conta-form-sec input[type="text"],
+.conta-form-sec input[type="email"],
+.conta-form-sec input[type="password"]{
+  width:100%;
+  height:44px;
+  border:1px solid #e5e9ef;
+  background:#f8fafc;
+  border-radius:9px;
+  padding:0 12px;
+  font-size:14px;
+  box-sizing:border-box;
+}
+.conta-form-sec input:focus{
+  outline:none;
+  border-color:#c9a14a;
+  background:#fff;
+}
+.conta-form-actions{
+  display:flex;
+  gap:10px;
+  margin-top:8px;
+  padding-top:18px;
+  border-top:1px solid #eef1f5;
+}
+body.dark-mode .conta-form-panel{ background:linear-gradient(180deg, #1f2937 0%, #111827 100%); border-color:#374151; }
+body.dark-mode .conta-form-sec input{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
 
 @media (max-width: 1100px){
   .contas-layout{
@@ -1535,7 +1883,7 @@ select{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:80px;
+  gap:60px;
   width:100%;
   padding-right:0;
   box-sizing:border-box;
@@ -1546,6 +1894,7 @@ select{
   flex-shrink:0;
   display:flex;
   justify-content:center;
+  margin-left:-40px;
 }
 
 .estado-chart-box canvas{
@@ -1556,13 +1905,14 @@ select{
 .legend-container{
   width:auto;
   min-width:0;
+  margin-left:60px;
 }
 
 .legend-text{
     display:grid;
     grid-template-columns:repeat(2, max-content); /* colunas só com a largura do texto */
-    column-gap:8px;                               /* antes 20px — aproxima as colunas */
-    row-gap:4px;
+    column-gap:68px;                               /* antes 20px — aproxima as colunas */
+    row-gap:8px;
     align-content:center;
     justify-content:start;
 }
@@ -1602,17 +1952,17 @@ select{
 @media (max-width:1100px){
   .estado-layout{
     gap:32px;
-    padding-right:20px;
+    padding-right:0;
   }
 
   .estado-chart-box{
-    width:240px;
-    max-width:240px;
+    width:280px;
+    max-width:280px;
   }
 
   .estado-chart-box canvas{
-    width:240px !important;
-    height:240px !important;
+    width:280px !important;
+    height:280px !important;
   }
 
   .legend-text{
@@ -2291,6 +2641,8 @@ body.dark-mode .row-detail > td{ background:#111827 !important; }
 body.dark-mode .row-detail-inner .rd-item .rd-val{ color:#e5e7eb; }
 body.dark-mode .pats-filtros{ background:#1f2937; border-color:#374151; }
 body.dark-mode .pats-search input, body.dark-mode .pats-filtros-row select{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .inv-toolbar{ background:#1f2937; border-color:#374151; }
+body.dark-mode .inv-filtro input, body.dark-mode .inv-filtro select{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
 body.dark-mode .env-tabs{ border-color:#374151; }
 body.dark-mode .env-tab{ color:#9ca3af; }
 body.dark-mode .env-tab.is-active{ color:#f3f4f6; }
@@ -2349,7 +2701,19 @@ body.dark-mode [style*="color:#374151"]{ color:#e5e7eb !important; }
     font-size: 13px; border-bottom: 1px solid #f9fafb; transition: background .12s;
 }
 .notif-item:hover { background: #f3f4f6; }
-.notif-item:last-child { border-bottom: none; }
+.notif-item-row{
+  display:flex; align-items:stretch; border-bottom:1px solid #f9fafb;
+}
+.notif-item-row:last-child{ border-bottom:none; }
+.notif-item-row .notif-item{ flex:1; border-bottom:none; min-width:0; }
+.notif-dismiss-one{ margin:0; display:flex; align-items:center; padding:0 8px; }
+.notif-dismiss-one button{
+  border:none; background:none; color:#9ca3af; cursor:pointer;
+  font-size:18px; line-height:1; padding:4px 6px; border-radius:6px;
+}
+.notif-dismiss-one button:hover{ color:#dc2626; background:#fee2e2; }
+body.dark-mode .notif-item-row{ border-color:#374151; }
+body.dark-mode .notif-dismiss-one button:hover{ background:#450a0a; color:#fca5a5; }
 .notif-dot-urgente { color: #ef4444; font-size: 10px; margin-top: 3px; }
 .notif-dot-prazo   { color: #f59e0b; font-size: 10px; margin-top: 3px; }
 .notif-dot-suspeita  { color: #8b5cf6; font-size: 10px; margin-top: 3px; }
@@ -2405,6 +2769,15 @@ body.dark-mode .notif-item:hover{ background:#374151; }
         --sidebar-width: 0px;
         --sidebar-collapsed-width: 0px;
     }
+    .sidebar .menu-toggle {
+        display: none;
+    }
+    .topbar-menu-toggle {
+        display: flex;
+    }
+    .topbar-title {
+        gap: 10px;
+    }
     .sidebar {
         width: 240px;
         transform: translateX(-100%);
@@ -2444,6 +2817,16 @@ body.dark-mode .notif-item:hover{ background:#374151; }
 /* Coluna de Ações sempre centrada horizontalmente */
 .table td.actions, .table th.actions, td.actions, th.actions{ text-align:center; }
 .table td.actions .btn, .table td.actions form{ vertical-align:middle; }
+
+/* Toolbar compacta partilhada (PATs, Clientes, etc.) */
+.pats-filtros{ background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:12px 14px; margin-bottom:16px; }
+.pats-filtros-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.pats-search{ position:relative; flex:1 1 280px; min-width:200px; }
+.pats-search i{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:15px; pointer-events:none; }
+.pats-search input{ width:100%; height:38px; padding:0 12px 0 38px; border:1px solid #e5e9ef; background:#f8fafc; border-radius:9px; font-size:13.5px; box-sizing:border-box; }
+.pats-filtros-row select{ height:38px; border:1px solid #e5e9ef; background:#f8fafc; border-radius:9px; font-size:13.5px; padding:0 10px; min-width:150px; }
+.pats-filtros-row .btn{ height:38px; display:inline-flex; align-items:center; gap:6px; padding:0 13px; font-size:13px; }
+.pats-search input:focus, .pats-filtros-row select:focus{ background:#fff; border-color:#c9a14a; outline:none; }
 
 /* Toolbar compacta (filtros + ações numa só linha, com wrap responsivo) */
 .toolbar-compact{ display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:4px 0 16px; }
@@ -2515,12 +2898,87 @@ function nvVoltar(ev) {
         history.back();
     }
 }
+
 </script>
+<link rel="stylesheet" href="mobile-responsive.css?v=<?= @filemtime(
+    __DIR__ . "/mobile-responsive.css",
+) ?: time() ?>">
 </head>
 
 
 <!--ESTRUTURA DO SITE-->
 <body>
+<div id="nvLoadingBar"></div>
+<div id="nvOfflineBanner"><i class="bi bi-wifi-off"></i> Sem ligação à internet — a app precisa de rede para funcionar.</div>
+<style>
+#nvLoadingBar{
+  position:fixed; top:0; left:0; height:3px; width:0%;
+  background:linear-gradient(90deg,#c9a14a,#e0bd6e);
+  z-index:99999; transition:width .3s ease, opacity .25s ease;
+  opacity:0; pointer-events:none;
+}
+#nvLoadingBar.active{ opacity:1; }
+#nvOfflineBanner{
+  display:none; position:fixed; top:0; left:0; right:0;
+  background:#dc2626; color:#fff; text-align:center; font-size:13px; font-weight:600;
+  padding:9px 12px; z-index:99998; align-items:center; justify-content:center; gap:7px;
+}
+#nvOfflineBanner.show{ display:flex; }
+</style>
+<script>
+(function(){
+  // ── Indicador de carregamento entre páginas ──────────────────
+  // Como esta app recarrega a página inteira a cada navegação
+  // (sem ser uma SPA), o utilizador não tem nenhuma pista visual de
+  // que algo está a acontecer enquanto o pedido está em curso — numa
+  // PWA isso facilmente parece um bloqueio. Esta barra dá feedback
+  // imediato em qualquer clique em link ou submissão de formulário.
+  var bar = document.getElementById('nvLoadingBar');
+  var growTimer = null;
+  function nvIniciarCarregamento(){
+    if (!bar) return;
+    bar.style.transition = 'width .3s ease, opacity .25s ease';
+    bar.classList.add('active');
+    bar.style.width = '0%';
+    requestAnimationFrame(function(){ bar.style.width = '35%'; });
+    clearTimeout(growTimer);
+    growTimer = setTimeout(function(){ bar.style.width = '65%'; }, 500);
+    growTimer = setTimeout(function(){ bar.style.width = '85%'; }, 2500);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a');
+    if (!a) return;
+    if (a.target === '_blank' || a.hasAttribute('download')) return;
+    var href = a.getAttribute('href') || '';
+    if (href === '' || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
+    nvIniciarCarregamento();
+  });
+  document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;
+    if (e.target.hasAttribute('data-no-loading-bar')) return;
+    nvIniciarCarregamento();
+  });
+  window.addEventListener('pageshow', function(){
+    if (!bar) return;
+    bar.style.transition = 'width .15s ease';
+    bar.style.width = '100%';
+    setTimeout(function(){
+      bar.classList.remove('active');
+      setTimeout(function(){ bar.style.width = '0%'; }, 250);
+    }, 150);
+  });
+
+  // ── Aviso de "sem ligação" ─────────────────────────────────────
+  var banner = document.getElementById('nvOfflineBanner');
+  function nvAtualizarEstadoLigacao(){
+    if (!banner) return;
+    banner.classList.toggle('show', !navigator.onLine);
+  }
+  window.addEventListener('online', nvAtualizarEstadoLigacao);
+  window.addEventListener('offline', nvAtualizarEstadoLigacao);
+  nvAtualizarEstadoLigacao();
+})();
+</script>
 <div class="sidebar" id="sidebar">
     <div class="brand">
       <button id="toggleSidebar" class="menu-toggle" type="button" aria-label="Recolher menu">
@@ -2530,39 +2988,47 @@ function nvVoltar(ev) {
     <img src="stockvisionAI.png" alt="Stockvision">
   </div>
 
-  <a class="<?=active('dashboard',$page)?>" href="app.php?page=dashboard">
+  <div class="sidebar-items">
+  <a class="<?= active("dashboard", $page) ?>" href="app.php?page=dashboard">
     <i class="bi bi-speedometer2"></i><span>Dashboard</span>
   </a>
 
-  <a class="<?=active('inventario',$page)?>" href="app.php?page=inventario">
+  <a class="<?= active("inventario", $page) ?>" href="app.php?page=inventario">
     <i class="bi bi-box-seam"></i><span>Inventário</span>
   </a>
 
-  <a class="<?=active('pats',$page)?>" href="app.php?page=pats">
+  <a class="<?= active("pats", $page) ?>" href="app.php?page=pats">
     <i class="bi bi-headset"></i><span>Pat's</span>
   </a>
 
-  <a class="<?= active('envios', $page) ?>" href="app.php?page=envios">
+  <a class="<?= active("envios", $page) ?>" href="app.php?page=envios">
       <i class="bi bi-truck"></i><span>Envios</span>
   </a>
 
-  <a class="<?=active('clientes',$page)?>" href="app.php?page=clientes">
+  <a class="<?= active("clientes", $page) ?>" href="app.php?page=clientes">
     <i class="bi bi-people"></i><span>Clientes</span>
   </a>
 
-  <a class="<?=active('qrs',$page)?>" href="app.php?page=qrs">
+  <a class="<?= active("qrs", $page) ?>" href="app.php?page=qrs">
     <i class="bi bi-qr-code"></i><span>QR's</span>
   </a>
 
-  <a class="<?=active('relatorios',$page)?>" href="app.php?page=relatorios">
+  <a class="<?= active("relatorios", $page) ?>" href="app.php?page=relatorios">
     <i class="bi bi-cart"></i><span>Relatórios</span>
   </a>
 
-  <a class="<?=active('revisao',$page)?>" href="app.php?page=revisao">
+  <a class="<?= active("revisao", $page) ?>" href="app.php?page=revisao">
     <i class="bi bi-clipboard-check"></i><span>Revisão</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, ['categorias','estados','parceiros','produtos']) ? 'open' : '' ?>">
+  <div class="sidebar-group <?= in_array($page, [
+      "categorias",
+      "estados",
+      "parceiros",
+      "produtos",
+  ])
+      ? "open"
+      : "" ?>">
   <button class="sidebar-parent" type="button" id="tabelasToggle">
     <span class="sidebar-parent-left">
       <i class="bi bi-table"></i>
@@ -2572,26 +3038,44 @@ function nvVoltar(ev) {
   </button>
 
   <div class="sidebar-submenu">
-    <a class="submenu-link <?=active('categorias',$page)?>" href="app.php?page=categorias">
+    <a class="submenu-link <?= active(
+        "categorias",
+        $page,
+    ) ?>" href="app.php?page=categorias">
       <span>Categorias</span>
     </a>
-    <a class="submenu-link <?=active('estados',$page)?>" href="app.php?page=estados">
+    <a class="submenu-link <?= active(
+        "estados",
+        $page,
+    ) ?>" href="app.php?page=estados">
       <span>Estados</span>
     </a>
-    <a class="submenu-link <?=active('parceiros',$page)?>" href="app.php?page=parceiros">
+    <a class="submenu-link <?= active(
+        "parceiros",
+        $page,
+    ) ?>" href="app.php?page=parceiros">
       <span>Parceiros</span>
     </a>
-    <a class="submenu-link <?=active('produtos',$page)?>" href="app.php?page=produtos">
+    <a class="submenu-link <?= active(
+        "produtos",
+        $page,
+    ) ?>" href="app.php?page=produtos">
       <span>Produtos</span>
     </a>
   </div>
 </div>
 
-  <a class="<?=active('nvi',$page)?>" href="app.php?page=nvi">
+  <a class="<?= active("nvi", $page) ?>" href="app.php?page=nvi">
     <i class="bi bi-robot"></i><span>N-Vi</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, ['contas', 'auditoria', 'analises']) ? 'open' : '' ?>">
+  <div class="sidebar-group <?= in_array($page, [
+      "contas",
+      "auditoria",
+      "analises",
+  ])
+      ? "open"
+      : "" ?>">
   <button class="sidebar-parent" type="button" id="configToggle">
     <span class="sidebar-parent-left">
       <i class="bi bi-gear"></i>
@@ -2601,26 +3085,48 @@ function nvVoltar(ev) {
   </button>
 
   <div class="sidebar-submenu">
-    <a class="submenu-link <?=active('contas',$page)?>" href="app.php?page=contas">
+    <a class="submenu-link <?= active(
+        "contas",
+        $page,
+    ) ?>" href="app.php?page=contas">
       <span>Contas</span>
     </a>
 
-    <a class="submenu-link <?=active('auditoria',$page)?>" href="app.php?page=auditoria">
+    <a class="submenu-link <?= active(
+        "auditoria",
+        $page,
+    ) ?>" href="app.php?page=auditoria">
       <span>Auditoria</span>
     </a>
 
-    <a class="submenu-link <?=active('analises',$page)?>" href="app.php?page=analises">
+    <a class="submenu-link <?= active(
+        "analises",
+        $page,
+    ) ?>" href="app.php?page=analises">
       <span>Análises</span>
+    </a>
+    <a class="submenu-link <?= active(
+        "configuracoes",
+        $page,
+    ) ?>" href="app.php?page=configuracoes">
+      <span>Geral</span>
     </a>
   </div>
 </div>
+
+  </div><!-- /.sidebar-items -->
 
   <div class="footer-logo">NEWVISION<br><span style="font-size:12px;font-weight:400">technology centre</span></div>
 </div>
 
 <div class="topbar">
+    <button id="toggleSidebarMobile" class="menu-toggle topbar-menu-toggle" type="button" aria-label="Abrir menu">
+        <i class="bi bi-list"></i>
+    </button>
     <div class="topbar-title">
-        <?php if ($topbarIcon): ?><i class="bi <?= $topbarIcon ?>" style="margin-right:8px;"></i><?php endif; ?>
+        <?php if (
+            $topbarIcon
+        ): ?><i class="bi <?= $topbarIcon ?>" style="margin-right:8px;"></i><?php endif; ?>
         <?= htmlspecialchars($topbarTitle) ?>
     </div>
 
@@ -2662,12 +3168,22 @@ function nvVoltar(ev) {
                             <span style="color:#6b7280;font-weight:400;">(<?= $totalNotif ?>)</span>
                         <?php endif; ?></span>
                     <?php if (!empty($notificacoes)): ?>
-                        <form method="post" action="app.php?page=<?= htmlspecialchars($page) ?>" style="margin:0;">
-                            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrfToken) ?>">
+                        <form method="post" action="app.php?page=<?= htmlspecialchars(
+                            $page,
+                        ) ?>" style="margin:0;">
+                            <input type="hidden" name="csrf" value="<?= htmlspecialchars(
+                                $csrfToken,
+                            ) ?>">
                             <input type="hidden" name="action" value="notif_dispensar">
-                            <input type="hidden" name="voltar" value="app.php?page=<?= htmlspecialchars($page) ?>">
+                            <input type="hidden" name="voltar" value="app.php?page=<?= htmlspecialchars(
+                                $page,
+                            ) ?>">
                             <?php foreach ($notificacoes as $n): ?>
-                                <input type="hidden" name="chaves[]" value="<?= md5(($n['tipo'] ?? '') . '|' . ($n['msg'] ?? '')) ?>">
+                                <input type="hidden" name="chaves[]" value="<?= md5(
+                                    ($n["tipo"] ?? "") .
+                                        "|" .
+                                        ($n["msg"] ?? ""),
+                                ) ?>">
                             <?php endforeach; ?>
                             <button type="submit" title="Dispensar todas"
                                     style="background:none;border:none;color:#3f7fba;cursor:pointer;font-size:12px;font-weight:600;">
@@ -2679,44 +3195,64 @@ function nvVoltar(ev) {
                 <?php if (empty($notificacoes)): ?>
                     <div class="notif-empty">Sem notificações</div>
                 <?php else: ?>
-                    <?php foreach ($notificacoes as $n): ?>
-                        <a class="notif-item" href="<?= $n['link'] ?>">
-                            <span class="notif-dot-<?= $n['tipo'] ?>">●</span>
-                            <span><?= $n['msg'] ?></span>
-                        </a>
-                    <?php endforeach; ?>
+                    <?php foreach ($notificacoes as $n):
+                        $chaveNotif = md5(
+                            ($n["tipo"] ?? "") . "|" . ($n["msg"] ?? ""),
+                        ); ?>
+                        <div class="notif-item-row">
+                            <a class="notif-item" href="<?= $n["link"] ?>">
+                                <span class="notif-dot-<?= $n[
+                                    "tipo"
+                                ] ?>">●</span>
+                                <span><?= $n["msg"] ?></span>
+                            </a>
+                            <form method="post" action="app.php?page=<?= htmlspecialchars(
+                                $page,
+                            ) ?>" class="notif-dismiss-one" title="Dispensar">
+                                <input type="hidden" name="csrf" value="<?= htmlspecialchars(
+                                    $csrfToken,
+                                ) ?>">
+                                <input type="hidden" name="action" value="notif_dispensar">
+                                <input type="hidden" name="voltar" value="app.php?page=<?= htmlspecialchars(
+                                    $page,
+                                ) ?>">
+                                <input type="hidden" name="chaves[]" value="<?= $chaveNotif ?>">
+                                <button type="submit" aria-label="Dispensar notificação">&times;</button>
+                            </form>
+                        </div>
+                    <?php
+                    endforeach; ?>
                 <?php endif; ?>
             </div>
         </div>
 
-        <button type="button" id="darkToggle" onclick="toggleDark()"
-            title="Modo escuro"
-            style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:6px 8px;border-radius:6px;transition:background .15s;"
-            onmouseenter="this.style.background='rgba(0,0,0,.15)'"
-            onmouseleave="this.style.background='none'">
-            <i class="bi bi-moon-fill" id="darkIcon"></i>
-        </button>
-
         <div class="user-dropdown" id="userDropdown">
         <button class="user-trigger" type="button" onclick="toggleUserMenu()">
-            <?php if (!empty($_SESSION['user_fotografia'])): ?>
-                <img src="<?= htmlspecialchars($_SESSION['user_fotografia']) ?>" alt="Foto" class="user-avatar">
+            <?php if (!empty($_SESSION["user_fotografia"])): ?>
+                <img src="<?= htmlspecialchars(
+                    $_SESSION["user_fotografia"],
+                ) ?>" alt="Foto" class="user-avatar">
             <?php else: ?>
                 <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#555;">
-                    <?= strtoupper(mb_substr($_SESSION['user_nome'] ?? 'U', 0, 1)) ?>
+                    <?= strtoupper(
+                        mb_substr($_SESSION["user_nome"] ?? "U", 0, 1),
+                    ) ?>
                 </div>
             <?php endif; ?>
-            <span><?= htmlspecialchars($_SESSION['user_nome']) ?></span>
-            <i class="bi bi-chevron-down" style="font-size:12px;opacity:.7;"></i>
+            <span class="desktop-only"><?= htmlspecialchars(
+                $_SESSION["user_nome"],
+            ) ?></span>
+            <i class="bi bi-chevron-down desktop-only" style="font-size:12px;opacity:.7;"></i>
         </button>
         <div class="user-dropdown-menu">
             <div class="dd-header">
-                <strong><?= htmlspecialchars($_SESSION['user_nome']) ?></strong>
-                <?= htmlspecialchars($_SESSION['user_email'] ?? '') ?>
+                <strong><?= htmlspecialchars($_SESSION["user_nome"]) ?></strong>
+                <?= htmlspecialchars($_SESSION["user_email"] ?? "") ?>
             </div>
             <a href="app.php?page=contas"><i class="bi bi-person"></i> O meu perfil</a>
-            <a href="extensao/stockvision-sf.zip" download><i class="bi bi-puzzle"></i> Instalar extensão (Work Orders)</a>
-            <a href="#" onclick="mostrarAjudaExtensao(); return false;"><i class="bi bi-question-circle"></i> Como instalar a extensão</a>
+            <button type="button" onclick="toggleDark()" style="background:none;border:none;width:100%;text-align:left;padding:10px 16px;font-size:14px;color:#1f2937;cursor:pointer;display:flex;align-items:center;gap:8px;"><i id="darkIcon" class="bi bi-moon-fill"></i> Modo Escuro</button>
+            <a href="/extensao/stockvision-sf.zip" download class="desktop-only"><i class="bi bi-puzzle"></i> Instalar extensão (Work Orders)</a>
+            <a href="#" onclick="mostrarAjudaExtensao(); return false;" class="desktop-only"><i class="bi bi-question-circle"></i> Como instalar a extensão</a>
             <a href="#" id="install-app-btn" onclick="installPWA(); return false;"><i class="bi bi-download"></i> Instalar aplicação</a>
             <a href="logout.php" class="danger"><i class="bi bi-box-arrow-right"></i> Sair</a>
         </div>
@@ -2725,24 +3261,31 @@ function nvVoltar(ev) {
 </div>
 
 <div class="main">
-<?php
-// Mensagens de sucesso/erro (flash) — renderizadas SEMPRE aqui, uma única vez,
+<?php // Mensagens de sucesso/erro (flash) — renderizadas SEMPRE aqui, uma única vez,
+
 // para a página atual (a que está em $_GET['page']). Isto garante que cada
 // mensagem só aparece na página para onde a ação redirecionou, e nunca fica
 // pendurada na sessão para aparecer, por engano, numa página seguinte não
 // relacionada (bug anterior: algumas páginas — ex. Envios, Revisão, Relatórios,
 // QR's — definiam a mensagem mas nunca a mostravam nem a limpavam).
-if (!empty($_SESSION['mensagem_erro']) || !empty($_SESSION['mensagem_sucesso'])) {
+if (
+    !empty($_SESSION["mensagem_erro"]) ||
+    !empty($_SESSION["mensagem_sucesso"])
+) {
     echo '<div class="flash-mensagens" style="margin-bottom:16px;">';
-    if (!empty($_SESSION['mensagem_erro'])) {
-        echo '<div class="alerta-erro flash-msg">' . htmlspecialchars($_SESSION['mensagem_erro']) . '</div>';
-        unset($_SESSION['mensagem_erro']);
+    if (!empty($_SESSION["mensagem_erro"])) {
+        echo '<div class="alerta-erro flash-msg">' .
+            htmlspecialchars($_SESSION["mensagem_erro"]) .
+            "</div>";
+        unset($_SESSION["mensagem_erro"]);
     }
-    if (!empty($_SESSION['mensagem_sucesso'])) {
-        echo '<div class="alerta-sucesso flash-msg">' . htmlspecialchars($_SESSION['mensagem_sucesso']) . '</div>';
-        unset($_SESSION['mensagem_sucesso']);
+    if (!empty($_SESSION["mensagem_sucesso"])) {
+        echo '<div class="alerta-sucesso flash-msg">' .
+            htmlspecialchars($_SESSION["mensagem_sucesso"]) .
+            "</div>";
+        unset($_SESSION["mensagem_sucesso"]);
     }
-    echo '</div>';
+    echo "</div>";
     echo '<script>
         (function(){
             document.querySelectorAll(".flash-msg").forEach(function(el){
@@ -2754,64 +3297,70 @@ if (!empty($_SESSION['mensagem_erro']) || !empty($_SESSION['mensagem_sucesso']))
             });
         })();
     </script>';
-}
-?>
-<?php
-// Banner do Laboratório: avisa os técnicos de peças paradas há +15 dias
-if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
-    require_once __DIR__ . '/includes/pecas_suspeitas.php';
-    $pecasLab = nvPecasSuspeitas($pdo, ['apenas_estado' => 'Laboratório', 'dias' => 15]);
+} ?>
+<?php // Banner do Laboratório: avisa os técnicos de peças paradas há +15 dias
+if (($_SESSION["user_area"] ?? "") === "Laboratorio") {
+    require_once __DIR__ . "/includes/pecas_suspeitas.php";
+    $pecasLab = nvPecasSuspeitas($pdo, [
+        "apenas_estado" => "Laboratório",
+        "dias" => 15,
+    ]);
     if ($pecasLab) {
         $n = count($pecasLab);
-        echo '<div class="alerta-erro" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">'
-           . '<span><strong>' . $n . ' peça(s)</strong> no Laboratório paradas há +15 dias.</span>'
-           . '<a href="app.php?page=revisao" style="color:inherit;font-weight:600;text-decoration:underline;">Rever agora →</a>'
-           . '</div>';
+        echo '<div class="alerta-erro" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">' .
+            "<span><strong>" .
+            $n .
+            " peça(s)</strong> no Laboratório paradas há +15 dias.</span>" .
+            '<a href="app.php?page=revisao" style="color:inherit;font-weight:600;text-decoration:underline;">Rever agora →</a>' .
+            "</div>";
     }
-}
-?>
-<?php if ($page === 'dashboard'): ?>
-  <?php require __DIR__ . '/includes/pages/dashboard.php'; ?>
-<?php elseif ($page === 'inventario'): ?>
-  <?php require __DIR__ . '/includes/pages/inventario.php'; ?>
-<?php elseif ($page === 'nova_peca'): ?>
-  <?php require __DIR__ . '/includes/pages/nova_peca.php'; ?>
-<?php elseif ($page === 'historico'): ?>
-  <?php require __DIR__ . '/includes/pages/historico.php'; ?>
-<?php elseif ($page === 'envios'): ?>
-  <?php require __DIR__ . '/includes/pages/envios.php'; ?>
-<?php elseif ($page === 'qrs'): ?>
-  <?php require __DIR__ . '/includes/pages/qrs.php'; ?>
-<?php elseif ($page === 'contas'): ?>
-  <?php require __DIR__ . '/includes/pages/contas.php'; ?>
-<?php elseif ($page === 'auditoria'): ?>
-  <?php require __DIR__ . '/includes/pages/auditoria.php'; ?>
-<?php elseif ($page === 'clientes'): ?>
-  <?php require __DIR__ . '/includes/pages/clientes.php'; ?>
-<?php elseif ($page === 'pats'): ?>
-  <?php require __DIR__ . '/includes/pages/pats.php'; ?>
-<?php elseif ($page === 'relatorios'): ?>
-  <?php require __DIR__ . '/includes/pages/relatorios.php'; ?>
-<?php elseif ($page === 'categorias'): ?>
-  <?php require __DIR__ . '/includes/pages/categorias.php'; ?>
-<?php elseif ($page === 'estados'): ?>
-  <?php require __DIR__ . '/includes/pages/estados.php'; ?>
-<?php elseif ($page === 'produtos'): ?>
-  <?php require __DIR__ . '/includes/pages/produtos.php'; ?>
-<?php elseif ($page === 'parceiros'): ?>
-  <?php require __DIR__ . '/includes/pages/parceiros.php'; ?>
-<?php elseif ($page === 'nvi'): ?>
-  <?php require __DIR__ . '/includes/pages/nvi.php'; ?>
-<?php elseif ($page === 'revisao'): ?>
-  <?php require __DIR__ . '/includes/pages/revisao.php'; ?>
-<?php elseif ($page === 'analises'): ?>
-  <?php require __DIR__ . '/includes/pages/analises.php'; ?>
-<?php elseif ($page === 'etiqueta'): ?>
-  <?php require __DIR__ . '/includes/pages/etiqueta.php'; ?>
-<?php elseif ($page === 'peca'): ?>
-  <?php require __DIR__ . '/includes/pages/peca.php'; ?>
+} ?>
+<?php if ($page === "dashboard"): ?>
+  <?php require __DIR__ . "/includes/pages/dashboard.php"; ?>
+<?php elseif ($page === "inventario"): ?>
+  <?php require __DIR__ . "/includes/pages/inventario.php"; ?>
+<?php elseif ($page === "nova_peca"): ?>
+  <?php require __DIR__ . "/includes/pages/nova_peca.php"; ?>
+<?php elseif ($page === "historico"): ?>
+  <?php require __DIR__ . "/includes/pages/historico.php"; ?>
+<?php elseif ($page === "envios"): ?>
+  <?php require __DIR__ . "/includes/pages/envios.php"; ?>
+<?php elseif ($page === "qrs"): ?>
+  <?php require __DIR__ . "/includes/pages/qrs.php"; ?>
+<?php elseif ($page === "contas"): ?>
+  <?php require __DIR__ . "/includes/pages/contas.php"; ?>
+<?php elseif ($page === "auditoria"): ?>
+  <?php require __DIR__ . "/includes/pages/auditoria.php"; ?>
+<?php elseif ($page === "clientes"): ?>
+  <?php require __DIR__ . "/includes/pages/clientes.php"; ?>
+<?php elseif ($page === "pats"): ?>
+  <?php require __DIR__ . "/includes/pages/pats.php"; ?>
+<?php elseif ($page === "relatorios"): ?>
+  <?php require __DIR__ . "/includes/pages/relatorios.php"; ?>
+<?php elseif ($page === "categorias"): ?>
+  <?php require __DIR__ . "/includes/pages/categorias.php"; ?>
+<?php elseif ($page === "estados"): ?>
+  <?php require __DIR__ . "/includes/pages/estados.php"; ?>
+<?php elseif ($page === "produtos"): ?>
+  <?php require __DIR__ . "/includes/pages/produtos.php"; ?>
+<?php elseif ($page === "parceiros"): ?>
+  <?php require __DIR__ . "/includes/pages/parceiros.php"; ?>
+<?php elseif ($page === "nvi"): ?>
+  <?php require __DIR__ . "/includes/pages/nvi.php"; ?>
+<?php elseif ($page === "revisao"): ?>
+  <?php require __DIR__ . "/includes/pages/revisao.php"; ?>
+<?php elseif ($page === "analises"): ?>
+  <?php require __DIR__ . "/includes/pages/analises.php"; ?>
+<?php elseif ($page === "tabelas"): ?>
+  <?php header("Location: app.php?page=configuracoes"); exit(); ?>
+<?php elseif ($page === "configuracoes"): ?>
+  <?php require __DIR__ . "/includes/pages/configuracoes.php"; ?>
+<?php elseif ($page === "etiqueta"): ?>
+  <?php require __DIR__ . "/includes/pages/etiqueta.php"; ?>
+<?php elseif ($page === "peca"): ?>
+  <?php require __DIR__ . "/includes/pages/peca.php"; ?>
 <?php else: ?>
-  <h1 class="section-title"><?=ucfirst($page)?></h1>
+  <h1 class="section-title"><?= ucfirst($page) ?></h1>
   <div class="panel">Módulo em preparação.</div>
 <?php endif; ?>
 </div>
@@ -2823,15 +3372,29 @@ if (($_SESSION['user_area'] ?? '') === 'Laboratorio') {
 
 <!--Java Script-->
 <script>
-const estadoLabels = <?= json_encode(array_column($estadoData,'estado')) ?>;
-const estadoTotals = <?= json_encode(array_map('intval', array_column($estadoData,'total'))) ?>;
-const categoriaLabels = <?= json_encode(array_column($categoriaData,'categoria')) ?>;
-const categoriaTotals = <?= json_encode(array_map('intval', array_column($categoriaData,'total'))) ?>;
-const parceiroLabels = <?= json_encode(array_column($parceiroData,'parceiro')) ?>;
-const parceiroTotals = <?= json_encode(array_map('intval', array_column($parceiroData,'total'))) ?>;
-const trendLabels = <?= json_encode(array_column($trendRows,'mes')) ?>;
-const trendPecas = <?= json_encode(array_map('intval', array_column($trendRows,'total'))) ?>;
-const trendPats = <?= json_encode(array_map('intval', array_column($patTrendRows,'total'))) ?>;
+const estadoLabels = <?= json_encode(array_column($estadoData, "estado")) ?>;
+const estadoTotals = <?= json_encode(
+    array_map("intval", array_column($estadoData, "total")),
+) ?>;
+const categoriaLabels = <?= json_encode(
+    array_column($categoriaData, "categoria"),
+) ?>;
+const categoriaTotals = <?= json_encode(
+    array_map("intval", array_column($categoriaData, "total")),
+) ?>;
+const parceiroLabels = <?= json_encode(
+    array_column($parceiroData, "parceiro"),
+) ?>;
+const parceiroTotals = <?= json_encode(
+    array_map("intval", array_column($parceiroData, "total")),
+) ?>;
+const trendLabels = <?= json_encode(array_column($trendRows, "mes")) ?>;
+const trendPecas = <?= json_encode(
+    array_map("intval", array_column($trendRows, "total")),
+) ?>;
+const trendPats = <?= json_encode(
+    array_map("intval", array_column($patTrendRows, "total")),
+) ?>;
 
 const estadoColors = {
   'Disponível': '#28a745',
@@ -2842,7 +3405,6 @@ const estadoColors = {
   'Desconhecido': '#ffc107',
   'Devolução': '#17a2b8',
   'Fornecedor(Reparação)': '#fd7e14',
-  'OT': '#495057',
   'Parceiro': '#8c564b',
   'Spares':'#47372A'
 };
@@ -2864,108 +3426,138 @@ const palette = [
   '#17a2b8'
 ];
 
-if (document.getElementById('estadoChart')) {
-  new Chart(document.getElementById('estadoChart'), {
+function nvInitEstadoChart() {
+  const canvas = document.getElementById('estadoChart');
+  if (!canvas) return;
+  if (typeof Chart === 'undefined') { setTimeout(nvInitEstadoChart, 100); return; }
+  // Destruir instância anterior se existir (ex.: hot-reload)
+  const existing = Chart.getChart(canvas);
+  if (existing) existing.destroy();
+  new Chart(canvas, {
     type: 'doughnut',
     data: {
       labels: estadoLabels,
       datasets: [{
         data: estadoTotals,
         backgroundColor: estadoChartColors,
-        borderWidth: 1
+        borderWidth: 2,
+        hoverOffset: 6
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: false
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const pct = total ? Math.round(ctx.parsed/total*100) : 0;
+              return ' ' + ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+            }
+          }
         }
       }
     }
   });
 }
+document.addEventListener('DOMContentLoaded', nvInitEstadoChart);
 
-if (document.getElementById('atividadeMensalChart')) {
-  new Chart(document.getElementById('atividadeMensalChart'), {
-    data: {
-      labels: trendLabels,
-      datasets: [
-        {
-          type: 'bar',
-          label: 'Peças',
-          data: trendPecas,
-          backgroundColor: 'rgba(54,162,235,.55)',
-          borderRadius: 6,
-          order: 2
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof Chart === 'undefined') return;
+
+  if (document.getElementById('atividadeMensalChart')) {
+    new Chart(document.getElementById('atividadeMensalChart'), {
+      data: {
+        labels: trendLabels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Peças',
+            data: trendPecas,
+            backgroundColor: 'rgba(54,162,235,.55)',
+            borderRadius: 6,
+            order: 2
+          },
+          {
+            type: 'line',
+            label: 'PATs',
+            data: trendPats,
+            borderColor: '#ff6384',
+            backgroundColor: '#ff6384',
+            tension: .35,
+            pointRadius: 4,
+            pointBackgroundColor: '#ff6384',
+            order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
         },
-        {
-          type: 'line',
-          label: 'PATs',
-          data: trendPats,
-          borderColor: '#ff6384',
-          backgroundColor: '#ff6384',
-          tension: .35,
-          pointRadius: 4,
-          pointBackgroundColor: '#ff6384',
-          order: 1
+        plugins: {
+          legend: { display: true, position: 'top', align: 'end' }
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 } }
-      },
-      plugins: {
-        legend: { display: true, position: 'top', align: 'end' }
       }
-    }
-  });
-}
+    });
+  }
 
-if (document.getElementById('topParceirosChart')) {
-  new Chart(document.getElementById('topParceirosChart'), {
-    type: 'bar',
-    data: {
-      labels: parceiroLabels,
-      datasets: [{
-        label: 'Peças',
-        data: parceiroTotals,
-        backgroundColor: palette,
-        borderRadius: 6
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { beginAtZero: true, ticks: { precision: 0 } }
+  if (document.getElementById('topParceirosChart')) {
+    new Chart(document.getElementById('topParceirosChart'), {
+      type: 'bar',
+      data: {
+        labels: parceiroLabels,
+        datasets: [{
+          label: 'Peças',
+          data: parceiroTotals,
+          backgroundColor: palette,
+          borderRadius: 6
+        }]
       },
-      plugins: {
-        legend: { display: false }
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
       }
-    }
-  });
-}
+    });
+  }
+});
 </script>
 
 <script>
+    function nvBloquearScrollFundo() {
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+    }
+    function nvDesbloquearScrollFundo() {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+    }
     function closeMobileSidebar() {
         const sb = document.getElementById('sidebar');
         const ov = document.getElementById('sidebarOverlay');
         if (sb) sb.classList.remove('mobile-open');
         if (ov) ov.classList.remove('visible');
+        nvDesbloquearScrollFundo();
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        const sidebar       = document.getElementById('sidebar');
-        const toggleSidebar = document.getElementById('toggleSidebar');
-        const topbar        = document.querySelector('.topbar');
-        const main          = document.querySelector('.main');
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebarButtons = document.querySelectorAll('#toggleSidebar, #toggleSidebarMobile');
+        const topbar = document.querySelector('.topbar');
+        const main = document.querySelector('.main');
 
         // Restaurar estado guardado
         if (sidebar && topbar && main && localStorage.getItem('sv_sidebar') === 'collapsed') {
@@ -2974,22 +3566,29 @@ if (document.getElementById('topParceirosChart')) {
             main.classList.add('collapsed');
         }
 
-        if (sidebar && toggleSidebar && topbar && main) {
-            toggleSidebar.addEventListener('click', function() {
-                const isMobile = window.innerWidth <= 768;
-                if (isMobile) {
-                    sidebar.classList.toggle('mobile-open');
-                    const ov = document.getElementById('sidebarOverlay');
-                    if (ov) ov.classList.toggle('visible');
-                } else {
-                    sidebar.classList.toggle('collapsed');
-                    topbar.classList.toggle('collapsed');
-                    main.classList.toggle('collapsed');
-                    // Guardar estado
-                    localStorage.setItem('sv_sidebar',
-                        sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded'
-                    );
-                }
+        if (sidebar && topbar && main && toggleSidebarButtons.length) {
+            toggleSidebarButtons.forEach(function(toggleSidebar) {
+                toggleSidebar.addEventListener('click', function() {
+                    const isMobile = window.innerWidth <= 768;
+                    if (isMobile) {
+                        sidebar.classList.toggle('mobile-open');
+                        const ov = document.getElementById('sidebarOverlay');
+                        if (ov) ov.classList.toggle('visible');
+                        if (sidebar.classList.contains('mobile-open')) {
+                            nvBloquearScrollFundo();
+                        } else {
+                            nvDesbloquearScrollFundo();
+                        }
+                    } else {
+                        sidebar.classList.toggle('collapsed');
+                        topbar.classList.toggle('collapsed');
+                        main.classList.toggle('collapsed');
+                        // Guardar estado
+                        localStorage.setItem('sv_sidebar',
+                            sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded'
+                        );
+                    }
+                });
             });
         }
     });
@@ -3016,7 +3615,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (configToggle && configGroup && sidebar) {
     configToggle.addEventListener('click', function () {
-      if (!sidebar.classList.contains('collapsed')) {
+      if (!sidebar.classList.contains('collapsed') || window.innerWidth <= 768) {
         configGroup.classList.toggle('open');
       }
     });
@@ -3026,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (enviosToggle && enviosGroup && sidebar) {
     enviosToggle.addEventListener('click', function () {
-      if (!sidebar.classList.contains('collapsed')) {
+      if (!sidebar.classList.contains('collapsed') || window.innerWidth <= 768) {
         enviosGroup.classList.toggle('open');
       }
     });
@@ -3037,7 +3636,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (tabelasToggle && tabelasGroup && sidebar) {
     tabelasToggle.addEventListener('click', function () {
-      if (!sidebar.classList.contains('collapsed')) {
+      if (!sidebar.classList.contains('collapsed') || window.innerWidth <= 768) {
         tabelasGroup.classList.toggle('open');
       }
     });
@@ -3052,8 +3651,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (!categoriaSelect || !produtoSelect) return;
 
-  const catalogoProdutos = <?= json_encode($catalogoProdutos, JSON_UNESCAPED_UNICODE) ?>;
-  const produtoSelecionadoInicial = "<?= htmlspecialchars($valorProduto ?? '', ENT_QUOTES) ?>";
+  const catalogoProdutos = <?= json_encode(
+      $catalogoProdutos,
+      JSON_UNESCAPED_UNICODE,
+  ) ?>;
+  const produtoSelecionadoInicial = "<?= htmlspecialchars(
+      $valorProduto ?? "",
+      ENT_QUOTES,
+  ) ?>";
 
   function atualizarProdutos() {
     const categoria = categoriaSelect.value;
@@ -3114,41 +3719,126 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
- 
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const readerEl = document.getElementById('reader');
   const qrInput = document.getElementById('qr_code');
+  const startBtn = document.getElementById('qrIniciarCameraBtn');
 
   if (!readerEl || !qrInput || typeof Html5Qrcode === 'undefined') return;
 
   const html5QrCode = new Html5Qrcode("reader");
   let leituraFeita = false;
+  let allCameras = [];
+  let currentCameraIndex = 0;
+  let cameraAtiva = false;
 
-  Html5Qrcode.getCameras().then(cameras => {
-    if (!cameras || !cameras.length) return;
-
-    const cameraId = cameras[0].id;
-
+  function startCamera(index) {
+    if (!allCameras.length) return;
+    const cam = allCameras[index];
     html5QrCode.start(
-      cameraId,
+      cam.id,
       { fps: 10, qrbox: 220 },
       function (decodedText) {
         if (leituraFeita) return;
         leituraFeita = true;
-
         qrInput.value = decodedText;
-
         html5QrCode.stop().then(() => {
           qrInput.form.submit();
         }).catch(() => {
           qrInput.form.submit();
         });
       },
-      function () {
+      function () {}
+    ).catch(() => {});
+
+    // Update toggle button label
+    var btn = document.getElementById('qrCameraToggleBtn');
+    if (btn) {
+      btn.title = allCameras.length > 1
+        ? 'Câmara: ' + (cam.label || 'Câmara ' + (index + 1))
+        : 'Câmara única';
+    }
+  }
+
+  // A câmara só é pedida quando o utilizador toca em "Ativar câmara" —
+  // antes disto o browser nunca mostra o pedido de permissão. Depois de
+  // uma ativação bem sucedida, guardamos isso em localStorage; nas
+  // próximas visitas a esta página a câmara liga automaticamente sem
+  // precisar de outro toque — o browser já não volta a perguntar pela
+  // permissão porque já foi concedida da primeira vez.
+  function ativarCamera() {
+    if (cameraAtiva) return;
+    cameraAtiva = true;
+    if (startBtn) startBtn.style.display = 'none';
+
+    Html5Qrcode.getCameras().then(cameras => {
+      if (!cameras || !cameras.length) {
+        cameraAtiva = false;
+        if (startBtn) startBtn.style.display = 'inline-flex';
+        return;
       }
-    );
-  }).catch(() => {
+      try { localStorage.setItem('nv_camera_consentida', '1'); } catch(e) {}
+      allCameras = cameras;
+      currentCameraIndex = 0;
+
+      // Pick back camera by default on mobile if available
+      var backIdx = cameras.findIndex(function(c) {
+        return /back|rear|environment/i.test(c.label || '');
+      });
+      if (backIdx >= 0) currentCameraIndex = backIdx;
+
+      startCamera(currentCameraIndex);
+
+      // Show toggle button only when multiple cameras exist
+      if (cameras.length > 1) {
+        var btn = document.getElementById('qrCameraToggleBtn');
+        if (btn) btn.style.display = 'inline-flex';
+      }
+    }).catch(() => {
+      cameraAtiva = false;
+      if (startBtn) startBtn.style.display = 'inline-flex';
+    });
+  }
+
+  if (startBtn) {
+    startBtn.addEventListener('click', ativarCamera);
+  }
+
+  // Já concedeste a câmara antes nesta app — liga automaticamente,
+  // sem precisar de tocar no botão outra vez.
+  try {
+    if (localStorage.getItem('nv_camera_consentida') === '1') {
+      ativarCamera();
+    }
+  } catch (e) {}
+
+  // Camera toggle handler
+  var toggleBtn = document.getElementById('qrCameraToggleBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function () {
+      if (allCameras.length < 2) return;
+      html5QrCode.stop().then(function () {
+        leituraFeita = false;
+        currentCameraIndex = (currentCameraIndex + 1) % allCameras.length;
+        startCamera(currentCameraIndex);
+      }).catch(function () {
+        leituraFeita = false;
+        currentCameraIndex = (currentCameraIndex + 1) % allCameras.length;
+        startCamera(currentCameraIndex);
+      });
+    });
+  }
+
+  // Stop camera when leaving the page to prevent freezes
+  window.addEventListener('pagehide', function () {
+    try { if (html5QrCode && cameraAtiva) html5QrCode.stop().catch(function(){}); } catch(e) {}
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      try { if (html5QrCode && cameraAtiva) html5QrCode.stop().catch(function(){}); } catch(e) {}
+    }
   });
 });
 </script>
@@ -3245,7 +3935,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const catalogoProdutos = <?= json_encode($catalogoProdutos, JSON_UNESCAPED_UNICODE) ?>;
+        const catalogoProdutos = <?= json_encode(
+            $catalogoProdutos,
+            JSON_UNESCAPED_UNICODE,
+        ) ?>;
         const wrap = document.getElementById('linhasEnvioWrap');
         const btn = document.getElementById('adicionarLinhaEnvio');
 
@@ -3267,7 +3960,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (produto === valorAtual) {
                 option.selected = true;
             }
-            produtoSelected.appendChild(option);
+            produtoSelect.appendChild(option);
             });
         }
 
@@ -3298,7 +3991,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <select name="linha_categoria[]" class="linha-categoria" required>
                 <option value="">-- Tipo --</option>
                 <?php foreach ($categorias as $cat): ?>
-                    <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                    <option value="<?= htmlspecialchars(
+                        $cat,
+                    ) ?>"><?= htmlspecialchars($cat) ?></option>
                 <?php endforeach; ?>
                 </select>
 
@@ -3307,10 +4002,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 </select>
 
                 <input type="number" step="0.01" min="0" name="linha_quantidade[]" placeholder="Qtd." value="1.00" required>
-                <input type="text" name="linha_num_series[]" placeholder="Nº Série"> 
+                <input type="text" name="linha_num_series[]" placeholder="Nº Série">
                 `;
                 wrap.appendChild(linha);
-                blindLinha(linha);
+                bindLinha(linha);
             });
         }
     });
@@ -3323,36 +4018,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
         dataInput.addEventListener('click', function () {
             if (typeof dataInput.showPicker === 'function') {
-                dataInput.showPicker();
-            }
-        });
-
-        dataInput.addEventListener('focus', function () {
-            if (typeof dataInput.showPicker === 'function') {
-                dataInput.showPicker();
+                try { dataInput.showPicker(); } catch(e) {}
             }
         });
     });
 </script>
 
-<?php if ($page === 'envios'): ?>
+<?php if ($page === "envios"): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const catalogoInventarioReal = <?= json_encode($catalogoInventarioReal, JSON_UNESCAPED_UNICODE) ?>;
+    const catalogoInventarioReal = <?= json_encode(
+        $catalogoInventarioReal,
+        JSON_UNESCAPED_UNICODE,
+    ) ?>;
     const wrap = document.getElementById('linhasEnvioWrap');
     const btnAdicionar = document.getElementById('adicionarLinhaEnvio');
     const dataInput = document.getElementById('data_documento');
     const documentoSelect = document.getElementById('documento_envio');
     const parceiroSelect = document.getElementById('parceiro_envio');
-    const parceirosInventario = <?= json_encode(array_values($parceirosInventario), JSON_UNESCAPED_UNICODE) ?>;
+    const parceirosInventario = <?= json_encode(
+        array_values($parceirosInventario),
+        JSON_UNESCAPED_UNICODE,
+    ) ?>;
 
     if (dataInput) {
         dataInput.addEventListener('click', function () {
-            if (typeof dataInput.showPicker === 'function') dataInput.showPicker();
-        });
-
-        dataInput.addEventListener('focus', function () {
-            if (typeof dataInput.showPicker === 'function') dataInput.showPicker();
+            if (typeof dataInput.showPicker === 'function') {
+                try { dataInput.showPicker(); } catch(e) {}
+            }
         });
     }
 
@@ -3408,7 +4101,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!wrap) return;
 
     function criarOpcoesCategoria() {
-        return `<?php foreach ($categoriasInventarioReal as $cat): ?><option value="<?= htmlspecialchars($cat, ENT_QUOTES) ?>"><?= htmlspecialchars($cat, ENT_QUOTES) ?></option><?php endforeach; ?>`;
+        return `<?php foreach (
+            $categoriasInventarioReal
+            as $cat
+        ): ?><option value="<?= htmlspecialchars(
+    $cat,
+    ENT_QUOTES,
+) ?>"><?= htmlspecialchars($cat, ENT_QUOTES) ?></option><?php endforeach; ?>`;
     }
 
     function atualizarProdutosLinha(linha) {
@@ -3528,7 +4227,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
-<?php endif; // page === 'envios' ?>
+<?php endif;
+// page === 'envios'
+?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -3662,19 +4363,40 @@ function nvClientesExpandirTudo(abrir) {
 </script>
 
 <script>
-//Modo Escuro
+// Modo Escuro
 function toggleDark() {
     const isDark = document.body.classList.toggle('dark-mode');
     localStorage.setItem('sv_dark', isDark ? '1' : '0');
-    document.getElementById('darkIcon').className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+    const icon = document.getElementById('darkIcon');
+    if (icon) icon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+    // Atualizar label do botão dropdown se existir
+    const btn = icon ? icon.closest('button') : null;
+    if (btn) {
+        const txt = btn.childNodes[btn.childNodes.length - 1];
+        if (txt && txt.nodeType === Node.TEXT_NODE) {
+            txt.textContent = isDark ? ' Modo Claro' : ' Modo Escuro';
+        }
+    }
 }
+// Aplicar modo escuro imediatamente para evitar flash branco
 (function() {
+    if (localStorage.getItem('sv_dark') === '1') {
+        document.documentElement.classList.add('dark-mode-pre');
+        document.body.classList.add('dark-mode');
+    }
+})();
+document.addEventListener('DOMContentLoaded', function() {
     if (localStorage.getItem('sv_dark') === '1') {
         document.body.classList.add('dark-mode');
         const icon = document.getElementById('darkIcon');
         if (icon) icon.className = 'bi bi-sun-fill';
+        const btn = icon ? icon.closest('button') : null;
+        if (btn) {
+            const txt = btn.childNodes[btn.childNodes.length - 1];
+            if (txt && txt.nodeType === Node.TEXT_NODE) txt.textContent = ' Modo Claro';
+        }
     }
-})();
+});
 </script>
 
 <script>
@@ -3800,19 +4522,22 @@ function mostrarAjudaExtensao() {
     );
 }
 function installPWA() {
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandalone) { return; }
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
-        deferredInstallPrompt.userChoice.then(function(result) {
-            if (result.outcome === 'accepted') {
+        deferredInstallPrompt.userChoice.then(function(choiceResult) {
+            if (choiceResult.outcome === 'accepted') {
                 var btn = document.getElementById('install-app-btn');
                 if (btn) btn.style.display = 'none';
             }
             deferredInstallPrompt = null;
-        });
+        }).catch(function() {});
+    } else if (isIOS) {
+        alert("Para instalar no iPhone/iPad:\n\n1. Toca no botão Partilhar (quadrado com seta ↑) na barra do Safari\n2. Seleciona \"Adicionar ao ecrã principal\"\n3. Toca em \"Adicionar\"");
     } else {
-        alert("Para instalar a app: no Chrome/Edge abre o menu (⋮) e escolhe " +
-              "\"Instalar StockVision\" / \"Adicionar ao ecrã principal\".\n" +
-              "No telemóvel (Android/iOS) usa \"Adicionar ao ecrã principal\" no menu do browser.");
+        alert("Para instalar a aplicação:\n\nNo Chrome/Edge: abre o menu (⋮) e escolhe \"Instalar StockVision\" ou \"Adicionar ao ecrã principal\".\n\nNo telemóvel Android: o menu do browser tem a opção \"Adicionar ao ecrã principal\".");
     }
 }
 window.addEventListener('appinstalled', function() {
@@ -3820,6 +4545,45 @@ window.addEventListener('appinstalled', function() {
     if (btn) btn.style.display = 'none';
     deferredInstallPrompt = null;
 });
+</script>
+<script src="mobile-optimizations.js" defer></script>
+<script>
+/* ── Global stability guard ──────────────────────────────────────────
+   Catches unhandled JS errors & promise rejections so a single
+   non-critical failure never freezes the whole page.
+────────────────────────────────────────────────────────────────── */
+window.addEventListener('error', function(e) {
+    // Only suppress errors from third-party scripts (CDN, etc.)
+    if (e.filename && !e.filename.includes(window.location.hostname)) return;
+    // Allow the browser to log it; don't rethrow or freeze
+    console.warn('[NV] JS error caught:', e.message, 'at', e.filename + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', function(e) {
+    console.warn('[NV] Unhandled promise rejection:', e.reason);
+    e.preventDefault(); // prevent console error spam from freezing
+});
+
+/* ── Stale session / CSRF safeguard ─────────────────────────────────
+   If a fetch returns 403/401 (expired session or CSRF mismatch),
+   quietly prompt the user to reload instead of silently failing.
+────────────────────────────────────────────────────────────────── */
+(function () {
+    var _fetch = window.fetch;
+    window.fetch = function () {
+        return _fetch.apply(this, arguments).then(function (res) {
+            if (res.status === 401 || res.status === 403) {
+                // Only show once
+                if (!window._nvSessionAlert) {
+                    window._nvSessionAlert = true;
+                    if (confirm('A tua sessão pode ter expirado. Recarregar a página?')) {
+                        window.location.reload();
+                    }
+                }
+            }
+            return res;
+        });
+    };
+})();
 </script>
 </body>
 </html>

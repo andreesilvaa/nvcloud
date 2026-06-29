@@ -1,8 +1,8 @@
 <?php
 $qrResultado = null;
-$qrTermo = trim($_GET['qr_code'] ?? '');
+$qrTermo = trim($_GET["qr_code"] ?? "");
 
-  if ($page === 'qrs' && $qrTermo !== ''){
+if ($page === "qrs" && $qrTermo !== "") {
     $stmtQr = $pdo->prepare("
       SELECT *
       FROM pecas
@@ -10,36 +10,53 @@ $qrTermo = trim($_GET['qr_code'] ?? '');
       ORDER BY id DESC
       LIMIT 1
     ");
-  $stmtQr->execute([$qrTermo, $qrTermo]);
-  $qrResultado = $stmtQr->fetch();
+    $stmtQr->execute([$qrTermo, $qrTermo]);
+    $qrResultado = $stmtQr->fetch();
 
-  if (!$qrResultado) {
-    $_SESSION['mensagem_erro'] = 'Nenhuma peça encontrada. Preenche os restantes dados para criar uma nova peça.';
-    $_SESSION['form_nova_peca'] = [
-      'sn' =>$qrTermo,
-      'cod_barras' => $qrTermo
-    ];
+    if (!$qrResultado) {
+        $_SESSION["mensagem_erro"] =
+            "Nenhuma peça encontrada. Preenche os restantes dados para criar uma nova peça.";
+        $_SESSION["form_nova_peca"] = [
+            "sn" => $qrTermo,
+            "cod_barras" => $qrTermo,
+        ];
 
-    header('Location: app.php?page=nova_peca');
-    exit;
-  }
+        header("Location: app.php?page=nova_peca");
+        exit();
+    }
 }
 ?>
 
 <?php
 // ── Dados para etiquetas ──────────────────────────────────────
-$etqCategorias = $pdo->query("SELECT DISTINCT categoria FROM pecas WHERE categoria IS NOT NULL AND categoria != '' ORDER BY categoria")->fetchAll(PDO::FETCH_COLUMN);
-$etqPecas      = $pdo->query("SELECT id, produto, sn FROM pecas WHERE sn IS NOT NULL AND sn != '' ORDER BY produto, sn")->fetchAll(PDO::FETCH_ASSOC);
+$etqCategorias = $pdo
+    ->query(
+        "SELECT DISTINCT categoria FROM pecas WHERE categoria IS NOT NULL AND categoria != '' ORDER BY categoria",
+    )
+    ->fetchAll(PDO::FETCH_COLUMN);
+$etqPecas = $pdo
+    ->query(
+        "SELECT id, produto, sn FROM pecas WHERE sn IS NOT NULL AND sn != '' ORDER BY produto, sn",
+    )
+    ->fetchAll(PDO::FETCH_ASSOC);
 // Agrupar peças por categoria para o JS
 $etqPorCategoria = [];
 foreach ($etqPecas as $p) {
     // A categoria não está na query acima; faz uma query com categoria
 }
-$etqPecasFull = $pdo->query("SELECT id, produto, categoria, sn FROM pecas WHERE sn IS NOT NULL AND sn != '' ORDER BY produto, sn")->fetchAll(PDO::FETCH_ASSOC);
+$etqPecasFull = $pdo
+    ->query(
+        "SELECT id, produto, categoria, sn FROM pecas WHERE sn IS NOT NULL AND sn != '' ORDER BY produto, sn",
+    )
+    ->fetchAll(PDO::FETCH_ASSOC);
 $etqPorCategoria = [];
 foreach ($etqPecasFull as $p) {
-    $cat = $p['categoria'] ?? 'Sem Categoria';
-    $etqPorCategoria[$cat][] = ['id' => $p['id'], 'produto' => $p['produto'], 'sn' => $p['sn']];
+    $cat = $p["categoria"] ?? "Sem Categoria";
+    $etqPorCategoria[$cat][] = [
+        "id" => $p["id"],
+        "produto" => $p["produto"],
+        "sn" => $p["sn"],
+    ];
 }
 ?>
 
@@ -131,7 +148,9 @@ foreach ($etqPecasFull as $p) {
                 <select id="etqTipo" onchange="etqAtualizarPecas()">
                     <option value="">-- Todos --</option>
                     <?php foreach ($etqCategorias as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                        <option value="<?= htmlspecialchars(
+                            $cat,
+                        ) ?>"><?= htmlspecialchars($cat) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -140,10 +159,16 @@ foreach ($etqPecasFull as $p) {
                 <select id="etqPeca">
                     <option value="">-- Seleciona uma peça --</option>
                     <?php foreach ($etqPecasFull as $p): ?>
-                        <option value="<?= htmlspecialchars($p['sn']) ?>"
-                                data-produto="<?= htmlspecialchars($p['produto']) ?>"
-                                data-categoria="<?= htmlspecialchars($p['categoria'] ?? '') ?>">
-                            <?= htmlspecialchars($p['produto']) ?> — <?= htmlspecialchars($p['sn']) ?>
+                        <option value="<?= htmlspecialchars($p["sn"]) ?>"
+                                data-produto="<?= htmlspecialchars(
+                                    $p["produto"],
+                                ) ?>"
+                                data-categoria="<?= htmlspecialchars(
+                                    $p["categoria"] ?? "",
+                                ) ?>">
+                            <?= htmlspecialchars(
+                                $p["produto"],
+                            ) ?> — <?= htmlspecialchars($p["sn"]) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -178,6 +203,14 @@ foreach ($etqPecasFull as $p) {
     </div>
 </div>
 
+<script>
+    // Garante que a página abre sempre no topo (câmara + toggle de modo),
+    // independentemente de restauro de posição de scroll do browser —
+    // senão pode parecer que a página "abre direto" na Pesquisa Manual.
+    if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+    window.scrollTo(0, 0);
+</script>
+
 <!-- ══════════════ MODO LEITOR ══════════════ -->
 <div id="painel-leitor">
     <div class="qr-grid" style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start; max-width:980px;">
@@ -185,8 +218,17 @@ foreach ($etqPecasFull as $p) {
         <!-- PAINEL ESQUERDO: Câmara -->
         <div class="panel">
             <h4 style="margin-bottom:4px;"><i class="bi bi-camera" style="color:#c9a14a; margin-right:6px;"></i>Leitura Automática</h4>
-            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">Permite o acesso à câmara e aponta para o código.</p>
-            <div id="reader" style="width:100%; max-width:260px; margin:0 auto; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1;"></div>
+            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">Toca em "Ativar câmara" e aponta para o código quando autorizares o acesso.</p>
+            <div id="reader" style="width:100%; max-width:260px; margin:0 auto; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1; display:flex; align-items:center; justify-content:center;">
+                <button type="button" id="qrIniciarCameraBtn" class="btn btn-blue" style="display:inline-flex; align-items:center; gap:6px;">
+                    <i class="bi bi-camera-fill"></i> Ativar câmara
+                </button>
+            </div>
+            <div style="margin-top:10px; text-align:center;">
+                <button type="button" id="qrCameraToggleBtn" class="btn btn-grey" style="display:none; gap:6px; font-size:13px;" title="Alternar câmara">
+                    <i class="bi bi-arrow-repeat"></i> Alternar Câmara
+                </button>
+            </div>
         </div>
 
         <!-- PAINEL DIREITO: Pesquisa manual + Resultado -->
@@ -203,7 +245,7 @@ foreach ($etqPecasFull as $p) {
                                placeholder="SN ou Código de Barras"
                                style="flex:1;">
                         <button type="submit" class="btn btn-blue">Procurar</button>
-                        <?php if ($qrTermo !== ''): ?>
+                        <?php if ($qrTermo !== ""): ?>
                             <a href="app.php?page=qrs" class="btn btn-grey">✕</a>
                         <?php endif; ?>
                     </div>
@@ -211,52 +253,77 @@ foreach ($etqPecasFull as $p) {
             </div>
 
             <!-- Resultado -->
-            <?php if ($qrTermo !== ''): ?>
+            <?php if ($qrTermo !== ""): ?>
                 <div class="panel">
                     <?php if ($qrResultado): ?>
                         <div class="qr-banner qr-ok"><i class="bi bi-check-circle-fill"></i> Peça encontrada</div>
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid #e5e7eb;">
                             <div style="width:44px; height:44px; background:#dcfce7; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">✅</div>
                             <div>
-                                <div style="font-weight:700; font-size:16px;"><?= htmlspecialchars($qrResultado['produto']) ?></div>
-                                <div style="font-size:12px; color:#6b7280; font-family:monospace;"><?= htmlspecialchars($qrResultado['sn']) ?></div>
+                                <div style="font-weight:700; font-size:16px;"><?= htmlspecialchars(
+                                    $qrResultado["produto"],
+                                ) ?></div>
+                                <div style="font-size:12px; color:#6b7280; font-family:monospace;"><?= htmlspecialchars(
+                                    $qrResultado["sn"],
+                                ) ?></div>
                             </div>
                         </div>
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">ID</div>
-                                <div style="font-weight:600;">#<?= (int)$qrResultado['id'] ?></div>
+                                <div style="font-weight:600;">#<?= (int) $qrResultado[
+                                    "id"
+                                ] ?></div>
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Categoria</div>
-                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['categoria']) ?></div>
+                                <div style="font-weight:600;"><?= htmlspecialchars(
+                                    $qrResultado["categoria"],
+                                ) ?></div>
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Parceiro</div>
-                                <div style="font-weight:600;"><?= htmlspecialchars($qrResultado['parceiro'] ?: '—') ?></div>
+                                <div style="font-weight:600;"><?= htmlspecialchars(
+                                    $qrResultado["parceiro"] ?: "—",
+                                ) ?></div>
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Estado</div>
-                                <div style="font-weight:600;"><?= estadoBolha($qrResultado['estado']) ?></div>
+                                <div style="font-weight:600;"><?= estadoBolha(
+                                    $qrResultado["estado"],
+                                ) ?></div>
                             </div>
                             <div style="background:#f8f9fa; border-radius:8px; padding:10px 14px; grid-column:1/-1;">
                                 <div style="font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Código de Barras</div>
-                                <div style="font-weight:600; font-family:monospace;"><?= htmlspecialchars($qrResultado['cod_barras'] ?: '—') ?></div>
+                                <div style="font-weight:600; font-family:monospace;"><?= htmlspecialchars(
+                                    $qrResultado["cod_barras"] ?: "—",
+                                ) ?></div>
                             </div>
                         </div>
                         <div class="qr-actions">
-                            <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?= (int)$qrResultado['id'] ?>"><i class="bi bi-pencil"></i> Editar</a>
-                            <a class="btn btn-grey" href="app.php?page=historico&id=<?= (int)$qrResultado['id'] ?>"><i class="bi bi-clock-history"></i> Ver Histórico</a>
+                            <a class="btn btn-yellow" href="app.php?page=nova_peca&edit=<?= (int) $qrResultado[
+                                "id"
+                            ] ?>"><i class="bi bi-pencil"></i> Editar</a>
+                            <a class="btn btn-grey" href="app.php?page=historico&id=<?= (int) $qrResultado[
+                                "id"
+                            ] ?>"><i class="bi bi-clock-history"></i> Ver Histórico</a>
                             <a class="btn btn-blue" href="app.php?page=pats&acao=novo"><i class="bi bi-clipboard-plus"></i> Atribuir PAT</a>
-                            <button type="button" class="btn btn-teal" onclick="qrCopySN('<?= htmlspecialchars($qrResultado['sn'], ENT_QUOTES) ?>', this)"><i class="bi bi-clipboard"></i> Copiar SN</button>
+                            <button type="button" class="btn btn-teal" onclick="qrCopySN('<?= htmlspecialchars(
+                                $qrResultado["sn"],
+                                ENT_QUOTES,
+                            ) ?>', this)"><i class="bi bi-clipboard"></i> Copiar SN</button>
                         </div>
                     <?php else: ?>
                         <div class="qr-banner qr-no"><i class="bi bi-x-circle-fill"></i> Peça não encontrada</div>
                         <div style="text-align:center; padding:24px 16px;">
                             <div style="font-size:40px; margin-bottom:12px;">🔍</div>
                             <p style="font-weight:600; margin-bottom:4px;">Nenhuma peça encontrada</p>
-                            <p style="font-size:13px; color:#6b7280; margin-bottom:18px;">Não existe nenhuma peça com o SN/código <strong><?= htmlspecialchars($qrTermo) ?></strong>.</p>
-                            <a class="btn btn-teal" href="app.php?page=nova_peca&sn=<?= urlencode($qrTermo) ?>&cod_barras=<?= urlencode($qrTermo) ?>">
+                            <p style="font-size:13px; color:#6b7280; margin-bottom:18px;">Não existe nenhuma peça com o SN/código <strong><?= htmlspecialchars(
+                                $qrTermo,
+                            ) ?></strong>.</p>
+                            <a class="btn btn-teal" href="app.php?page=nova_peca&sn=<?= urlencode(
+                                $qrTermo,
+                            ) ?>&cod_barras=<?= urlencode($qrTermo) ?>">
                                 <i class="bi bi-plus-circle"></i> Criar nova peça com este SN
                             </a>
                         </div>
@@ -288,7 +355,10 @@ foreach ($etqPecasFull as $p) {
 
 <script>
     // ── Dados de peças por categoria (gerado em PHP) ──
-    var etqDadosPorCategoria = <?= json_encode($etqPorCategoria, JSON_UNESCAPED_UNICODE) ?>;
+    var etqDadosPorCategoria = <?= json_encode(
+        $etqPorCategoria,
+        JSON_UNESCAPED_UNICODE,
+    ) ?>;
 
     // ── Toggle de modo ──
     function qrSetModo(modo) {

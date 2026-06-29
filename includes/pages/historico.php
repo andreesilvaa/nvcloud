@@ -1,5 +1,10 @@
 <?php
 
+$histVoltarDestino = $_GET['voltar'] ?? '';
+if (!str_starts_with($histVoltarDestino, 'app.php?page=inventario')) {
+    $histVoltarDestino = 'app.php?page=inventario';
+}
+
 $historico = [];
 $pecaHist = null;
 
@@ -114,7 +119,7 @@ if ($page === 'historico' && isset($_GET['id'])) {
   </table>
 
   <div style="margin-top:16px">
-    <a class="btn btn-yellow" href="app.php?page=inventario" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
+    <a class="btn btn-yellow" href="<?= htmlspecialchars($histVoltarDestino) ?>" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
   </div>
 
 

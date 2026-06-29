@@ -1,5 +1,10 @@
 <?php
 
+$nvVoltarDestino = $_GET['voltar'] ?? ($_POST['voltar'] ?? '');
+if (!str_starts_with($nvVoltarDestino, 'app.php?page=inventario')) {
+    $nvVoltarDestino = 'app.php?page=inventario';
+}
+
 $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 $pecaEdit = null;
 
@@ -10,7 +15,7 @@ if ($page === 'nova_peca' && $editId > 0) {
 
     if (!$pecaEdit) {
       $_SESSION['mensagem_erro'] = 'Peça não encontrada.';
-      header('Location: app.php?page=inventario');
+      header('Location: ' . $nvVoltarDestino);
       exit;
     }
 }
@@ -197,13 +202,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       $_SESSION['mensagem_sucesso'] = 'Peça criada com sucesso.';
     }
 
-    header('Location: app.php?page=inventario');
+    header('Location: ' . $nvVoltarDestino);
     exit;
   }
 ?>
 
   <form method="post" class="panel">
     <input type="hidden" name="form_type" value="nova_peca">
+    <input type="hidden" name="voltar" value="<?= htmlspecialchars($nvVoltarDestino) ?>">
     <?php if ($pecaEdit): ?>
       <input type="hidden" name="edit_id" value="<?= (int)$pecaEdit['id'] ?>">
     <?php endif; ?>
@@ -289,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         
     <div style="margin-top:20px">
       <button class="btn btn-blue" type="submit"><?= $pecaEdit ? 'Atualizar' : 'Guardar' ?></button>
-      <a class="btn btn-yellow" href="app.php?page=inventario" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
+      <a class="btn btn-yellow" href="<?= htmlspecialchars($nvVoltarDestino) ?>" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
     </div>
   </form>
 

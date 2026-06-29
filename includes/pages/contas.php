@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     if ($contaId > 0) {
       if ($password !== '') {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE utilizadores SET nome = ?, email = ?, password = ?, fotografia = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE utilizadores SET nome = ?, email = ?, password = ?, fotografia = ?, must_change_password = 1 WHERE id = ?");
         $stmt->execute([$nome, $email, $passwordHash, $fotografiaPath, $contaId]);
       } else {
         $stmt = $pdo->prepare("UPDATE utilizadores SET nome = ?, email = ?, fotografia = ? WHERE id = ?");
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       $_SESSION['mensagem_sucesso'] = 'Conta atualizada com sucesso.';
     } else {
       $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-      $stmt = $pdo->prepare("INSERT INTO utilizadores (nome, email, password, fotografia, created_at) VALUES (?, ?, ?, ?, NOW())");
+      $stmt = $pdo->prepare("INSERT INTO utilizadores (nome, email, password, fotografia, must_change_password, created_at) VALUES (?, ?, ?, ?, 1, NOW())");
       $stmt->execute([$nome, $email, $passwordHash, $fotografiaPath]);
 
       $_SESSION['mensagem_sucesso'] = 'Conta criada com sucesso.';
@@ -137,53 +137,40 @@ $contas = [];
 
     <div class="contas-layout">
 
-    <div class="panel">
-      <h4 style="margin-bottom:18px;"><?= $contaEdit ? 'Editar Conta' : 'Criar Nova Conta' ?></h4>
+    <div class="panel conta-form-panel">
+      <h4><i class="bi bi-person-plus"></i><?= $contaEdit ? 'Editar Conta' : 'Criar Nova Conta' ?></h4>
 
       <form method="post" enctype="multipart/form-data" autocomplete="off">
 
         <input type="hidden" name="form_type" value="nova_conta">
-
 
         <?php if ($contaEdit): ?>
           <input type="hidden" name="conta_id" value="<?= (int)$contaEdit['id'] ?>">
           <input type="hidden" name="fotografia_atual" value="<?= htmlspecialchars($contaEdit['fotografia'] ?? '') ?>">
         <?php endif; ?>
 
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:4px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Dados da conta</div>
-        <div style="margin-bottom:14px;">
-          <label>Nome</label>
-            <label>
-                <input type="text" name="nome" required autocomplete="off" value="<?= htmlspecialchars($contaEdit['nome'] ?? '') ?>">
-            </label>
+        <div class="conta-form-sec">
+          <div class="conta-form-sec-title">Dados da conta</div>
+          <div class="form-grid">
+            <div>
+              <label>Nome</label>
+              <input type="text" name="nome" required autocomplete="off" value="<?= htmlspecialchars($contaEdit['nome'] ?? '') ?>">
+            </div>
+            <div>
+              <label>Email</label>
+              <input type="email" name="email" required autocomplete="off" pattern=".+@newvision\.pt" value="<?= htmlspecialchars($contaEdit['email'] ?? '') ?>">
+            </div>
+          </div>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <label>Email</label>
-            <label>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  autocomplete="off"
-                  pattern=".+@newvision\.pt"
-                  value="<?= htmlspecialchars($contaEdit['email'] ?? '') ?>"
-                >
-            </label>
+        <div class="conta-form-sec">
+          <div class="conta-form-sec-title">Acesso</div>
+          <label>Password<?= $contaEdit ? ' (deixar em branco para manter a atual)' : '' ?></label>
+          <input type="password" name="password" <?= $contaEdit ? '' : 'required' ?> autocomplete="new-password">
         </div>
 
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:24px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Acesso</div>
-        <div style="margin-bottom:14px;">
-          <label>Password<?= $contaEdit ? ' (deixar em branco para manter a atual)' : '' ?> 
-            </label>
-            <label>
-                <input type="password" name="password" <?= $contaEdit ? '' : 'required' ?> autocomplete="new-password">
-            </label>
-        </div>
-
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:#c9a14a; margin:24px 0 12px; padding-bottom:6px; border-bottom:1px solid #eef1f5;">Fotografia</div>
-        <div style="margin-bottom:18px;">
-          <label>Fotografia</label>
+        <div class="conta-form-sec">
+          <div class="conta-form-sec-title">Fotografia</div>
           <label for="fotografiaInput" class="upload-pdf-box" id="fotografiaUploadBox">
               <span class="upload-pdf-icon"><i class="bi bi-camera-fill"></i></span>
               <span class="upload-pdf-text" id="fotografiaUploadText">
@@ -192,28 +179,26 @@ $contas = [];
               <span class="upload-pdf-filename" id="fotografiaUploadFilename" style="display:none;"></span>
           </label>
           <input type="file" name="fotografia" id="fotografiaInput" accept="image/*" class="upload-pdf-input">
-
           <input type="hidden" name="fotografia_cropada" id="fotografia_cropada">
 
           <div id="cropArea" style="display:none; margin-top:14px;">
             <div style="max-width:420px; border:1px solid #d6dbe1; border-radius:10px; overflow:hidden; background:#fff;">
               <img id="cropPreview" alt="Pré-visualização para recorte." style="display:block; max-width:100%;">
+            </div>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-blue" id="aplicarCropBtn">Aplicar Recorte</button>
+              <button type="button" class="btn btn-grey" id="cancelarCropBtn">Cancelar</button>
+            </div>
           </div>
 
-          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-blue" id="aplicarCropBtn">Aplicar Recorte</button>
-            <button type="button" class="btn btn-grey" id="cancelarCropBtn">Cancelar</button>
+          <?php if (!empty($contaEdit['fotografia'])): ?>
+            <div style="margin-top:12px;">
+              <div class="small-note">Fotografia atual</div>
+              <img src="<?= htmlspecialchars($contaEdit['fotografia']) ?>" alt="Fotografia atual"
+                  style="width:80px;height:80px;border-radius:10px;object-fit:cover;border:1px solid #d6dbe1;">
+            </div>
+          <?php endif; ?>
         </div>
-      </div>
-
-      <?php if (!empty($contaEdit['fotografia'])): ?>
-        <div style="margin-top:12px;">
-          <div class="small-note">Fotografia atual</div>
-          <img src="<?= htmlspecialchars($contaEdit['fotografia']) ?>" alt="Fotografia atual" 
-              style="width:80px;height:80px;border-radius:10px;object-fit:cover;border:1px solid #d6dbe1;">
-          </div>
-      <?php endif; ?>
-      </div>
 
       <script>
       (function () {
@@ -261,8 +246,9 @@ $contas = [];
       })();
       </script>
 
-        <button type="submit" class="btn btn-teal"><?= $contaEdit ? 'Atualizar Conta' : 'Criar Conta' ?>
-        </button>
+        <div class="conta-form-actions">
+        <button type="submit" class="btn btn-teal"><i class="bi bi-check2"></i> <?= $contaEdit ? 'Atualizar Conta' : 'Criar Conta' ?></button>
+        </div>
       </form>
     </div>
 
@@ -280,7 +266,7 @@ $contas = [];
       </div>
     </div>
 
-    <div class="table-responsive scroll-oculto">
+    <div class="table-responsive scroll-oculto mv-table-wrap">
     <table class="table" id="tabelaContas">
       <thead>
         <tr>
@@ -321,6 +307,42 @@ $contas = [];
   </tbody>
     </table>
     </div>
+
+<!-- ── Contas · Cards mobile (≤640px) ── -->
+<div class="mv-cards">
+<?php foreach ($contas as $c): ?>
+    <div class="mv-card">
+        <div class="mv-card-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <?php if (!empty($c['fotografia'])): ?>
+                    <img src="<?= htmlspecialchars($c['fotografia']) ?>" alt="Foto" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;">
+                <?php else: ?>
+                    <div style="width:38px;height:38px;border-radius:8px;background:#eef2f7;color:#9ca3af;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-person"></i></div>
+                <?php endif; ?>
+                <div>
+                    <div class="mv-card-title"><?= htmlspecialchars($c['nome']) ?></div>
+                    <div class="mv-card-sub mv-card-sub-text"><?= htmlspecialchars($c['email']) ?></div>
+                </div>
+            </div>
+        </div>
+        <div class="mv-card-row">
+            <span class="mv-card-row-label">Criada em</span>
+            <span class="mv-card-row-val"><?= htmlspecialchars($c['created_at']) ?></span>
+        </div>
+        <div class="mv-card-footer">
+            <a class="btn btn-yellow" href="app.php?page=contas&edit_conta=<?= (int)$c['id'] ?>" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+            <form method="post" style="display:inline;" onsubmit="return nvConfirmar(this, 'Eliminar esta conta? Esta ação é irreversível.');">
+                <input type="hidden" name="form_type" value="eliminar_conta">
+                <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
+                <button type="submit" class="btn btn-red" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
+            </form>
+        </div>
+    </div>
+<?php endforeach; ?>
+<?php if (!$contas): ?>
+    <div class="mv-cards-empty"><i class="bi bi-inbox"></i>Sem contas registadas.</div>
+<?php endif; ?>
+</div>
   </div>
   </div>
 

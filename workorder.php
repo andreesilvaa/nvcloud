@@ -75,13 +75,14 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
   :root{--gold:#cba35c;--gold-lt:#d8bd83;--gold-deep:#8a6d2f;--dark:#343a40;--mid:#5b6470;--ink:#1c1f24;--muted:#6b7280;--rule:#e2e5ea;--bg:#f7f8fa;--white:#ffffff;--urgent:#b23b3b}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5}
-  .toolbar{position:fixed;top:0;left:0;right:0;height:56px;background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 32px;z-index:100;gap:12px}
-  .toolbar-left{display:flex;align-items:center;gap:16px}
+  .toolbar{position:fixed;top:0;left:0;right:0;height:56px;background:var(--dark);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 32px;z-index:100;gap:12px}
+  .toolbar-left{display:flex;align-items:center;gap:16px;justify-self:start}
+  .toolbar-title-wrap{display:flex;align-items:center;gap:10px;justify-self:center}
   .toolbar-title{color:var(--white);font-weight:600;font-size:14px}
   .toolbar-badge{background:var(--gold);color:var(--dark);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace}
-  .btn-print{display:flex;align-items:center;gap:8px;background:var(--gold);color:var(--dark);border:none;border-radius:8px;padding:9px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s}
+  .btn-print{display:flex;align-items:center;gap:8px;background:var(--gold);color:var(--dark);border:none;border-radius:8px;padding:9px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s;justify-self:end}
   .btn-print:hover{background:var(--gold-lt)}
-  .btn-back{display:flex;align-items:center;gap:6px;background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-decoration:none;transition:border-color .2s}
+  .btn-back{display:flex;align-items:center;gap:6px;background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-decoration:none;transition:border-color .2s;justify-self:start}
   .btn-back:hover{border-color:var(--gold);color:var(--white)}
   .page-wrap{margin-top:72px;padding:32px;display:flex;justify-content:center}
   .sheet{background:var(--white);width:794px;min-height:1123px;box-shadow:0 4px 32px rgba(0,0,0,.12);border-radius:4px;overflow:hidden;display:flex;flex-direction:column}
@@ -158,13 +159,81 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
     .sheet{width:100%;min-height:100vh;box-shadow:none;border-radius:0}
     .section{break-inside:avoid}
   }
+  @media (max-width:768px){
+    .toolbar{
+        position:static;
+        grid-template-columns:1fr 1fr;
+        grid-template-areas:"title title" "back print";
+        row-gap:10px;
+        height:auto;
+        padding:14px 16px 16px;
+    }
+    .toolbar-title-wrap{ grid-area:title; }
+    .btn-back{ grid-area:back; }
+    .btn-print{ grid-area:print; }
+    .toolbar-title{ font-size:13px; }
+    .btn-print{ padding:8px 14px; font-size:12px; }
+    .btn-back{ padding:7px 12px; font-size:12px; }
+    .page-wrap{ margin-top:0; padding:12px; }
+    .sheet{ width:100%; min-width:0; min-height:auto; box-shadow:none; border-radius:8px; }
+    .sheet-header{ flex-direction:column; align-items:stretch; gap:14px; padding:18px 18px 16px; }
+    .header-center{ text-align:left; }
+    .pat-label, .pat-revision{ text-align:left; }
+    .status-bar{ padding:10px 18px; gap:12px 16px; }
+    .priority-badge{ margin-left:0; }
+    .sheet-body{ padding:16px 14px 20px; gap:14px; }
+    .field-grid.cols-2,
+    .field-grid.cols-4{ grid-template-columns:1fr; }
+    .section-body{ padding:12px; }
+
+    /* Tabelas largas (Módulos para Assistência / Componentes Trocados):
+       em vez de obrigar a scroll lateral, cada linha passa a ser um
+       cartão com rótulo + valor em coluna. */
+    .comp-table thead{ display:none; }
+    .comp-table, .comp-table tbody, .comp-table tr, .comp-table th, .comp-table td{
+        display:block;
+        width:100%;
+    }
+    .comp-table tbody tr{
+        border:1px solid var(--rule);
+        border-radius:8px;
+        margin-bottom:10px;
+        padding:10px 12px;
+        background:var(--white);
+    }
+    .comp-table tbody tr:nth-child(even) td{ background:transparent; }
+    .comp-table td{
+        border:none !important;
+        padding:6px 2px !important;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:10px;
+        text-align:right;
+    }
+    .comp-table td.divider-col{ display:none; }
+    .comp-table td::before{
+        content:attr(data-label);
+        font-size:9px;
+        font-weight:700;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+        color:var(--muted);
+        text-align:left;
+        flex-shrink:0;
+    }
+    .comp-table td.center{ justify-content:space-between; }
+
+    .sig-row{ grid-template-columns:1fr; gap:14px; }
+    .sheet-footer{ flex-direction:column; align-items:flex-start; gap:4px; padding:12px 18px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <div class="toolbar-left">
-    <a class="btn-back" href="javascript:history.back()">← Voltar</a>
+  <a class="btn-back" href="javascript:history.back()">← Voltar</a>
+  <div class="toolbar-title-wrap">
     <span class="toolbar-title">Folha de Obra</span>
     <span class="toolbar-badge"><?= e($pat['numero_pat']) ?>/<?= (int)$pat['revisao'] ?></span>
   </div>
@@ -296,9 +365,9 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
           <tbody>
             <?php foreach ($modulos as $m): ?>
             <tr>
-              <td><?= e($m['solucao_equipamento']) ?></td>
-              <td><?= e($m['modelo']) ?></td>
-              <td class="mono"><?= e($m['num_serie']) ?></td>
+              <td data-label="Solução / Equipamento"><?= e($m['solucao_equipamento']) ?></td>
+              <td data-label="Modelo"><?= e($m['modelo']) ?></td>
+              <td data-label="Nº de Série" class="mono"><?= e($m['num_serie']) ?></td>
             </tr>
             <?php endforeach; ?>
           </tbody>
@@ -350,12 +419,12 @@ if ($pat['data_inicio'] && $pat['data_fim']) {
           <tbody>
             <?php foreach ($componentes as $c): ?>
             <tr>
-              <td class="removed-col"><?= e($c['removido']) ?></td>
-              <td class="removed-col mono"><?= e($c['sn_removido']) ?></td>
+              <td class="removed-col" data-label="Removido"><?= e($c['removido']) ?></td>
+              <td class="removed-col mono" data-label="Nº Série (removido)"><?= e($c['sn_removido']) ?></td>
               <td class="divider-col"></td>
-              <td class="placed-col"><?= e($c['colocado']) ?></td>
-              <td class="placed-col mono"><?= e($c['sn_colocado']) ?></td>
-              <td class="center"><?= (int)$c['quantidade'] > 1 ? (int)$c['quantidade'] : '' ?></td>
+              <td class="placed-col" data-label="Colocado"><?= e($c['colocado']) ?></td>
+              <td class="placed-col mono" data-label="Nº Série (colocado)"><?= e($c['sn_colocado']) ?></td>
+              <td class="center" data-label="Qtd"><?= (int)$c['quantidade'] > 1 ? (int)$c['quantidade'] : '' ?></td>
             </tr>
             <?php endforeach; ?>
           </tbody>

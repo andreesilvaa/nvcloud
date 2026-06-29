@@ -8,7 +8,7 @@
 require __DIR__ . '/../includes/db.php';
 /** @var PDO $pdo */
 
-$tempPass = 'nv2026!';   // password temporária — pedir para trocar no 1.º acesso
+$tempPass = 'NV12345';
 $hash = password_hash($tempPass, PASSWORD_DEFAULT);
 
 $equipa = [
@@ -23,9 +23,9 @@ $equipa = [
 ];
 
 $st = $pdo->prepare("
-    INSERT INTO utilizadores (nome, email, password, fotografia, role, area, created_at)
-    VALUES (?, ?, ?, '', ?, ?, NOW())
-    ON DUPLICATE KEY UPDATE area = VALUES(area), role = VALUES(role)
+    INSERT INTO utilizadores (nome, email, password, fotografia, role, area, must_change_password, created_at)
+    VALUES (?, ?, ?, '', ?, ?, 1, NOW())
+    ON DUPLICATE KEY UPDATE area = VALUES(area), role = VALUES(role), password = VALUES(password), must_change_password = 1
 ");
 
 foreach ($equipa as [$nome, $email, $area, $role]) {

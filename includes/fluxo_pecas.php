@@ -6,11 +6,10 @@ function nvFluxoPecas(): array {
 		'Laboratório'            => ['Disponível', 'PAT', 'Fornecedor (Reparação)', 'Abater'],
 		'Fornecedor (Reparação)' => ['Disponível', 'Laboratório', 'Abater'],
 		'PAT'                    => ['Cliente', 'Devolução', 'Laboratório'],
-		'Disponível'             => ['PAT', 'OT', 'Parceiro', 'Trânsito'],
+		'Disponível'             => ['PAT', 'Parceiro', 'Trânsito'],
 		'Parceiro'               => ['Devolução', 'Cliente', 'Trânsito'],
 		'Trânsito'               => ['Parceiro', 'Cliente', 'Laboratório', 'Disponível'],
 		'Cliente'                => ['Devolução'],
-		'OT'                     => ['Disponível', 'Laboratório', 'Abater'],
 		'Desconhecido'           => ['Laboratório', 'Disponível', 'Abater'],
 		'Spares'                 => ['Disponível', 'PAT', 'Abater'],
 		'Abater'                 => [],   // estado terminal

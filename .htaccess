@@ -1,3 +1,50 @@
 <FilesMatch "^(executar_fix|verificar_catalogo|migrar_stocks|importar_.*|seed_.*)\.php$">
     Require all denied
 </FilesMatch>
+
+# --- Hardening adicionado em 2026-06-28 ---
+# Desliga a listagem de diretorios (estava ativa e expunha includes/, .github/, .idx/, uploads/guias/, etc.)
+Options -Indexes
+
+# Bloqueia acesso direto a ficheiros de configuracao, build e dev que nao deviam ser servidos
+<FilesMatch "\.(yml|yaml|md|patch|bat|lock|tmp|log|sql|sh|py|ps1|txt)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^(composer\.json|composer\.lock|Jenkinsfile|qodana\.yaml|sonar-project\.properties|\.env|\.mcp\.json\.tmp|alteracoes\.patch)$">
+    Require all denied
+</FilesMatch>
+
+# Bloqueia acesso a diretorios de ferramentas/IDE/CI que nao deviam estar acessiveis
+RewriteEngine On
+RewriteCond %{REQUEST_URI} ^/\.(git|idx|github|scannerwork|idea|vscode|claude|kiro)(/|$) [NC]
+RewriteRule ^ - [F,L]
+RewriteCond %{REQUEST_URI} ^/(tools|docs|github|_old_icons_backup)(/|$) [NC]
+RewriteRule ^ - [F,L]
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  # Nota (2026-06-29): isto estava a 1 segundo, o que desativava na
+  # prática a cache de imagens no browser — cada página voltava a
+  # descarregar logo/ícones/fotografias do servidor. Corrigido para um
+  # valor sensável; os ícones do manifest já usam query string de
+  # versionamento (?v=12), por isso esta cache mais longa é segura.
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/x-icon "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType text/javascript "access plus 7 days"
+  ExpiresByType font/woff2 "access plus 30 days"
+</IfModule>
+
+<IfModule mod_deflate.c>
+  # Comprime as respostas de texto (HTML/CSS/JS/JSON) — sem isto, cada
+  # página e cada pedido de CSS/JS vai "a peso" pela rede sem compressão,
+  # o que pesa sobretudo em ligações móveis mais lentas.
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>

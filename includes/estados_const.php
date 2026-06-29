@@ -10,7 +10,6 @@ final class EstadoPeca {
 	const PARCEIRO    = 'Parceiro';
 	const SPARES      = 'Spares';
 	const ABATER      = 'Abater';
-	const OT          = 'OT';
 	const FORNECEDOR  = 'Fornecedor (Reparação)';
 	const TRANSITO    = 'Trânsito';
 	const DESCONHECIDO= 'Desconhecido';

@@ -1,66 +1,73 @@
 <?php
 $clientes = [];
 $clientesStats = [
-    'total' => 0,
-    'customers' => 0,
-    'prospects' => 0,
-    'partners' => 0,
-    'com_parent' => 0,
-    'grupos_parent' => 0
+    "total" => 0,
+    "customers" => 0,
+    "prospects" => 0,
+    "partners" => 0,
+    "com_parent" => 0,
+    "grupos_parent" => 0,
 ];
 $clientesFiltros = [
-    'q' => trim($_GET['q'] ?? ''),
-    'type' => trim($_GET['type'] ?? ''),
-    'hierarquia' => trim($_GET['hierarquia'] ?? '')
+    "q" => trim($_GET["q"] ?? ""),
+    "type" => trim($_GET["type"] ?? ""),
+    "hierarquia" => trim($_GET["hierarquia"] ?? ""),
 ];
 $clientesTipos = [];
 $clientesPais = [];
 $clientesRoots = [];
 $clientesChildrenMap = [];
 
-if ($page === 'clientes') {
+if ($page === "clientes") {
     // Lista de clientes — a partir da tabela `clientes`
     // (importada do CSV via github/importar_clientes.php).
     try {
-   $rows = $pdo->query("SELECT account_name, type, parent_account, last_activity, last_modified_date, activity_count FROM clientes ORDER BY account_name ASC")->fetchAll();
+        $rows = $pdo
+            ->query(
+                "SELECT account_name, type, parent_account, last_activity, last_modified_date, activity_count FROM clientes ORDER BY account_name ASC",
+            )
+            ->fetchAll();
     } catch (Throwable $e) {
         $rows = [];
-        $clientesStats['csv_error'] = 'Tabela de clientes não encontrada. Corre o importador: php github/importar_clientes.php';
+        $clientesStats["csv_error"] =
+            "Tabela de clientes não encontrada. Corre o importador: php github/importar_clientes.php";
     }
     foreach ($rows as $r) {
-        $accountName = (string)$r['account_name'];
-        if ($accountName === '') { continue; }
-        $type   = (string)($r['type'] ?? '');
-        $parent = (string)($r['parent_account'] ?? '');
-        $lastActivity = (string)($r['last_activity'] ?? '');
-        $lastModified = (string)($r['last_modified_date'] ?? '');
+        $accountName = (string) $r["account_name"];
+        if ($accountName === "") {
+            continue;
+        }
+        $type = (string) ($r["type"] ?? "");
+        $parent = (string) ($r["parent_account"] ?? "");
+        $lastActivity = (string) ($r["last_activity"] ?? "");
+        $lastModified = (string) ($r["last_modified_date"] ?? "");
 
         $cliente = [
-            'account_name'       => $accountName,
-            'type'               => $type,
-            'parent_account'     => $parent,
-            'last_activity'      => $lastActivity,
-            'last_modified_date' => $lastModified,
-            'is_child'           => $parent !== '',
-            'activity_count'     => (int)($r['activity_count'] ?? 0),
+            "account_name" => $accountName,
+            "type" => $type,
+            "parent_account" => $parent,
+            "last_activity" => $lastActivity,
+            "last_modified_date" => $lastModified,
+            "is_child" => $parent !== "",
+            "activity_count" => (int) ($r["activity_count"] ?? 0),
         ];
         $clientes[] = $cliente;
-        $clientesStats['total']++;
-        if (strcasecmp($type, 'Customer') === 0) {
-            $clientesStats['customers']++;
-        } elseif (strcasecmp($type, 'Prospect') === 0) {
-            $clientesStats['prospects']++;
-        } elseif (stripos($type, 'Partner') !== false) {
-            $clientesStats['partners']++;
+        $clientesStats["total"]++;
+        if (strcasecmp($type, "Customer") === 0) {
+            $clientesStats["customers"]++;
+        } elseif (strcasecmp($type, "Prospect") === 0) {
+            $clientesStats["prospects"]++;
+        } elseif (stripos($type, "Partner") !== false) {
+            $clientesStats["partners"]++;
         }
-        if ($parent !== '') {
-            $clientesStats['com_parent']++;
+        if ($parent !== "") {
+            $clientesStats["com_parent"]++;
             if (!isset($clientesChildrenMap[$parent])) {
                 $clientesChildrenMap[$parent] = [];
             }
             $clientesChildrenMap[$parent][] = $cliente;
         }
-        if ($type !== '' && !in_array($type, $clientesTipos, true)) {
+        if ($type !== "" && !in_array($type, $clientesTipos, true)) {
             $clientesTipos[] = $type;
         }
     }
@@ -250,37 +257,45 @@ if ($page === 'clientes') {
     sort($clientesTipos, SORT_NATURAL | SORT_FLAG_CASE);
 
     foreach ($clientesChildrenMap as $parentName => $children) {
-        $clientesStats['grupos_parent']++;
+        $clientesStats["grupos_parent"]++;
     }
 
     $clientesIndex = [];
 
     foreach ($clientes as $cliente) {
-        $clientesIndex[$cliente['account_name']] = $cliente;
+        $clientesIndex[$cliente["account_name"]] = $cliente;
     }
 
     foreach ($clientes as $cliente) {
-        $nome = $cliente['account_name'];
-        $temFilhos = isset($clientesChildrenMap[$nome]) && count($clientesChildrenMap[$nome]) > 0;
+        $nome = $cliente["account_name"];
+        $temFilhos =
+            isset($clientesChildrenMap[$nome]) &&
+            count($clientesChildrenMap[$nome]) > 0;
 
         $matchTexto = true;
-        if ($clientesFiltros['q'] !== '') {
-            $q = mb_strtolower($clientesFiltros['q']);
+        if ($clientesFiltros["q"] !== "") {
+            $q = mb_strtolower($clientesFiltros["q"]);
             $haystack = mb_strtolower(
-                $cliente['account_name'] . ' ' . $cliente['type'] . ' ' . $cliente['parent_account']
+                $cliente["account_name"] .
+                    " " .
+                    $cliente["type"] .
+                    " " .
+                    $cliente["parent_account"],
             );
             $matchTexto = mb_strpos($haystack, $q) !== false;
         }
 
-        $matchType = $clientesFiltros['type'] === '' || $cliente['type'] === $clientesFiltros['type'];
+        $matchType =
+            $clientesFiltros["type"] === "" ||
+            $cliente["type"] === $clientesFiltros["type"];
 
         $matchHierarquia = true;
-        if ($clientesFiltros['hierarquia'] === 'com_parent') {
-            $matchHierarquia = $cliente['parent_account'] !== '';
-        } elseif ($clientesFiltros['hierarquia'] === 'so_pais') {
+        if ($clientesFiltros["hierarquia"] === "com_parent") {
+            $matchHierarquia = $cliente["parent_account"] !== "";
+        } elseif ($clientesFiltros["hierarquia"] === "so_pais") {
             $matchHierarquia = $temFilhos;
-        } elseif ($clientesFiltros['hierarquia'] === 'so_sem_parent') {
-            $matchHierarquia = $cliente['parent_account'] === '';
+        } elseif ($clientesFiltros["hierarquia"] === "so_sem_parent") {
+            $matchHierarquia = $cliente["parent_account"] === "";
         }
 
         if (!$matchTexto || !$matchType || !$matchHierarquia) {
@@ -288,21 +303,24 @@ if ($page === 'clientes') {
         }
 
         // Contas-Filhas também aparecem quando o filtro de hierarquia as pede
-        if ($cliente['parent_account'] === '' || $clientesFiltros['hierarquia'] === 'com_parent') {
+        if (
+            $cliente["parent_account"] === "" ||
+            $clientesFiltros["hierarquia"] === "com_parent"
+        ) {
             $clientesRoots[] = $cliente;
         }
-
-
     }
 
     usort($clientesRoots, static function ($a, $b) {
-        $diff = ($b['activity_count'] ?? 0) - ($a['activity_count'] ?? 0);
-        return $diff !== 0 ? $diff : strcasecmp($a['account_name'], $b['account_name']);
+        $diff = ($b["activity_count"] ?? 0) - ($a["activity_count"] ?? 0);
+        return $diff !== 0
+            ? $diff
+            : strcasecmp($a["account_name"], $b["account_name"]);
     });
 
     foreach ($clientesChildrenMap as $parentName => &$children) {
         usort($children, static function ($a, $b) {
-            return strcasecmp($a['account_name'], $b['account_name']);
+            return strcasecmp($a["account_name"], $b["account_name"]);
         });
     }
     unset($children);
@@ -325,7 +343,7 @@ if ($page === 'clientes') {
              GROUP BY account_name
         ");
         foreach ($stmtCt as $ct) {
-            $contactosMap[$ct['account_name']] = $ct;
+            $contactosMap[$ct["account_name"]] = $ct;
         }
     } catch (Throwable $e) {
         $contactosMap = []; // tabela ainda não existe — ignora
@@ -333,59 +351,73 @@ if ($page === 'clientes') {
 }
 ?>
 
-<?php if (!empty($clientesStats['csv_error'])): ?>
+<?php if (!empty($clientesStats["csv_error"])): ?>
 <div class="alerta-erro" style="margin-bottom: 20px;">
     <strong>Erro ao carregar dados do CSV:</strong><br>
-    <?= nl2br(htmlspecialchars($clientesStats['csv_error'])) ?>
+    <?= nl2br(htmlspecialchars($clientesStats["csv_error"])) ?>
 </div>
 <?php endif; ?>
 
-<div class="clientes-kpis">
+<div class="clientes-kpis clientes-page-kpis">
     <div class="cliente-kpi">
         <div class="label">Total de Contas</div>
-        <div class="valor"><?= (int)$clientesStats['total'] ?></div>
+        <div class="valor"><?= (int) $clientesStats["total"] ?></div>
     </div>
     <div class="cliente-kpi">
         <div class="label">Clientes</div>
-        <div class="valor"><?= (int)$clientesStats['customers'] ?></div>
+        <div class="valor"><?= (int) $clientesStats["customers"] ?></div>
     </div>
     <div class="cliente-kpi">
         <div class="label">Perspetivas</div>
-        <div class="valor"><?= (int)$clientesStats['prospects'] ?></div>
+        <div class="valor"><?= (int) $clientesStats["prospects"] ?></div>
     </div>
     <div class="cliente-kpi">
         <div class="label">Parceiros</div>
-        <div class="valor"><?= (int)$clientesStats['partners'] ?></div>
+        <div class="valor"><?= (int) $clientesStats["partners"] ?></div>
     </div>
     <div class="cliente-kpi">
         <div class="label">Contas com Conta-Mãe</div>
-        <div class="valor"><?= (int)$clientesStats['com_parent'] ?></div>
+        <div class="valor"><?= (int) $clientesStats["com_parent"] ?></div>
     </div>
 </div>
 
-<div class="pats-filtros" style="margin-bottom:20px;">
+<div class="pats-filtros">
     <form method="get" class="pats-filtros-row">
         <input type="hidden" name="page" value="clientes">
         <div class="pats-search">
             <i class="bi bi-search"></i>
             <input type="text" name="q"
-                   value="<?= htmlspecialchars($clientesFiltros['q'] ?? '') ?>"
+                   value="<?= htmlspecialchars($clientesFiltros["q"] ?? "") ?>"
                    placeholder="Nome da conta, conta-mãe ou tipo">
         </div>
         <select name="type">
             <option value="">-- Todos os Tipos --</option>
             <?php foreach ($clientesTipos as $t): ?>
                 <option value="<?= htmlspecialchars($t) ?>"
-                        <?= ($clientesFiltros['type'] ?? '') === $t ? 'selected' : '' ?>>
+                        <?= ($clientesFiltros["type"] ?? "") === $t
+                            ? "selected"
+                            : "" ?>>
                     <?= htmlspecialchars(tipoPt($t)) ?>
                 </option>
             <?php endforeach; ?>
         </select>
         <select name="hierarquia">
             <option value="">-- Hierarquia --</option>
-            <option value="com_parent" <?= ($clientesFiltros['hierarquia'] ?? '') === 'com_parent' ? 'selected' : '' ?>>Só Contas-Filhas</option>
-            <option value="so_pais"    <?= ($clientesFiltros['hierarquia'] ?? '') === 'so_pais'    ? 'selected' : '' ?>>Só Contas-Mãe</option>
-            <option value="so_sem_parent" <?= ($clientesFiltros['hierarquia'] ?? '') === 'so_sem_parent' ? 'selected' : '' ?>>Sem Conta-Mãe</option>
+            <option value="com_parent" <?= ($clientesFiltros["hierarquia"] ??
+                "") ===
+            "com_parent"
+                ? "selected"
+                : "" ?>>Só Contas-Filhas</option>
+            <option value="so_pais"    <?= ($clientesFiltros["hierarquia"] ??
+                "") ===
+            "so_pais"
+                ? "selected"
+                : "" ?>>Só Contas-Mãe</option>
+            <option value="so_sem_parent" <?= ($clientesFiltros["hierarquia"] ??
+                "") ===
+            "so_sem_parent"
+                ? "selected"
+                : "" ?>>Sem Conta-Mãe</option>
         </select>
         <button type="submit" class="btn btn-blue"><i class="bi bi-funnel"></i> Filtrar</button>
         <a href="app.php?page=clientes" class="btn btn-grey">Limpar</a>
@@ -408,30 +440,64 @@ if ($page === 'clientes') {
         </div>
     </div>
 
-    <div class="table-responsive">
+    <div class="table-responsive mv-table-wrap">
       <style>
         .cli-contactos{ display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; line-height:1.5; }
         .cli-contactos span{ display:inline-flex; align-items:center; gap:5px; color:#6b7280; }
         .cli-contactos span i{ color:#9ca3af; }
         .clientes-table td.col-contactos{ white-space:normal; }
         .col-contactos .cli-contactos { display: none; }
-        .conta-nome-link { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; color: inherit; }
-        .conta-nome-link:hover { color: #1d4ed8; }
+        .conta-nome-link { cursor: pointer; text-decoration: none; color: inherit; font-weight: inherit; transition: font-weight .12s ease; }
+        .conta-nome-link:hover { font-weight: 700; color: inherit; }
+        .conta-nome-link::after { content: none; }
       </style>
-      <?php
-        // Célula de contactos/morada em linha (horizontal: ocupa largura, pouca altura)
-        $cliContactosH = function (array $map, string $nome): string {
-            $c = $map[$nome] ?? null;
-            if (!$c) return '<span style="color:#d1d5db;">—</span>';
-            $p = [];
-            if (!empty($c['emails'])) $p[] = '<span><i class="bi bi-envelope"></i> ' . htmlspecialchars($c['emails']) . '</span>';
-            $tel = trim(implode(', ', array_filter([$c['phones'] ?? '', $c['mobiles'] ?? ''])));
-            if ($tel !== '') $p[] = '<span><i class="bi bi-telephone"></i> ' . htmlspecialchars($tel) . '</span>';
-            $mor = trim(implode(', ', array_filter([$c['street'] ?? '', $c['city'] ?? '', $c['zip'] ?? '', $c['country'] ?? ''])));
-            if ($mor !== '') $p[] = '<span><i class="bi bi-geo-alt"></i> ' . htmlspecialchars($mor) . '</span>';
-            return $p ? '<div class="cli-contactos">' . implode('', $p) . '</div>' : '<span style="color:#d1d5db;">—</span>';
-        };
-      ?>
+      <?php // Célula de contactos/morada em linha (horizontal: ocupa largura, pouca altura)
+
+$cliContactosH = function (array $map, string $nome): string {
+          $c = $map[$nome] ?? null;
+          if (!$c) {
+              return '<span style="color:#d1d5db;">—</span>';
+          }
+          $p = [];
+          if (!empty($c["emails"])) {
+              $p[] =
+                  '<span><i class="bi bi-envelope"></i> ' .
+                  htmlspecialchars($c["emails"]) .
+                  "</span>";
+          }
+          $tel = trim(
+              implode(
+                  ", ",
+                  array_filter([$c["phones"] ?? "", $c["mobiles"] ?? ""]),
+              ),
+          );
+          if ($tel !== "") {
+              $p[] =
+                  '<span><i class="bi bi-telephone"></i> ' .
+                  htmlspecialchars($tel) .
+                  "</span>";
+          }
+          $mor = trim(
+              implode(
+                  ", ",
+                  array_filter([
+                      $c["street"] ?? "",
+                      $c["city"] ?? "",
+                      $c["zip"] ?? "",
+                      $c["country"] ?? "",
+                  ]),
+              ),
+          );
+          if ($mor !== "") {
+              $p[] =
+                  '<span><i class="bi bi-geo-alt"></i> ' .
+                  htmlspecialchars($mor) .
+                  "</span>";
+          }
+          return $p
+              ? '<div class="cli-contactos">' . implode("", $p) . "</div>"
+              : '<span style="color:#d1d5db;">—</span>';
+      }; ?>
       <table class="clientes-table">
         <thead>
           <tr>
@@ -449,68 +515,102 @@ if ($page === 'clientes') {
           <?php else: ?>
             <?php foreach ($clientesRoots as $i => $cliente): ?>
               <?php
-                $nomeConta = $cliente['account_name'];
-                $filhos = $clientesChildrenMap[$nomeConta] ?? [];
-                $temFilhos = count($filhos) > 0;
+              $nomeConta = $cliente["account_name"];
+              $filhos = $clientesChildrenMap[$nomeConta] ?? [];
+              $temFilhos = count($filhos) > 0;
 
-                $typeClass = 'tipo-other';
-                if (strcasecmp($cliente['type'], 'Customer') === 0) {
-                  $typeClass = 'tipo-customer';
-                } elseif (strcasecmp($cliente['type'], 'Prospect') ===0) {
-                  $typeClass = 'tipo-prospect';
-                } elseif (stripos($cliente['type'], 'Partner') !== false) {
-                  $typeClass = 'tipo-partner';
-                }
+              $typeClass = "tipo-other";
+              if (strcasecmp($cliente["type"], "Customer") === 0) {
+                  $typeClass = "tipo-customer";
+              } elseif (strcasecmp($cliente["type"], "Prospect") === 0) {
+                  $typeClass = "tipo-prospect";
+              } elseif (stripos($cliente["type"], "Partner") !== false) {
+                  $typeClass = "tipo-partner";
+              }
 
-                $rowId = 'cliente-parent-' . $i; ?>
+              $rowId = "cliente-parent-" . $i;
+              ?>
          <tr class="cliente-row-parent">
           <td>
             <?php if ($temFilhos): ?>
-              <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars($rowId) ?>">+</button>
+              <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars(
+                  $rowId,
+              ) ?>">+</button>
             <?php else: ?>
               <span style="display:inline-block; width:32px;"></span>
             <?php endif; ?>
-              <strong class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars($cliente['account_name']) ?></strong>
+              <strong class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars(
+                  $cliente["account_name"],
+              ) ?></strong>
           </td>
           <td>
-              <?php $dotCor = $typeClass==='tipo-customer' ? '#16a34a' : ($typeClass==='tipo-prospect' ? '#2563eb' : ($typeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
-              <span class="tipo-badge <?= $typeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCor ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(tipoPt($cliente['type'])) ?></span>
+              <?php $dotCor =
+                  $typeClass === "tipo-customer"
+                      ? "#16a34a"
+                      : ($typeClass === "tipo-prospect"
+                          ? "#2563eb"
+                          : ($typeClass === "tipo-partner"
+                              ? "#ea580c"
+                              : "#9ca3af")); ?>
+              <span class="tipo-badge <?= $typeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCor ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(
+    tipoPt($cliente["type"]),
+) ?></span>
           </td>
           <td>
-            <?php if ($cliente['parent_account'] !== ''): ?>
-            <?= htmlspecialchars($cliente['parent_account']) ?>
+            <?php if ($cliente["parent_account"] !== ""): ?>
+            <?= htmlspecialchars($cliente["parent_account"]) ?>
             <?php else: ?>
               <span class="conta-principal-badge">Conta Principal</span>
             <?php endif; ?>
           </td>
-          <td class="col-contactos"><?= $cliContactosH($contactosMap ?? [], $cliente['account_name']) ?></td>
+          <td class="col-contactos"><?= $cliContactosH(
+              $contactosMap ?? [],
+              $cliente["account_name"],
+          ) ?></td>
         </tr>
 
             <?php if ($temFilhos): ?>
               <?php foreach ($filhos as $filho): ?>
-                <?php $childTypeClass = 'tipo-other';
-                      if (strcasecmp($filho['type'], 'Customer') === 0) {
-                        $childTypeClass = 'tipo-customer';
-                      } elseif (strcasecmp($filho['type'], 'Prospect') === 0) {
-                        $childTypeClass = 'tipo-prospect';
-                      } elseif (stripos($filho['type'], 'Partner') !== false) {
-                        $childTypeClass = 'tipo-partner';
-                      }
+                <?php
+                $childTypeClass = "tipo-other";
+                if (strcasecmp($filho["type"], "Customer") === 0) {
+                    $childTypeClass = "tipo-customer";
+                } elseif (strcasecmp($filho["type"], "Prospect") === 0) {
+                    $childTypeClass = "tipo-prospect";
+                } elseif (stripos($filho["type"], "Partner") !== false) {
+                    $childTypeClass = "tipo-partner";
+                }
                 ?>
-                <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars($rowId) ?>" style="display:none;">
-                    <td class="cliente-child-name"><span class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars($filho['account_name']) ?></span></td>
+                <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars(
+                    $rowId,
+                ) ?>" style="display:none;">
+                    <td class="cliente-child-name"><span class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars(
+                        $filho["account_name"],
+                    ) ?></span></td>
                   <td>
-                    <?php $dotCorF = $childTypeClass==='tipo-customer' ? '#16a34a' : ($childTypeClass==='tipo-prospect' ? '#2563eb' : ($childTypeClass==='tipo-partner' ? '#ea580c' : '#9ca3af')); ?>
-                    <span class="tipo-badge <?= $childTypeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCorF ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(tipoPt($filho['type'])) ?></span>
+                    <?php $dotCorF =
+                        $childTypeClass === "tipo-customer"
+                            ? "#16a34a"
+                            : ($childTypeClass === "tipo-prospect"
+                                ? "#2563eb"
+                                : ($childTypeClass === "tipo-partner"
+                                    ? "#ea580c"
+                                    : "#9ca3af")); ?>
+                    <span class="tipo-badge <?= $childTypeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCorF ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(
+    tipoPt($filho["type"]),
+) ?></span>
                   </td>
                   <td>
-                    <?php if ($filho['parent_account'] !== ''): ?>
-                      <?= htmlspecialchars($filho['parent_account']) ?>
+                    <?php if ($filho["parent_account"] !== ""): ?>
+                      <?= htmlspecialchars($filho["parent_account"]) ?>
                     <?php else: ?>
                       <span class="conta-principal-badge">Conta Principal</span>
                     <?php endif; ?>
                   </td>
-                  <td class="col-contactos"><?= $cliContactosH($contactosMap ?? [], $filho['account_name']) ?></td>
+                  <td class="col-contactos"><?= $cliContactosH(
+                      $contactosMap ?? [],
+                      $filho["account_name"],
+                  ) ?></td>
                 </tr>
               <?php endforeach; ?>
             <?php endif; ?>
@@ -518,7 +618,107 @@ if ($page === 'clientes') {
         <?php endif; ?>
       </tbody>
     </table>
-  </div>
+  </div><!-- /.mv-table-wrap -->
+
+<!-- ── Clientes · Cards mobile (≤640px) ── -->
+<div class="mv-cards">
+<?php if (empty($clientesRoots)): ?>
+    <div class="mv-cards-empty"><i class="bi bi-people"></i>Nenhum cliente encontrado.</div>
+<?php else: ?>
+    <?php foreach ($clientesRoots as $i => $cliente):
+
+        $nomeConta = $cliente["account_name"];
+        $filhos = $clientesChildrenMap[$nomeConta] ?? [];
+        $typeClass = "tipo-other";
+        if (strcasecmp($cliente["type"], "Customer") === 0) {
+            $typeClass = "tipo-customer";
+        } elseif (strcasecmp($cliente["type"], "Prospect") === 0) {
+            $typeClass = "tipo-prospect";
+        } elseif (stripos($cliente["type"], "Partner") !== false) {
+            $typeClass = "tipo-partner";
+        }
+        $dotCor =
+            $typeClass === "tipo-customer"
+                ? "#16a34a"
+                : ($typeClass === "tipo-prospect"
+                    ? "#2563eb"
+                    : ($typeClass === "tipo-partner"
+                        ? "#ea580c"
+                        : "#9ca3af"));
+        $c = $contactosMap[$nomeConta] ?? null;
+        ?>
+    <div class="mv-card">
+        <div class="mv-card-header">
+            <div>
+                <div class="mv-card-title"><?= htmlspecialchars(
+                    $cliente["account_name"],
+                ) ?></div>
+                <?php if ($cliente["parent_account"] !== ""): ?>
+                    <div class="mv-card-sub mv-card-sub-text">↳ <?= htmlspecialchars(
+                        $cliente["parent_account"],
+                    ) ?></div>
+                <?php endif; ?>
+            </div>
+            <span class="tipo-badge <?= $typeClass ?>">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:<?= $dotCor ?>;margin-right:5px;vertical-align:middle;"></span><?= htmlspecialchars(
+    tipoPt($cliente["type"]),
+) ?>
+            </span>
+        </div>
+        <?php if ($c): ?>
+            <?php if (!empty($c["emails"])): ?>
+            <div class="mv-card-row">
+                <span class="mv-card-row-label"><i class="bi bi-envelope"></i></span>
+                <span class="mv-card-row-val" style="font-size:11.5px;"><?= htmlspecialchars(
+                    $c["emails"],
+                ) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php
+            $tel = trim(
+                implode(
+                    ", ",
+                    array_filter([$c["phones"] ?? "", $c["mobiles"] ?? ""]),
+                ),
+            );
+            if ($tel): ?>
+            <div class="mv-card-row">
+                <span class="mv-card-row-label"><i class="bi bi-telephone"></i></span>
+                <span class="mv-card-row-val"><?= htmlspecialchars(
+                    $tel,
+                ) ?></span>
+            </div>
+            <?php endif;
+            ?>
+            <?php
+            $mor = trim(
+                implode(
+                    ", ",
+                    array_filter([$c["city"] ?? "", $c["country"] ?? ""]),
+                ),
+            );
+            if ($mor): ?>
+            <div class="mv-card-row">
+                <span class="mv-card-row-label"><i class="bi bi-geo-alt"></i></span>
+                <span class="mv-card-row-val" style="font-size:11.5px;"><?= htmlspecialchars(
+                    $mor,
+                ) ?></span>
+            </div>
+            <?php endif;
+            ?>
+        <?php endif; ?>
+        <?php if (count($filhos) > 0): ?>
+        <div class="mv-card-row">
+            <span class="mv-card-row-label">Contas filhas</span>
+            <span class="mv-card-row-val"><?= count($filhos) ?></span>
+        </div>
+        <?php endif; ?>
+    </div>
+<?php
+    endforeach; ?>
+<?php endif; ?>
+</div>
+
 </div>
 
 <style>
@@ -539,11 +739,34 @@ function nvCliDetalhe(btn){
 </script>
 <script>
     function cliToggleContacto(el) {
+        var isMobile = window.innerWidth <= 768;
         var row = el.closest('tr');
-        var cont = row.querySelector('.cli-contactos');
-        if (!cont) return;
-        cont.style.display = cont.style.display === 'flex' ? 'none' : 'flex';
+
+        if (!isMobile) {
+            // Desktop: toggle contacts inline in the 4th column
+            var cont = row.querySelector('.cli-contactos');
+            if (!cont) return;
+            cont.style.display = cont.style.display === 'flex' ? 'none' : 'flex';
+            return;
+        }
+
+        // Mobile: toggle an expanded row below with horizontal contacts
+        var nextRow = row.nextElementSibling;
+        if (nextRow && nextRow.classList.contains('cli-contact-expanded')) {
+            nextRow.remove();
+            el.classList.remove('is-expanded');
+            return;
+        }
+
+        var contTd = row.querySelector('.col-contactos');
+        if (!contTd) return;
+        var contInner = contTd.innerHTML;
+
+        var expandedRow = document.createElement('tr');
+        expandedRow.className = 'cli-contact-expanded';
+        var colspan = row.querySelectorAll('td').length - 1; // exclude hidden 4th col
+        expandedRow.innerHTML = '<td colspan="' + colspan + '" class="cli-contact-expanded-cell">' + contInner + '</td>';
+        row.parentNode.insertBefore(expandedRow, row.nextElementSibling);
+        el.classList.add('is-expanded');
     }
 </script>
-
-

@@ -107,8 +107,8 @@ if ($page === 'auditoria') {
             </div>
         </form>
 
-        <div class="auditoria-tabela-wrap">
-            <table class="auditoria-tabela">
+        <div class="table-responsive mv-table-wrap">
+            <table class="table" id="tabelaAuditoria">
                 <thead>
                     <tr>
                         <th style="width: 80px;">ID</th>
@@ -153,12 +153,55 @@ if ($page === 'auditoria') {
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="5" class="auditoria-vazia">Não foram encontrados registos para os filtros selecionados.</td>
+                            <td colspan="5" class="table-empty-state"><i class="bi bi-inbox"></i>Não foram encontrados registos para os filtros selecionados.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+
+<!-- ── Auditoria · Cards mobile (≤640px) ── -->
+<div class="mv-cards">
+<?php if (!empty($auditoriaLogs)): ?>
+    <?php foreach ($auditoriaLogs as $log):
+        $campoAud = (string)$log['campo'];
+        if ($campoAud === 'criação')        { $aBg='#dcfce7'; $aFg='#15803d'; $aTxt='Criação'; }
+        elseif ($campoAud === 'eliminação') { $aBg='#fee2e2'; $aFg='#b91c1c'; $aTxt='Eliminação'; }
+        else                                { $aBg='#dbeafe'; $aFg='#1d4ed8'; $aTxt='Alteração de ' . $campoAud; }
+        $audAntes  = (string)($log['antes'] ?? '');
+        $audDepois = (string)($log['depois'] ?? '');
+        ?>
+    <div class="mv-card">
+        <div class="mv-card-header">
+            <div>
+                <div class="mv-card-title"><?= htmlspecialchars($log['utilizador']) ?></div>
+                <div class="mv-card-sub">#<?= (int)$log['id'] ?></div>
+            </div>
+            <span style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;background:<?= $aBg ?>;color:<?= $aFg ?>;"><?= htmlspecialchars($aTxt) ?></span>
+        </div>
+        <div class="mv-card-row" style="align-items:flex-start;">
+            <span class="mv-card-row-label">Detalhes</span>
+            <span class="mv-card-row-val">
+                <?php if ((int)$log['peca_id'] > 0): ?>
+                    Peça #<?= (int)$log['peca_id'] ?>
+                    <?php if ($audAntes !== '' || $audDepois !== ''): ?>
+                        <br><span style="color:#d9534f;"><?= htmlspecialchars($audAntes) ?></span> → <span style="color:#28a745;"><?= htmlspecialchars($audDepois) ?></span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <?= htmlspecialchars($audDepois !== '' ? $audDepois : $audAntes) ?>
+                <?php endif; ?>
+            </span>
+        </div>
+        <div class="mv-card-row">
+            <span class="mv-card-row-label">Data</span>
+            <span class="mv-card-row-val"><?= date('d/m/Y H:i', strtotime($log['data_alteracao'])) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+<?php else: ?>
+    <div class="mv-cards-empty"><i class="bi bi-inbox"></i>Não foram encontrados registos para os filtros selecionados.</div>
+<?php endif; ?>
+</div>
 
         <?php if ($audPaginas > 1): ?>
         <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:18px;">

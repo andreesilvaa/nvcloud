@@ -7,6 +7,9 @@ WATCH AUTOMÁTICO:
 cd ~/projects/nvcloud
   ./watch.sh
 
+cd ~/projects/nvcloud
+./deploy.sh
+
 ## Arrancar nvcloud a partir do Ubuntu (WSL)
 
 1. Abrir app Ubuntu.

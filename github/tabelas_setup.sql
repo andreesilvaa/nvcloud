@@ -55,7 +55,7 @@ INSERT INTO categorias (nome) VALUES
 INSERT INTO estados (nome, descricao) VALUES
 ('Abater', NULL),('Cliente', NULL),('Desconhecido', NULL),
 ('Devolução', NULL),('Disponível', NULL),('Fornecedor (Reparação)', NULL),
-('Laboratório', NULL),('OT', NULL),('Parceiro', NULL),('PAT', NULL),
+('Laboratório', NULL),('Parceiro', NULL),('PAT', NULL),
 ('Spares', NULL),('Trânsito', NULL);
 
 -- ---------- PARCEIROS ----------

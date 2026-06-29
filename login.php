@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email === '' || $password === '') {
         $erro = 'Preenche o email e a palavra-passe.';
     } else {
-        $stmt = $pdo->prepare("SELECT id, nome, email, password, fotografia, role, area FROM utilizadores WHERE email = ?");
+        $stmt = $pdo->prepare("SELECT id, nome, email, password, fotografia, role, area, must_change_password FROM utilizadores WHERE email = ?");
         $stmt->execute([$email]);
         $userData = $stmt->fetch();
 
@@ -49,11 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_fotografia'] = $userData['fotografia'] ?? '';
             $_SESSION['user_role'] = $userData['role'] ?? 'user';
             $_SESSION['user_area'] = $userData['area'] ?? '';
+            $_SESSION['must_change_password'] = (int)($userData['must_change_password'] ?? 0);
             $_SESSION['LAST_ACTIVITY'] = time();
 
             session_write_close();
 
-            header('Location: app.php?page=dashboard');
+            if ((int)($userData['must_change_password'] ?? 0) === 1) {
+                header('Location: change_password.php');
+            } else {
+                header('Location: app.php?page=dashboard');
+            }
             exit;
         } else {
             $tent['n']  = ($tent['n'] ?? 0) + 1;
@@ -73,8 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Stockvision</title>
-    <link rel="icon" type="image/png" href="/assets/favicon.png">
-    <link rel="apple-touch-icon" href="/assets/favicon.png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=14">
+    <link rel="apple-touch-icon" href="/icon.svg?v=14">
     <style>
         * {
             box-sizing: border-box;
@@ -258,7 +264,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 min-height: 320px;
             }
         }
-    </style>
+    
+/* ========== LOGIN MOBILE ========== */
+@media screen and (max-width: 768px) {
+  body {
+    padding: 0;
+  }
+  
+  .login-container {
+    margin: 0;
+    padding: 16px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .login-box {
+    width: 100%;
+    max-width: 100%;
+    padding: 24px;
+    border-radius: 8px;
+  }
+  
+  .login-box h1 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .login-box input[type="text"],
+  .login-box input[type="password"],
+  .login-box input[type="email"] {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    min-height: 44px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  
+  .login-box button {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    min-height: 44px;
+  }
+  
+  .forgot-password {
+    font-size: 13px;
+    margin-top: 12px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .login-container {
+    padding: 8px;
+  }
+  
+  .login-box {
+    padding: 20px;
+    border-radius: 6px;
+  }
+  
+  .login-box h1 {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .bg-login {
+    display: none;
+  }
+  
+  .error, .success {
+    font-size: 13px;
+    padding: 12px;
+  }
+}
+</style>
 </head>
 <body>
     <div class="login-wrapper">

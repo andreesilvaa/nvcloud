@@ -5,3 +5,14 @@ vendor/
 *.log
 saida.txt
 report*.csv
+
+# Adicionado em 2026-06-28: ficheiros de dev/backup que nao devem ir para o repo nem para producao
+*.bak
+*.bak_*
+*.patch
+.mcp.json.tmp
+.idx/
+.scannerwork/
+.kiro/
+app.css.extracted
+includes/.schema_migrated

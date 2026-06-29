@@ -9,7 +9,7 @@ function nvPecasSuspeitas(PDO $pdo, array $opcoes = []): array
 {
 	$estadosEmCurso = $opcoes['estados'] ?? [
 		'Laboratório', 'Parceiro', 'Fornecedor (Reparação)',
-		'OT', 'PAT', 'Trânsito', 'Devolução', 'Desconhecido',
+		'PAT', 'Trânsito', 'Devolução', 'Desconhecido',
 	];
 	if (!empty($opcoes['apenas_estado'])) {
 			$estadosEmCurso = [$opcoes['apenas_estado']];
