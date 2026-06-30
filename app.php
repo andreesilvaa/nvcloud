@@ -567,6 +567,9 @@ $topbarTitle = $pageTitles[$page] ?? ucfirst($page);
 if ($page === "envios") {
     $topbarTitle = "Envios";
 }
+if ($page === "nova_peca" && (int) ($_GET["edit"] ?? 0) > 0) {
+    $topbarTitle = "Edição de Peça";
+}
 
 // ------------------------------------------------------------
 // Listas de referência — agora vêm das tabelas de gestão (BD),
@@ -3685,37 +3688,6 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   atualizarProdutos();
-});
-</script>
-
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const snInput = document.getElementById('sn');
-    const codInput = document.getElementById('cod_barras');
-    const copiarBtn = document.getElementById('copiarSnBtn');
-    const feedback = document.getElementById('copySnFeedback');
-
-    if (!snInput || !codInput || !copiarBtn) return;
-
-    copiarBtn.addEventListener('click', function () {
-      const valorSn = snInput.value.trim();
-
-      if (!valorSn) {
-        alert('Primeiro preencher o Número de Série.');
-        snInput.focus();
-        return;
-      }
-
-      codInput.value = valorSn;
-      codInput.focus();
-
-      if (feedback) {
-        feedback.style.display = 'block';
-        setTimeout(function () {
-        feedback.style.display = 'none';
-      }, 2000);
-    }
-  });
 });
 </script>
 

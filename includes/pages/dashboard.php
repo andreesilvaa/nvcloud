@@ -300,6 +300,7 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
     <?php if (empty($rankingParceiros)): ?>
       <div class="table-empty-state"><i class="bi bi-people"></i>Sem peças atribuídas a parceiros.</div>
     <?php else: ?>
+    <div class="table-responsive scroll-oculto">
     <table class="table">
       <thead>
         <tr>
@@ -332,6 +333,7 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
         endforeach; ?>
       </tbody>
     </table>
+    </div>
     <?php endif; ?>
   </div>
 
@@ -341,6 +343,7 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
     <?php if (empty($pecasParadas)): ?>
       <div class="table-empty-state"><i class="bi bi-check2-circle"></i>Nenhuma peça parada. Tudo em dia.</div>
     <?php else: ?>
+    <div class="table-responsive scroll-oculto">
     <table class="table">
       <thead>
         <tr>
@@ -377,6 +380,7 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
         endforeach; ?>
       </tbody>
     </table>
+    </div>
     <?php endif; ?>
   </div>
 </div>

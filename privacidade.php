@@ -78,14 +78,32 @@ $titulo = 'Política de Privacidade — Extensão StockVision';
   <li><strong>storage</strong> — para guardar as preferências do utilizador localmente</li>
 </ul>
 
-<h2>6. Partilha de dados</h2>
+<h2>6. Atividade do utilizador</h2>
 <p>
-  A NewVision / StockVision <strong>não recolhe, não armazena e não partilha</strong> qualquer
-  dado pessoal ou de utilização da extensão. A extensão comunica apenas com o servidor
-  StockVision da organização do próprio utilizador.
+  A extensão lê o conteúdo da página de Work Order atualmente aberta no Salesforce
+  (texto visível no ecrã do utilizador) para pré-preencher o formulário de criação de PAT.
+  Esta leitura ocorre <strong>apenas quando o utilizador clica no ícone da extensão</strong>
+  e <strong>apenas em páginas de Work Order</strong> no domínio salesforce.com.
+  Nenhuma outra atividade de navegação é monitorizada ou registada.
 </p>
 
-<h2>7. Contacto</h2>
+<h2>7. Uso exclusivo interno</h2>
+<p>
+  Esta extensão destina-se <strong>exclusivamente</strong> a colaboradores da
+  NewVision Technology Centre com acesso ao sistema StockVision.
+  Não é funcional fora desse contexto. Não está disponível para uso público geral
+  e não recolhe dados de utilizadores externos.
+</p>
+
+<h2>8. Partilha de dados</h2>
+<p>
+  A NewVision / StockVision <strong>não recolhe, não armazena e não partilha</strong> qualquer
+  dado pessoal ou de utilização da extensão com terceiros. A extensão comunica apenas com o
+  servidor StockVision da organização do próprio utilizador. Os dados não são utilizados
+  para publicidade, análise externa ou qualquer fim não relacionado com o propósito da extensão.
+</p>
+
+<h2>9. Contacto</h2>
 <p>
   Para questões sobre privacidade, contacte:<br>
   <a href="mailto:geral@stockvision.pt">geral@stockvision.pt</a><br>

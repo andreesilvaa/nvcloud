@@ -1,0 +1,13 @@
+-- ============================================================
+-- StockVision — Import de peças a partir de TOTAIS PEÇAS
+-- Ver pecas_import_issues.txt antes de correr!
+-- Este ficheiro foi gerado automaticamente.
+-- COPIA o pecas_import.sql gerado pelo script para aqui:
+--
+--   No WSL:
+--   cp /mnt/c/Users/josee/Downloads/pecas_import.sql \
+--      /home/josee/projects/nvcloud/pecas_import.sql
+--
+--   Depois corre:
+--   mysql -u root nvcloud < pecas_import.sql
+-- ============================================================

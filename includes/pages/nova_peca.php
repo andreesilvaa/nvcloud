@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
     $categoria = trim($_POST['categoria'] ?? '');
     $produto = trim($_POST['produto'] ?? '');
     $sn = trim($_POST['sn'] ?? '');
-    $cod_barras = trim($_POST['cod_barras'] ?? '');
+    $cod_barras = $sn; // Código de Barras deixou de ser editável: é sempre igual ao Número de Série
     $parceiro = trim($_POST['parceiro'] ?? '');
     $estado = trim($_POST['estado'] ?? '');
     $clienteNome = trim($_POST['cliente_instalacao'] ?? '');
@@ -263,8 +263,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       </div>
 
         <div id="campoCliente" style="display:none">
-            <label>Cliente onde foi instalada</label>
-            <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList">
+            <div style="background:#fdf8ee; border:1px solid #e9d6a8; border-radius:8px; padding:14px 16px; margin-top:4px;">
+                <label style="font-size:12px; font-weight:700; color:#92400e; display:flex; align-items:center; gap:6px; margin-bottom:8px;"><i class="bi bi-shop"></i>Cliente onde foi instalada</label>
+                <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList" placeholder="Pesquisar cliente...">
+            </div>
             <datalist id="clientesList">
                 <?php foreach ($pdo->query("SELECT account_name FROM clientes ORDER BY account_name") as $c): ?>
                 <option value="<?= e($c['account_name']) ?>"><?php endforeach; ?>
@@ -283,15 +285,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         <label>Número de Série (S_Number):*</label>
           <label for="sn"></label><input type="text" name="sn" id="sn" value="<?= htmlspecialchars($valorSn) ?>" required>
       </div>
-      
-      <div>
-        <label>Código de Barras:*</label>
-        <div class="barcode-copy-wrap">
-            <label for="cod_barras"></label><input type="text" name="cod_barras" id="cod_barras" value="<?= htmlspecialchars($valorCodBarras) ?>" required>
-          <button type="button" class="btn btn-grey btn-copy-sn" id="copiarSnBtn">Copiar SN</button>
-        </div>
-        <div class="small-note" id="copySnFeedback" style="display:none;">SN copiado para o Código de Barras.</div>
-      </div>
+
+      <!-- Código de Barras deixou de ser um campo visível/editável: é sempre
+           sincronizado automaticamente com o Número de Série via JS e
+           enviado como campo oculto, mas o backend também garante isto
+           de forma independente (ver $cod_barras = $sn; acima). -->
+      <input type="hidden" name="cod_barras" id="cod_barras" value="<?= htmlspecialchars($valorSn) ?>">
+      <script>
+        (function(){
+          const snInput = document.getElementById('sn');
+          const codBarrasInput = document.getElementById('cod_barras');
+          if (!snInput || !codBarrasInput) return;
+          function sincronizar(){ codBarrasInput.value = snInput.value; }
+          snInput.addEventListener('input', sincronizar);
+          sincronizar();
+        })();
+      </script>
         
     <div style="margin-top:20px">
       <button class="btn btn-blue" type="submit"><?= $pecaEdit ? 'Atualizar' : 'Guardar' ?></button>
