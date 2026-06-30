@@ -1039,6 +1039,7 @@ body{
 :root{
   --sidebar-width: 180px;
   --sidebar-collapsed-width: 76px;
+  --color-primary-rgb: 203, 163, 92;
   }
 
 .sidebar{
@@ -1769,13 +1770,23 @@ body.dark-mode .table tbody tr:hover{ background:#26303f; }
 
 label{display:block;font-weight:700;margin:0 0 8px}
 
+/* label + input gap via flex wrapper no form-grid */
+.form-grid > div{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.form-grid > div label{
+  margin-bottom:0;
+}
+
 input,
 select{
   width:100%;
   height:46px;
-  padding:12px 14px;
+  padding:10px 14px;
   border:1px solid #d6dbe1;
-  border-radius:10px;
+  border-radius:8px;
   font-size:15px;
   box-sizing:border-box;
   background:#fff;
@@ -1801,7 +1812,7 @@ input:focus,
 select:focus{
   outline:none;
   border-color:#cba35c;
-  box-shadow:0 0 0 4px rgba(203,163,92,.18);
+  box-shadow:0 0 0 3px rgba(var(--color-primary-rgb), 0.2);
 }
 
 input:hover,
@@ -2676,6 +2687,46 @@ body.dark-mode [style*="color:#111827"],
 body.dark-mode [style*="color:#374151"]{ color:#e5e7eb !important; }
 
 
+/* -- Dark mode: páginas individuais (revisao, pats, analises, qrs, inventario, mv-cards) -- */
+
+/* Revisão */
+body.dark-mode .rev-mes-picker{ background:#1f2937; border-color:#374151; }
+body.dark-mode .rev-mes-picker a{ color:#9ca3af; }
+body.dark-mode .rev-mes-picker a:hover{ background:#374151; color:#c9a14a; }
+body.dark-mode .rev-mes-picker .rev-mes-label{ background:#1f2937; color:#f3f4f6; border-color:#374151; }
+body.dark-mode .rev-header h2{ color:#f3f4f6; }
+
+/* PATs */
+body.dark-mode .pat-detalhe-header{ color:#e5e7eb; }
+body.dark-mode .pat-detalhe-titulo h3{ color:#f3f4f6; }
+
+/* QRs / Etiquetas */
+body.dark-mode .qr-mode-toggle{ border-color:#374151; }
+body.dark-mode .qr-mode-btn{ background:#374151; color:#9ca3af; border-color:#4b5563; }
+body.dark-mode .qr-mode-btn.active{ background:#1d4ed8; color:#fff; }
+body.dark-mode .etq-panel{ background:#1f2937; border-color:#374151; }
+body.dark-mode .etq-field label{ color:#d1d5db; }
+body.dark-mode .etq-field select,
+body.dark-mode .etq-field input[type=number]{ background:#374151; border-color:#4b5563; color:#e5e7eb; }
+body.dark-mode .etq-preview-area{ border-color:#374151; }
+
+/* Inventário: toolbar + cards mobile */
+body.dark-mode .inv-toolbar{ background:#1f2937; border-color:#374151; }
+body.dark-mode .inv-toolbar .btn-grey{ background:#4b5563; }
+body.dark-mode .mv-card{ background:#1f2937; border-color:#374151; }
+body.dark-mode .mv-card-title{ color:#f3f4f6; }
+body.dark-mode .mv-card-sub{ color:#9ca3af; }
+body.dark-mode .mv-card-row{ border-color:#374151; }
+body.dark-mode .mv-card-row-label{ color:#9ca3af; }
+body.dark-mode .mv-card-row-val{ color:#e5e7eb; }
+body.dark-mode .mv-card-header{ border-color:#374151; }
+body.dark-mode .mv-card-footer{ border-color:#374151; background:#111827; }
+body.dark-mode .mv-cards-empty{ color:#6b7280; }
+
+/* Análises */
+body.dark-mode .mobile-stock-count{ color:#9ca3af; }
+
+/* Notificações */
 /* -- Notificações -- */
 .notif-wrap { position: relative; }
 .notif-btn  {
@@ -3658,15 +3709,17 @@ document.addEventListener('DOMContentLoaded', function () {
       $catalogoProdutos,
       JSON_UNESCAPED_UNICODE,
   ) ?>;
-  const produtoSelecionadoInicial = "<?= htmlspecialchars(
-      $valorProduto ?? "",
-      ENT_QUOTES,
-  ) ?>";
+  const produtoSelecionadoInicial = <?= json_encode($valorProduto ?? "", JSON_UNESCAPED_UNICODE | JSON_HEX_QUOT) ?>;
+
+  let primeiraVez = true;
 
   function atualizarProdutos() {
     const categoria = categoriaSelect.value;
     const produtos = catalogoProdutos[categoria] || [];
-    const valorAtual = produtoSelect.value;
+    // Na primeira inicialização, restaurar o valor guardado do servidor.
+    // Nas mudanças manuais de categoria pelo utilizador, limpar a seleção.
+    const valorRestaurar = primeiraVez ? produtoSelecionadoInicial : '';
+    primeiraVez = false;
 
     produtoSelect.innerHTML = '<option value="">-- Selecione o produto --</option>';
 
@@ -3675,7 +3728,7 @@ document.addEventListener('DOMContentLoaded', function () {
       option.value = produto;
       option.textContent = produto;
 
-      if (produto === valorAtual || produto === produtoSelecionadoInicial) {
+      if (produto === valorRestaurar) {
         option.selected = true;
       }
 

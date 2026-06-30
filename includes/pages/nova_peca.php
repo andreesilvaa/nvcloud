@@ -9,7 +9,7 @@ $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 $pecaEdit = null;
 
 if ($page === 'nova_peca' && $editId > 0) {
-    $stmt = $pdo->prepare("SELECT * FROM pecas WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT p.*, c.account_name AS cliente_nome FROM pecas p LEFT JOIN clientes c ON c.id = p.cliente_id WHERE p.id = ?");
     $stmt->execute([$editId]);
     $pecaEdit = $stmt->fetch();
 
@@ -34,6 +34,7 @@ $valorParceiro = $formNovaPeca['parceiro'] ?? ($pecaEdit['parceiro'] ?? '');
 $valorEstado = $formNovaPeca['estado'] ?? ($pecaEdit['estado'] ?? '');
 $valorSn = $_GET['sn'] ?? ($formNovaPeca['sn'] ?? ($pecaEdit['sn'] ?? ''));
 $valorCodBarras = $_GET['cod_barras'] ?? ($formNovaPeca['cod_barras'] ?? ($pecaEdit['cod_barras'] ?? ''));
+$valorCliente = $formNovaPeca['cliente_instalacao'] ?? ($pecaEdit['cliente_nome'] ?? '');
 
 // ============================================================
 // 7. PROCESSAMENTO POST: CRIAR / EDITAR PEÇA
@@ -124,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
         }
 
         $estadoMudou = ((string)($pecaAntes['estado'] ?? '') !== (string)$estado);
-        $sqlUpd = "UPDATE pecas SET categoria = ?, produto = ?, sn = ?, cod_barras = ?, parceiro = ?, estado = ?"
+        $sqlUpd = "UPDATE pecas SET categoria = ?, produto = ?, sn = ?, cod_barras = ?, parceiro = ?, estado = ?, cliente_id = ?, cliente_pendente = ?"
                 . ($estadoMudou ? ", estado_desde = NOW()" : "")
                 . " WHERE id = ?";
         $stmt = $pdo->prepare($sqlUpd);
@@ -135,6 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
             $cod_barras,
             $parceiro,
             $estado,
+            $clienteId,
+            $clientePendente,
             $editId
         ]);
 
@@ -216,8 +219,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
 
     <div class="form-grid">
       <div>
-        <label>Categoria:*</label>
-          <label for="categoria"></label><select name="categoria" id="categoria" required>
+        <label for="categoria">Categoria:*</label>
+        <select name="categoria" id="categoria" required>
           <option value="">-- Selecione a categoria --</option>
           <?php foreach ($categorias as $cat): ?>
             <option value="<?= htmlspecialchars($cat) ?>" <?= ($valorCategoria === $cat) ? 'selected' : '' ?>>
@@ -228,44 +231,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       </div>
 
       <div>
-        <label>Nome do Produto:*</label>
-          <label for="produto"></label><select name="produto" id="produto" required>
+        <label for="produto">Nome do Produto:*</label>
+        <select name="produto" id="produto" required>
           <option value="">-- Selecione o produto --</option>
         </select>
       </div>
 
       <div>
-        <label>Parceiro:*</label>
-          <label>
-              <select name="parceiro" required>
-                <option value="">-- Selecione o parceiro --</option>
-                <?php foreach ($parceiros as $parceiro): ?>
-                  <option value="<?= htmlspecialchars($parceiro) ?>" <?= ($valorParceiro === $parceiro) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($parceiro) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-          </label>
+        <label for="parceiro">Parceiro:*</label>
+        <select name="parceiro" id="parceiro" required>
+          <option value="">-- Selecione o parceiro --</option>
+          <?php foreach ($parceiros as $parceiro): ?>
+            <option value="<?= htmlspecialchars($parceiro) ?>" <?= ($valorParceiro === $parceiro) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($parceiro) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
       </div>
 
       <div>
-        <label>Estado:*</label>
-          <label>
-              <select name="estado" required>
-                <option value="">-- Selecione o estado --</option>
-                <?php foreach ($estados as $estado): ?>
-                  <option value="<?= htmlspecialchars($estado) ?>" <?= ($valorEstado === $estado) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($estado) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-          </label>
+        <label for="estado">Estado:*</label>
+        <select name="estado" id="estado" required>
+          <option value="">-- Selecione o estado --</option>
+          <?php foreach ($estados as $estado): ?>
+            <option value="<?= htmlspecialchars($estado) ?>" <?= ($valorEstado === $estado) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($estado) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div>
+        <label for="sn">Número de Série (S_Number):*</label>
+        <input type="text" name="sn" id="sn" value="<?= htmlspecialchars($valorSn) ?>" required>
       </div>
 
         <div id="campoCliente" style="display:none">
             <div style="background:#fdf8ee; border:1px solid #e9d6a8; border-radius:8px; padding:14px 16px; margin-top:4px;">
                 <label style="font-size:12px; font-weight:700; color:#92400e; display:flex; align-items:center; gap:6px; margin-bottom:8px;"><i class="bi bi-shop"></i>Cliente onde foi instalada</label>
-                <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList" placeholder="Pesquisar cliente...">
+                <input type="text" name="cliente_instalacao" id="cliente_instalacao" list="clientesList" placeholder="Pesquisar cliente..." value="<?= htmlspecialchars($valorCliente) ?>">
             </div>
             <datalist id="clientesList">
                 <?php foreach ($pdo->query("SELECT account_name FROM clientes ORDER BY account_name") as $c): ?>
@@ -273,18 +277,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
             </datalist>
         </div>
         <script>
-            const selEstado = document.querySelector('[name=estado]');
+            const selEstado = document.getElementById('estado');
             function toggleCliente(){
                 document.getElementById('campoCliente').style.display =
                     (selEstado.value === 'Cliente') ? 'block' : 'none';
             }
             selEstado && selEstado.addEventListener('change', toggleCliente); toggleCliente();
         </script>
-
-      <div>
-        <label>Número de Série (S_Number):*</label>
-          <label for="sn"></label><input type="text" name="sn" id="sn" value="<?= htmlspecialchars($valorSn) ?>" required>
-      </div>
 
       <!-- Código de Barras deixou de ser um campo visível/editável: é sempre
            sincronizado automaticamente com o Número de Série via JS e
@@ -303,8 +302,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'no
       </script>
         
     <div style="margin-top:20px">
-      <button class="btn btn-blue" type="submit"><?= $pecaEdit ? 'Atualizar' : 'Guardar' ?></button>
       <a class="btn btn-yellow" href="<?= htmlspecialchars($nvVoltarDestino) ?>" onclick="nvVoltar(event)">← Voltar à lista de peças</a>
+      <button class="btn btn-blue" type="submit" style="float:right;"><?= $pecaEdit
+          ? "Atualizar"
+          : "Guardar" ?></button>
     </div>
   </form>
 
