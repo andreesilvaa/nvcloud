@@ -11,7 +11,7 @@ version: "1.0"
 
 #Specify inspection profile for code analysis
 profile:
-  name: qodana.starter
+  name: qodana.recommended
 
 #Enable inspections
 #include:
@@ -20,9 +20,26 @@ profile:
 #Disable inspections
 exclude:
   - name: PsalmAdvanceCallableParamsInspection
+  - name: All
+    paths:
+      - vendor
+      - node_modules
+      - storage
+      - bootstrap/cache
+      - public/build
+      - .qodana
 
 php:
-  version: 8.1 #(Applied in CI/CD pipeline)
+  version: 8.3
+
+bootstrap: composer install --ignore-platform-reqs
+
+failureConditions:
+  severityThresholds:
+    critical: 0
+    high: 40
+    moderate: 150
+    low: 400
 
 #Execute shell command before Qodana execution (Applied in CI/CD pipeline)
 #bootstrap: sh ./prepare-qodana.sh

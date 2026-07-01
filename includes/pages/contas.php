@@ -139,6 +139,7 @@ $contas = [];
 
     <div class="panel conta-form-panel">
       <h4><i class="bi bi-person-plus"></i><?= $contaEdit ? 'Editar Conta' : 'Criar Nova Conta' ?></h4>
+      <p style="margin:-6px 0 18px; font-size:13px; color:#6b7280;"><?= $contaEdit ? 'Atualiza os dados da conta selecionada.' : 'Cria uma conta de acesso ao sistema. O email tem de ser @newvision.pt.' ?></p>
 
       <form method="post" enctype="multipart/form-data" autocomplete="off">
 

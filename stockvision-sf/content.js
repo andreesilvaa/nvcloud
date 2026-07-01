@@ -1,6 +1,13 @@
 // ══════════════════════════════════════════════════════════
-// content.js v3 — Leitura cirúrgica do DOM Salesforce
+// content.js v4 — Leitura cirúrgica do DOM Salesforce
+// Corrige: bloqueio/dados da WO anterior ao navegar em SPA,
+// e leitura incompleta/errada do campo Descrição.
 // ══════════════════════════════════════════════════════════
+
+// Guarda o token do pedido mais recente. Pedidos antigos que ainda
+// estejam "em voo" quando chega um novo são descartados — nunca
+// respondem com dados desatualizados de uma WO anterior.
+var _svUltimoPedidoToken = 0;
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.tipo === 'verificar_pagina') {
@@ -8,14 +15,20 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return;
   }
   if (msg.tipo === 'ler_workorder') {
-      lerWorkOrder()
-          .then(sendResponse)
-          .catch(function (err) { sendResponse({ erro: err.message }); });
-      return true;
+    var meuToken = ++_svUltimoPedidoToken;
+    lerWorkOrderComEstabilizacao(meuToken)
+      .then(function (resultado) {
+        if (meuToken !== _svUltimoPedidoToken) return;
+        sendResponse(resultado);
+      })
+      .catch(function (err) {
+        if (meuToken !== _svUltimoPedidoToken) return;
+        sendResponse({ erro: err.message });
+      });
+    return true;
   }
 });
 
-// ── 1. Verificar URL ───────────────────────────────────────
 function verificarPagina() {
   var match = window.location.href.match(
     /\/lightning\/r\/WorkOrder\/([a-zA-Z0-9]{15,18})\/view/
@@ -24,27 +37,91 @@ function verificarPagina() {
   return { eWorkOrder: true, recordId: match[1] };
 }
 
-// ── 2. Coordenador principal ───────────────────────────────
-async function lerWorkOrder() {
+async function lerWorkOrderComEstabilizacao(meuToken) {
   var info = verificarPagina();
   if (!info.eWorkOrder) throw new Error('Não estás numa página de Work Order.');
 
-  // Tentativa 1: API com sessão
+  await esperarDomEstavel(info.recordId, meuToken);
+
+  if (meuToken !== _svUltimoPedidoToken) return { ok: false, cancelado: true };
+
+  return lerWorkOrder(info.recordId, meuToken);
+}
+
+function esperarDomEstavel(recordId, meuToken) {
+  return new Promise(function (resolve) {
+    var tentativas = 0;
+    var maxTentativas = 15;
+    var ultimoSnapshot = null;
+    var estaveis = 0;
+
+    function passo() {
+      if (meuToken !== _svUltimoPedidoToken) { resolve(); return; }
+
+      var atual = verificarPagina();
+      if (!atual.eWorkOrder || atual.recordId !== recordId) { resolve(); return; }
+
+      var snapshot = snapshotCabecalho();
+
+      if (snapshot && snapshot === ultimoSnapshot) {
+        estaveis++;
+        if (estaveis >= 2) { resolve(); return; }
+      } else {
+        estaveis = 0;
+      }
+      ultimoSnapshot = snapshot;
+
+      tentativas++;
+      if (tentativas >= maxTentativas) { resolve(); return; }
+
+      setTimeout(passo, 200);
+    }
+
+    passo();
+  });
+}
+
+function snapshotCabecalho() {
+  var candidatos = [
+    '.slds-page-header__name-title h1 span',
+    '.slds-page-header__title',
+    'h1.slds-page-header__title',
+  ];
+  for (var i = 0; i < candidatos.length; i++) {
+    var el = document.querySelector(candidatos[i]);
+    if (el && el.textContent.trim()) return el.textContent.trim();
+  }
+  return document.title || null;
+}
+
+async function lerWorkOrder(recordId, meuToken) {
   var sessionId = obterSessionId();
   if (sessionId) {
     try {
-      var api = await lerViaApi(info.recordId, sessionId);
+      var api = await lerViaApi(recordId, sessionId);
+      if (meuToken !== _svUltimoPedidoToken) return { ok: false, cancelado: true };
       if (api.ok) {
-        // Leitura híbrida: completar com o DOM os campos que a API não traz
-        // de forma fiável (ex.: técnico/Support Partner) ou que vieram vazios.
         try {
-          var dom = lerViaDomCirurgico();
-          if (dom && dom.ok && dom.dados) {
-            Object.keys(api.dados).forEach(function (k) {
-              if ((!api.dados[k] || api.dados[k] === '') && dom.dados[k]) {
-                api.dados[k] = dom.dados[k];
+          // Só usamos o DOM para complementar/melhorar a Descrição se o
+          // DOM, NESTE preciso momento, ainda corresponder ao recordId que
+          // pedimos. Sem esta verificação, se o Salesforce (SPA) ainda não
+          // tiver acabado de trocar o conteúdo do ecrã ao navegar entre
+          // Work Orders, o DOM "mais longo" podia pertencer à WO anterior
+          // — e essa versão era usada em vez da Descrição correta vinda da
+          // API, mostrando dados de uma Work Order diferente da atual.
+          var aindaNaWoCerta = verificarPagina();
+          if (aindaNaWoCerta.eWorkOrder && aindaNaWoCerta.recordId === recordId) {
+            var dom = lerViaDomCirurgico();
+            if (dom && dom.ok && dom.dados) {
+              Object.keys(api.dados).forEach(function (k) {
+                if ((!api.dados[k] || api.dados[k] === '') && dom.dados[k]) {
+                  api.dados[k] = dom.dados[k];
+                }
+              });
+              if (dom.dados.descricao && dom.dados.descricao.length > (api.dados.descricao || '').length) {
+                api.dados.descricao = dom.dados.descricao;
               }
-            });
+            }
           }
         } catch (e2) { /* DOM indisponível — usa só a API */ }
         return api;
@@ -52,7 +129,7 @@ async function lerWorkOrder() {
     } catch (e) { /* continua para o DOM */ }
   }
 
-  // Tentativa 2: DOM cirúrgico
+  if (meuToken !== _svUltimoPedidoToken) return { ok: false, cancelado: true };
   return lerViaDomCirurgico();
 }
 
@@ -93,8 +170,8 @@ async function lerViaApi(recordId, sessionId) {
     local_cliente: c.Name||'',
     contacto:      ct.Name||c.Phone||'',
     morada:        [c.BillingStreet,c.BillingCity,c.BillingPostalCode,c.BillingCountry].filter(Boolean).join(', '),
-    descricao:     wo.Description||'',          // apenas a linha "Description"
-    tecnico:       '',                          // "Support Partner" lido via DOM (não fiável na API)
+    descricao:     limparDescricaoTexto(wo.Description||''),
+    tecnico:       '',
     data_recepcao: wo.StartDate||'',
     data_limite:   wo.CreatedDate||'',          // Data Limite = data de criação da WO
     prioridade:    mapPrio(wo.Priority),
@@ -103,16 +180,13 @@ async function lerViaApi(recordId, sessionId) {
 }
 
 // ── 5. DOM cirúrgico ───────────────────────────────────────
-// Lê cada campo individualmente pelo seu label exato,
-// extraindo apenas o valor e ignorando botões de ação.
 function lerViaDomCirurgico() {
   var d = {
     numero_wo:'', entidade:'', local_cliente:'', contacto:'', tecnico:'',
     morada:'', descricao:'', data_recepcao:'', data_limite:'',
-    prioridade:'', status_sf:''   // '' para o campo poder ser lido; default 'Normal' no fim
+    prioridade:'', status_sf:''
   };
 
-  // Mapeamento: label (em minúsculas) → campo interno
   var mapa = {
     'work order number': 'numero_wo',
     'account name':      'entidade',
@@ -128,7 +202,6 @@ function lerViaDomCirurgico() {
     'account phone':     'contacto',
     'address':           'morada',
     'billing address':   'morada',
-    // Português
     'conta':             'entidade',
     'morada':            'morada',
     'endereço':          'morada',
@@ -141,7 +214,6 @@ function lerViaDomCirurgico() {
     'data de início':    'data_recepcao',
   };
 
-  // Percorrer todos os "blocos de campo" do Salesforce Lightning
   var blocos = document.querySelectorAll([
     'force-record-field',
     'lightning-output-field',
@@ -150,7 +222,6 @@ function lerViaDomCirurgico() {
   ].join(', '));
 
   blocos.forEach(function(bloco) {
-    // --- Encontrar label ---
     var labelEl = bloco.querySelector([
       'span.slds-form-element__label',
       'label.slds-form-element__label',
@@ -161,35 +232,36 @@ function lerViaDomCirurgico() {
 
     var labelTxt = labelEl.textContent.trim().toLowerCase();
     var campo = mapa[labelTxt];
-    if (!campo || d[campo]) return; // já preenchido ou label desconhecida
+    if (!campo) return;
+    if (d[campo] && campo !== 'descricao') return;
 
-    // --- Extrair valor (sem botões) ---
-    var valor = extrairValorDoCampo(bloco);
+    var valor = campo === 'descricao'
+      ? extrairDescricaoDoCampo(bloco)
+      : extrairValorDoCampo(bloco);
     if (!valor) return;
 
-    // Campo vazio no Salesforce: o que se lê é muitas vezes a própria label
-    // (ex.: "Contact", "Start Date", "End Date") — nesse caso, ignorar.
     if (valor.trim().toLowerCase() === labelTxt) return;
 
     if (campo === 'prioridade') {
-      // Só aceita valores que sejam mesmo uma prioridade reconhecida
-      // (ignora label/texto errado lido de outro elemento).
       var pr = tokensPrioridade(valor);
       if (pr) d.prioridade = pr;
+    } else if (campo === 'descricao') {
+      if (!d.descricao.includes(valor)) {
+        d.descricao = d.descricao ? (d.descricao + '\n' + valor) : valor;
+      }
     } else {
       d[campo] = valor;
     }
   });
 
-  // Se a prioridade não foi lida de lado nenhum, assume Normal.
+  d.descricao = limparDescricaoTexto(d.descricao);
+
   if (!d.prioridade) d.prioridade = 'Normal';
 
-  // Fallback para número WO — ler do URL ou do header do registo
   if (!d.numero_wo) {
     d.numero_wo = lerNumerWoFallback();
   }
 
-  // Local = entidade se não preenchido
   if (d.entidade && !d.local_cliente) d.local_cliente = d.entidade;
 
   if (!d.numero_wo && !d.entidade) {
@@ -200,6 +272,52 @@ function lerViaDomCirurgico() {
   }
 
   return { ok:true, fonte:'dom', dados:d };
+}
+
+function extrairDescricaoDoCampo(bloco) {
+  var candidatosRico = [
+    'lightning-formatted-rich-text',
+    'lightning-formatted-text',
+    '.slds-form-element__static',
+    '[class*="output"] span',
+  ];
+
+  for (var i = 0; i < candidatosRico.length; i++) {
+    var el = bloco.querySelector(candidatosRico[i]);
+    if (!el) continue;
+
+    var clone = el.cloneNode(true);
+    clone.querySelectorAll('button, [role="button"], svg, .slds-assistive-text').forEach(function(b) {
+      b.remove();
+    });
+
+    clone.querySelectorAll('br').forEach(function (br) {
+      br.replaceWith('\n');
+    });
+    clone.querySelectorAll('p, div, li').forEach(function (blockEl) {
+      blockEl.append('\n');
+    });
+
+    var txt = clone.textContent
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    if (txt) return txt;
+  }
+
+  return '';
+}
+
+function limparDescricaoTexto(txt) {
+  if (!txt) return '';
+  return String(txt)
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 // ── 6. Extrair valor limpo de um bloco de campo ────────────

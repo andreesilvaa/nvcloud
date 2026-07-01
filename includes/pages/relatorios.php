@@ -89,6 +89,121 @@ if (
     redirectTo("app.php?page=relatorios&ver=" . $relId);
 }
 
+// ── RELATÓRIOS: apagar definitivamente ───────────────────────
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["action"] ?? "") === "relatorio_apagar"
+) {
+    if (($_POST["csrf"] ?? "") !== ($_SESSION["csrf_token"] ?? "")) {
+        flashError("Ação inválida.");
+        redirectTo("app.php?page=relatorios");
+    }
+    $relId = (int) ($_POST["relatorio_id"] ?? 0);
+
+    $stRel = $pdo->prepare("SELECT * FROM relatorios WHERE id = ? LIMIT 1");
+    $stRel->execute([$relId]);
+    $rel = $stRel->fetch();
+
+    if (!$rel) {
+        flashError("Relatório não encontrado.");
+        redirectTo("app.php?page=relatorios");
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM relatorios_pecas WHERE relatorio_id = ?")->execute([$relId]);
+        $pdo->prepare("DELETE FROM relatorios_log WHERE relatorio_id = ?")->execute([$relId]);
+        $pdo->prepare("DELETE FROM relatorios WHERE id = ?")->execute([$relId]);
+        $pdo->commit();
+
+        // Apagar o PDF só depois de confirmar que a BD foi limpa com sucesso.
+        $ficheiroPath = $rel["ficheiro_path"] ?? "";
+        if ($ficheiroPath !== "") {
+            $fsPath = dirname(__DIR__, 2) . "/" . ltrim($ficheiroPath, "/");
+            if (is_file($fsPath)) {
+                @unlink($fsPath);
+            }
+        }
+
+        flashSuccess("Relatório eliminado definitivamente.");
+        redirectTo("app.php?page=relatorios");
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        flashError("Não foi possível eliminar o relatório: " . $e->getMessage());
+        redirectTo("app.php?page=relatorios&ver=" . $relId);
+    }
+}
+
+// ── RELATÓRIOS: criar o PAT em falta diretamente a partir do relatório ──
+// Usado quando o número de PAT foi detetado no documento mas não existe
+// (ainda) na tabela `pats` — normalmente porque a Work Order nunca foi
+// importada via extensão Salesforce. Só corre com confirmação explícita
+// do utilizador (botão dedicado no ecrã de validação).
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["action"] ?? "") === "relatorio_criar_pat"
+) {
+    if (($_POST["csrf"] ?? "") !== ($_SESSION["csrf_token"] ?? "")) {
+        flashError("Ação inválida.");
+        redirectTo("app.php?page=relatorios");
+    }
+    $relId = (int) ($_POST["relatorio_id"] ?? 0);
+    $user = $_SESSION["user_nome"] ?? "Sistema";
+
+    $stRel = $pdo->prepare("SELECT * FROM relatorios WHERE id = ? LIMIT 1");
+    $stRel->execute([$relId]);
+    $rel = $stRel->fetch();
+
+    if (!$rel) {
+        flashError("Relatório não encontrado.");
+        redirectTo("app.php?page=relatorios");
+    }
+    if (!empty($rel["pat_id"])) {
+        flashError("Este relatório já tem um PAT associado.");
+        redirectTo("app.php?page=relatorios&ver=" . $relId);
+    }
+    if (empty($rel["pat_numero"]) || !preg_match('/PAT-(\d+)\/(\d+)/', $rel["pat_numero"], $mPat)) {
+        flashError("Não foi possível ler um número de PAT válido neste relatório.");
+        redirectTo("app.php?page=relatorios&ver=" . $relId);
+    }
+
+    // Salvaguarda: se entretanto já existe um PAT com este número (ex.:
+    // criado por outra via depois deste relatório ter sido importado),
+    // associamos ao existente em vez de criar um duplicado.
+    $stDup = $pdo->prepare("SELECT id FROM pats WHERE numero_pat = ? LIMIT 1");
+    $stDup->execute([$rel["pat_numero"]]);
+    $patIdExistente = $stDup->fetchColumn();
+
+    if ($patIdExistente) {
+        $pdo->prepare("UPDATE relatorios SET pat_id = ? WHERE id = ?")
+            ->execute([(int) $patIdExistente, $relId]);
+        flashSuccess("Este PAT já existia — associado ao relatório.");
+        redirectTo("app.php?page=relatorios&ver=" . $relId);
+    }
+
+    $clienteRel = trim((string) ($rel["cliente_detect"] ?? ""));
+    $pdo->prepare("
+        INSERT INTO pats
+          (numero_pat, revisao, entidade, local_cliente, estado, criado_por, created_at)
+        VALUES (?, ?, ?, ?, 'Aberto', ?, NOW())
+    ")->execute([
+        $rel["pat_numero"],
+        (int) $mPat[2],
+        $clienteRel !== "" ? $clienteRel : "(criado via relatório)",
+        $clienteRel,
+        $user,
+    ]);
+    $novoPatId = (int) $pdo->lastInsertId();
+
+    $pdo->prepare("UPDATE relatorios SET pat_id = ? WHERE id = ?")
+        ->execute([$novoPatId, $relId]);
+
+    flashSuccess(
+        "PAT " . $rel["pat_numero"] . " criado e associado a este relatório. Podes agora aprovar.",
+    );
+    redirectTo("app.php?page=relatorios&ver=" . $relId);
+}
+
 // ══════════════════════════════════════════════
 
 $verId = (int) ($_GET["ver"] ?? 0);
@@ -101,7 +216,7 @@ $fontesInfo = [
     "konica" => ["nome" => "Konica Minolta", "icone" => "bi-building"],
     "field_service" => ["nome" => "Field Service", "icone" => "bi-tools"],
     "desconhecido" => [
-        "nome" => "Desconhecido",
+        "nome" => "Outros",
         "icone" => "bi-question-circle",
     ],
 ];
@@ -116,14 +231,14 @@ $totalRelatorios = array_sum($contagemFontes);
 
 // Lista (filtrada pelo parceiro/fonte selecionado, se houver)
 if ($fonteAtiva !== "" && isset($fontesInfo[$fonteAtiva])) {
-    $stLista = $pdo->prepare("SELECT id, ficheiro_nome, fonte, pat_numero, cliente_detect, estado, criado_em
+    $stLista = $pdo->prepare("SELECT id, ficheiro_nome, ficheiro_path, fonte, pat_numero, cliente_detect, estado, criado_em
                                     FROM relatorios WHERE fonte = ? ORDER BY criado_em DESC LIMIT 200");
     $stLista->execute([$fonteAtiva]);
     $lista = $stLista->fetchAll();
 } else {
     $lista = $pdo
         ->query(
-            "SELECT id, ficheiro_nome, fonte, pat_numero, cliente_detect, estado, criado_em
+            "SELECT id, ficheiro_nome, ficheiro_path, fonte, pat_numero, cliente_detect, estado, criado_em
                                 FROM relatorios ORDER BY criado_em DESC LIMIT 200",
         )
         ->fetchAll();
@@ -185,11 +300,11 @@ if ($det) {
 <!-- Detalhe: documento original (esquerda) + validação (direita) -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;">
    <div class="panel" style="height:100%;">
-      <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Documento original</h4>
+      <h4 style="margin-bottom:16px;"><i class="bi bi-file-earmark-pdf" style="margin-right:6px; color:#c9a14a;"></i>Documento Original</h4>
       <?php if ($docWeb && is_file($docFs)): ?>
           <iframe src="<?= e(
               $docWeb,
-          ) ?>#toolbar=1" title="Documento original" style="width:100%; height:620px; border:1px solid #e5e9ef; border-radius:10px; background:#f8fafc;"></iframe>
+          ) ?>#toolbar=0&navpanes=0&scrollbar=0" title="Documento original" style="width:100%; height:620px; border:1px solid #e5e9ef; border-radius:10px; background:#f8fafc;"></iframe>
           <div style="margin-top:10px;">
               <a class="btn btn-grey" href="<?= e(
                   $docWeb,
@@ -206,41 +321,88 @@ if ($det) {
         <h4 style="margin-bottom:16px;">
             <i class="bi bi-clipboard-check" style="margin-right:6px; color:#c9a14a;"></i>
             <?= $det ? "Validação do Relatório" : "Relatórios" ?>
-            <?php if ($det): ?>
-                <?php [$bg, $fg] = $corEstado($det["estado"]); ?>
-                <span style="font-size:12px; font-weight:600; margin-left:10px; padding:2px 10px; border-radius:20px; background:<?= $bg ?>; color:<?= $fg ?>;">
-                    <?= e($det["estado"]) ?>
-                </span>
-            <?php endif; ?>
         </h4>
 
         <?php if ($det): ?>
-            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:13px; color:#15803d;">
-                <strong><?= e(
-                    $det["pat_numero"] ?: "(sem PAT)",
-                ) ?></strong><?= $det["cliente_detect"]
-    ? " — " . e($det["cliente_detect"])
-    : "" ?>
+            <?php [$bgEstado, $fgEstado] = $corEstado($det["estado"]); ?>
+            <div class="rel-info-grid">
+                <div class="rel-info-item">
+                    <span class="rel-info-label">Estado</span>
+                    <span class="rel-info-val"><span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; background:<?= $bgEstado ?>; color:<?= $fgEstado ?>;"><?= e(
+                        $det["estado"],
+                    ) ?></span></span>
+                </div>
+                <div class="rel-info-item">
+                    <span class="rel-info-label">PAT associado</span>
+                    <span class="rel-info-val"><?= e($det["pat_numero"] ?: "—") ?></span>
+                </div>
+                <div class="rel-info-item">
+                    <span class="rel-info-label">Cliente</span>
+                    <span class="rel-info-val"><?= e($det["cliente_detect"] ?: "—") ?></span>
+                </div>
+                <div class="rel-info-item">
+                    <span class="rel-info-label">Parceiro</span>
+                    <span class="rel-info-val"><?= e(
+                        $fontesInfo[$det["fonte"]]["nome"] ?? $det["fonte"],
+                    ) ?></span>
+                </div>
             </div>
 
-            <ul style="margin:0 0 16px; padding-left:18px; font-size:13px; color:#374151;">
-                <li>PAT → estado "Resolvido", resolução preenchida
-                    <?php if (
-                        !$det["pat_id"]
-                    ): ?><strong style="color:#c2410c;">(PAT não encontrado — revisão manual)</strong><?php endif; ?></li>
-                <li><?= count(
-                    array_filter($linhas, fn($l) => $l["acao"] === "modificar"),
-                ) ?> peça(s) a modificar ·
-                    <?= count(
-                        array_filter($linhas, fn($l) => $l["acao"] === "rever"),
-                    ) ?> a rever</li>
-            </ul>
+            <?php
+            $relTotalPecas = count($linhas);
+            $relSemDadosUteis = !$det["pat_id"] && $relTotalPecas === 0;
+            ?>
+            <?php if ($relSemDadosUteis): ?>
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px 14px; margin:16px 0; font-size:13px; color:#991b1b; display:flex; gap:10px; align-items:flex-start;">
+                <i class="bi bi-exclamation-triangle-fill" style="font-size:16px; margin-top:1px;"></i>
+                <div>
+                    <strong>Este relatório não teve nenhum PAT nem nenhuma peça identificados.</strong>
+                    É muito provável que a leitura automática não tenha conseguido extrair os dados deste documento. Revê cuidadosamente o documento original antes de aprovar.
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!$det["pat_id"] && !empty($det["pat_numero"])): ?>
+            <form method="post" action="app.php?page=relatorios" style="margin:14px 0;" onsubmit="return nvConfirmar(this, 'Criar o PAT ' + <?= json_encode(
+                $det["pat_numero"],
+            ) ?> + ' com base nos dados deste relatório?');">
+                <input type="hidden" name="action" value="relatorio_criar_pat">
+                <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+                <input type="hidden" name="relatorio_id" value="<?= (int) $det["id"] ?>">
+                <button type="submit" class="btn btn-grey" style="padding:7px 13px; font-size:12.5px;"><i class="bi bi-plus-lg"></i> Criar este PAT (não encontrado)</button>
+            </form>
+            <?php endif; ?>
 
             <?php if (
                 $det["estado"] === "por_confirmar" ||
                 $det["estado"] === "revisao_manual"
             ): ?>
-                <form method="post" action="app.php?page=relatorios">
+            <div class="rel-checklist">
+                <div class="rel-checklist-title">Checklist de verificação</div>
+                <label class="rel-check-item">
+                    <input type="checkbox" class="rel-check-box">
+                    <span>Confirmar se as peças do relatório estão corretas</span>
+                </label>
+                <label class="rel-check-item">
+                    <input type="checkbox" class="rel-check-box">
+                    <span>Confirmar se os números de série estão coerentes</span>
+                </label>
+                <label class="rel-check-item">
+                    <input type="checkbox" class="rel-check-box">
+                    <span>Confirmar se os dados batem certo com a instalação</span>
+                </label>
+            </div>
+
+            <details class="rel-avancado">
+                <summary>Detalhes avançados — peças e SN
+                    <span class="rel-avancado-pill"><?= count(
+                        array_filter($linhas, fn($l) => $l["acao"] === "modificar"),
+                    ) ?> a modificar · <?= count(
+    array_filter($linhas, fn($l) => $l["acao"] === "rever"),
+) ?> a rever</span>
+                </summary>
+                <div class="rel-avancado-body">
+                <form method="post" action="app.php?page=relatorios" id="formRelatorioDecidir">
                     <input type="hidden" name="action" value="relatorio_decidir">
                     <input type="hidden" name="csrf" value="<?= e(
                         $csrfToken,
@@ -249,11 +411,7 @@ if ($det) {
                         "id"
                     ] ?>">
 
-                    <?php // ── Q4: sugestões de SN a partir do inventário ──────────────
-                    // Para relatórios Field Service (manuscritos) os SNs não são
-                    // fiáveis. Sugerimos peças que JÁ estão no inventário em
-                    // estado "Parceiro" com parceiro "Field NewVision", agrupadas
-                    // por Tipo (categoria), para o revisor confirmar/copiar.
+                    <?php
                     if (($det["fonte"] ?? "") === "field_service"):
 
                         $stSug = $pdo->prepare(
@@ -336,12 +494,62 @@ if ($det) {
                         </div>
                     <?php
                     endforeach; ?>
-
-                    <div style="display:flex; gap:10px;">
-                        <button class="btn btn-green" name="decisao" value="aprovar">✓ Aprovar</button>
-                        <button class="btn btn-red" name="decisao" value="rejeitar">Rejeitar</button>
-                    </div>
+                    <?php if (!$linhas): ?>
+                        <p style="font-size:13px; color:#9ca3af; margin:0;">Sem linhas de peças detetadas neste relatório.</p>
+                    <?php endif; ?>
                 </form>
+                </div>
+            </details>
+
+            <div class="rel-acoes-fundo">
+                <?php if ($det["pat_id"]): ?>
+                    <a class="btn btn-grey" href="app.php?page=pats&ver=<?= (int) $det[
+                        "pat_id"
+                    ] ?>"><i class="bi bi-headset"></i> Abrir PAT</a>
+                <?php endif; ?>
+                <button type="button" class="btn btn-grey" onclick="document.querySelector('.rel-avancado').open = true; document.querySelector('.rel-avancado').scrollIntoView({behavior:'smooth', block:'center'});"><i class="bi bi-list-check"></i> Rever</button>
+                <button type="submit" form="formRelatorioDecidir" name="decisao" value="aprovar" class="btn btn-green" id="btnAprovarRelatorio" disabled>✓ Aprovar</button>
+                <button type="submit" form="formRelatorioDecidir" name="decisao" value="rejeitar" class="btn btn-red" style="padding:7px 13px; font-size:12.5px;">Rejeitar</button>
+            </div>
+
+            <script>
+            (function(){
+                var boxes = document.querySelectorAll('.rel-check-box');
+                var btn = document.getElementById('btnAprovarRelatorio');
+                if (!boxes.length || !btn) return;
+                function atualizar(){
+                    var todasMarcadas = Array.prototype.every.call(boxes, function(b){ return b.checked; });
+                    btn.disabled = !todasMarcadas;
+                }
+                boxes.forEach(function(b){ b.addEventListener('change', atualizar); });
+                atualizar();
+            })();
+            </script>
+
+            <style>
+            .rel-info-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; margin-bottom:4px; }
+            .rel-info-item{ display:flex; flex-direction:column; gap:3px; }
+            .rel-info-label{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#9ca3af; }
+            .rel-info-val{ font-size:14px; color:#1f2937; font-weight:600; }
+            .rel-checklist{ background:#f8fafc; border:1px solid #e5e9ef; border-radius:10px; padding:14px 16px; margin:18px 0; }
+            .rel-checklist-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; margin-bottom:10px; }
+            .rel-check-item{ display:flex; align-items:flex-start; gap:10px; font-size:13.5px; color:#374151; padding:6px 0; cursor:pointer; }
+            .rel-check-item input[type="checkbox"]{ margin-top:2px; }
+            .rel-avancado{ border:1px solid #e5e9ef; border-radius:10px; margin:14px 0; overflow:hidden; }
+            .rel-avancado summary{ list-style:none; cursor:pointer; padding:11px 14px; font-size:13px; font-weight:600; color:#374151; display:flex; align-items:center; justify-content:space-between; background:#f8fafc; }
+            .rel-avancado summary::-webkit-details-marker{ display:none; }
+            .rel-avancado-pill{ font-size:11px; font-weight:600; color:#6b7280; background:#fff; border:1px solid #e5e9ef; border-radius:999px; padding:2px 9px; }
+            .rel-avancado-body{ padding:14px; border-top:1px solid #e5e9ef; }
+            .rel-acoes-fundo{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; padding-top:16px; border-top:1px solid #eef1f5; }
+            body.dark-mode .rel-info-val{ color:#e5e7eb; }
+            body.dark-mode .rel-checklist{ background:#1f2937; border-color:#374151; }
+            body.dark-mode .rel-check-item{ color:#d1d5db; }
+            body.dark-mode .rel-avancado{ border-color:#374151; }
+            body.dark-mode .rel-avancado summary{ background:#1f2937; color:#e5e7eb; }
+            body.dark-mode .rel-avancado-body{ border-color:#374151; }
+            body.dark-mode .rel-acoes-fundo{ border-color:#374151; }
+            </style>
+
             <?php else: ?>
                 <p style="font-size:13px; color:#6b7280;">Estado: <strong><?= e(
                     $det["estado"],
@@ -364,6 +572,13 @@ if ($det) {
                         <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+                <?php endif; ?>
+                <?php if ($det["pat_id"]): ?>
+                <div style="margin-top:16px;">
+                    <a class="btn btn-grey" href="app.php?page=pats&ver=<?= (int) $det[
+                        "pat_id"
+                    ] ?>"><i class="bi bi-headset"></i> Abrir PAT</a>
                 </div>
                 <?php endif; ?>
             <?php endif; ?>
@@ -435,6 +650,12 @@ if ($det) {
     </div>
 </div>
 
+<!-- Pesquisa por baixo dos cartões de parceiros -->
+<div class="quick-search-wrap" style="max-width:none; width:100%; margin-bottom:20px;">
+    <i class="bi bi-search"></i>
+    <input type="text" class="quick-search-input" data-table="#tabelaRelatorios" data-empty="#tabelaRelatoriosVazia" placeholder="Pesquisa por ficheiro, PAT ou cliente…">
+</div>
+
 
 <?php
 // Opção F — meses disponíveis (para agrupar a lista e alimentar o filtro inline)
@@ -488,21 +709,10 @@ foreach ($lista as $rTmp) {
         </div>
     </div>
     <div class="table-responsive mv-table-wrap">
-        <table class="table envios-table" id="tabelaRelatorios">
-            <thead>
-            <tr>
-                <th>Ficheiro</th>
-                <th>Fonte</th>
-                <th>PAT</th>
-                <th>Cliente</th>
-                <th>Estado</th>
-                <th>Data</th>
-                <th class="actions">Ações</th>
-            </tr>
-            </thead>
+        <table class="table rel-table-stacked" id="tabelaRelatorios">
             <tbody>
             <?php if (empty($lista)): ?>
-                <tr id="tabelaRelatoriosVazia" data-no-filter><td colspan="7" class="envios-vazio">Nenhum relatório registado.</td></tr>
+                <tr id="tabelaRelatoriosVazia" data-no-filter><td class="envios-vazio">Nenhum relatório registado.</td></tr>
             <?php else: ?>
                 <?php
                 $mesAtual = null;
@@ -518,54 +728,47 @@ foreach ($lista as $rTmp) {
                         : "Sem data";
                     if ($mesKey !== $mesAtual):
                         $mesAtual = $mesKey; ?>
-                        <tr class="rel-month-row" data-mes="<?= $mesKey ?>"><td colspan="7"><i class="bi bi-calendar3"></i> <?= $mesLbl ?></td></tr>
+                        <tr class="rel-month-row" data-mes="<?= $mesKey ?>"><td colspan="2"><i class="bi bi-calendar3"></i> <?= $mesLbl ?></td></tr>
                     <?php
                     endif;
                     ?>
                     <tr data-mes="<?= $mesKey ?>">
-                        <td class="rel-file">
-                            <span class="rel-file-name"><?= e(
-                                $r["ficheiro_nome"],
-                            ) ?></span>
-                            <div class="rel-preview">
-                                <div><span class="k">PAT</span><span><?= e(
-                                    $r["pat_numero"] ?: "—",
-                                ) ?></span></div>
-                                <div><span class="k">Cliente</span><span><?= e(
-                                    $r["cliente_detect"] ?: "—",
-                                ) ?></span></div>
-                                <div><span class="k">Fonte</span><span><?= e(
-                                    $fontesInfo[$r["fonte"]]["nome"] ??
-                                        $r["fonte"],
-                                ) ?></span></div>
-                                <div><span class="k">Estado</span><span><?= e(
-                                    $r["estado"],
-                                ) ?></span></div>
-                                <div><span class="k">Data</span><span><?= e(
-                                    $r["criado_em"],
-                                ) ?></span></div>
+                        <td class="rel-row-info">
+                            <div class="rel-row-file"><?= e($r["ficheiro_nome"]) ?></div>
+                            <div class="rel-row-line">Fonte: <?= e(
+                                $fontesInfo[$r["fonte"]]["nome"] ?? $r["fonte"],
+                            ) ?> &nbsp;|&nbsp; PAT: <?= e($r["pat_numero"] ?: "—") ?></div>
+                            <div class="rel-row-line">Cliente: <?= e($r["cliente_detect"] ?: "—") ?></div>
+                            <div class="rel-row-line">
+                                Estado:
+                                <span style="display:inline-block; padding:1px 9px; border-radius:20px; font-size:11px; font-weight:600; background:<?= $bg ?>; color:<?= $fg ?>;">
+                                    <?= e($r["estado"]) ?>
+                                </span>
+                                &nbsp;|&nbsp; Data: <?= e($r["criado_em"]) ?>
                             </div>
                         </td>
-                        <td><?= e(
-                            $fontesInfo[$r["fonte"]]["nome"] ?? $r["fonte"],
-                        ) ?></td>
-                        <td><?= e($r["pat_numero"]) ?></td>
-                        <td><?= e($r["cliente_detect"]) ?></td>
-                        <td>
-                            <span style="display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:<?= $bg ?>; color:<?= $fg ?>; white-space:nowrap;">
-                                <?= e($r["estado"]) ?>
-                            </span>
+                        <td class="rel-row-actions-cell">
+                            <div class="rel-row-actions">
+                            <a class="btn btn-yellow" href="<?= e(
+                                $linkBase,
+                            ) ?>&ver=<?= (int) $r["id"] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                            <form method="post" action="app.php?page=relatorios" onsubmit="return nvConfirmar(this, 'Apagar definitivamente este relatório? Esta ação é irreversível.');">
+                                <input type="hidden" name="action" value="relatorio_apagar">
+                                <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
+                                <input type="hidden" name="relatorio_id" value="<?= (int) $r["id"] ?>">
+                                <button type="submit" class="btn btn-red" title="Apagar" aria-label="Apagar"><i class="bi bi-trash3"></i></button>
+                            </form>
+                            <?php if (!empty($r["ficheiro_path"])): ?>
+                            <a class="btn btn-grey" href="<?= e(
+                                $r["ficheiro_path"],
+                            ) ?>" target="_blank" rel="noopener" title="Visualizar PDF" aria-label="Visualizar PDF"><i class="bi bi-eye"></i></a>
+                            <?php endif; ?>
+                            </div>
                         </td>
-                        <td style="white-space:nowrap;"><?= e(
-                            $r["criado_em"],
-                        ) ?></td>
-                        <td class="actions"><a class="btn btn-yellow" href="<?= e(
-                            $linkBase,
-                        ) ?>&ver=<?= (int) $r["id"] ?>">Ver</a></td>
                     </tr>
                 <?php endforeach;
                 ?>
-                <tr id="tabelaRelatoriosVazia" data-no-filter style="display:none;"><td colspan="7" class="envios-vazio">Sem resultados para esta pesquisa.</td></tr>
+                <tr id="tabelaRelatoriosVazia" data-no-filter style="display:none;"><td colspan="2" class="envios-vazio">Sem resultados para esta pesquisa.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -681,6 +884,21 @@ foreach ($lista as $rTmp) {
 .rel-file:hover .rel-preview{ display:block; }
 .rel-preview > div{ display:flex; justify-content:space-between; gap:18px; font-size:12.5px; padding:3px 0; }
 .rel-preview .k{ color:#9ca3af; text-transform:uppercase; font-size:10.5px; font-weight:700; letter-spacing:.04em; }
+
+/* Lista de Relatórios — linhas empilhadas (mais próximo do wireframe) */
+.rel-table-stacked{ border-collapse:separate; border-spacing:0; }
+.rel-table-stacked tbody tr:not(.rel-month-row){ border-bottom:1px solid #f1f3f6; }
+.rel-table-stacked tbody tr:not(.rel-month-row):last-child{ border-bottom:none; }
+.rel-row-info{ padding:14px 16px !important; vertical-align:top; border:none !important; }
+.rel-row-file{ font-weight:700; font-size:14px; color:#1f2937; margin-bottom:4px; }
+.rel-row-line{ font-size:12.5px; color:#6b7280; line-height:1.7; }
+.rel-row-actions-cell{ padding:14px 16px !important; vertical-align:middle; border:none !important; width:56px; }
+.rel-row-actions{ display:flex; flex-direction:column; gap:6px; align-items:center; }
+.rel-row-actions form{ margin:0; }
+.rel-row-actions .btn{ width:34px; height:34px; padding:0 !important; display:flex; align-items:center; justify-content:center; font-size:13px; margin:0 !important; }
+body.dark-mode .rel-table-stacked tbody tr:not(.rel-month-row){ border-bottom-color:#374151; }
+body.dark-mode .rel-row-file{ color:#f3f4f6; }
+body.dark-mode .rel-row-line{ color:#9ca3af; }
 </style>
 <script>
 window.nvRelFiltrarMes = function(sel){

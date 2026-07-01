@@ -969,6 +969,7 @@ $kpiPatsUrgentes = countQuery(
       .pats-filtros-row .btn{ height:40px; display:inline-flex; align-items:center; gap:6px; padding:0 16px; }
       .pats-search input:focus, .pats-filtros-row select:focus{ background:#fff; border-color:#c9a14a; outline:none; }
     </style>
+    <div class="pats-topo">
     <div class="pats-filtros">
         <form method="get" class="pats-filtros-row">
             <input type="hidden" name="page" value="pats">
@@ -1055,18 +1056,32 @@ $kpiPatsUrgentes = countQuery(
         ?>
     </div>
 
-    <!-- Botão novo PAT + Tabela -->
+    <aside class="pats-acoes">
+        <h4><i class="bi bi-lightning-charge"></i> Ações rápidas</h4>
+        <a href="app.php?page=pats&acao=novo" class="btn btn-blue"><i class="bi bi-plus-lg"></i> Novo PAT</a>
+        <a href="exportar_pats_csv.php" class="btn btn-green"><i class="bi bi-download"></i> Exportar CSV</a>
+        <a href="app.php?page=pats&prioridade=Urgente" class="btn btn-grey"><i class="bi bi-exclamation-triangle"></i> Ver urgentes</a>
+    </aside>
+    </div><!-- /.pats-topo -->
+
+    <style>
+      .pats-topo{ display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:16px; align-items:stretch; margin-bottom:18px; }
+      .pats-topo .pats-filtros{ margin-bottom:0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+      .pats-topo .pats-filtros-row{ flex:1; align-content:flex-start; }
+      .pats-acoes{ background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box; overflow:hidden; height:100%; }
+      .pats-acoes h4{ margin:0 0 4px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#9ca3af; display:flex; align-items:center; gap:7px; }
+      .pats-acoes h4 i{ color:#c9a14a; }
+      .pats-acoes .btn{ width:100%; box-sizing:border-box; justify-content:center; display:inline-flex; align-items:center; gap:7px; padding:0 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      body.dark-mode .pats-acoes{ background:#1e2533; border-color:#374151; }
+      @media (max-width:900px){ .pats-topo{ grid-template-columns:1fr; } .pats-topo .pats-filtros{ height:auto; } .pats-acoes{ height:auto; } }
+    </style>
+
+    <!-- Tabela -->
     <div class="panel">
         <div class="panel-header-row">
             <div class="panel-header-left">
                 <h4 style="margin:0;">Lista de PATs</h4>
                 <span class="panel-count-badge"><?= count($patsList) ?></span>
-            </div>
-            <div class="panel-header-actions">
-                <a href="app.php?page=pats&acao=novo" class="btn btn-blue">+ Novo PAT</a>
-                <a href="exportar_pats_csv.php" class="btn btn-green">
-                    <i class="bi bi-download"></i> Exportar CSV
-                </a>
             </div>
         </div>
 

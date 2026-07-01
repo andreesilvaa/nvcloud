@@ -435,8 +435,12 @@ function extrairDadosGuiaTransporteNova(
             "Ç" => "c",
             "Ñ" => "n",
         ];
-        // mb_strtolower garante suporte correto a UTF-8
-        return mb_strtolower(strtr($s, $mapa), "UTF-8");
+        // mb_strtolower garante suporte correto a UTF-8. Colapsa também espaços
+        // múltiplos (comuns no texto extraído de PDFs com pdftotext -layout, onde
+        // colunas alinhadas geram vários espaços seguidos) para um único espaço,
+        // evitando falhas de correspondência por diferenças de espaçamento.
+        $normalizado = mb_strtolower(strtr($s, $mapa), "UTF-8");
+        return trim(preg_replace("/\s+/u", " ", $normalizado));
     };
 
     // O PDF tem 3 vias (Original, Duplicado, Triplicado) separadas por \f
@@ -508,11 +512,11 @@ function extrairDadosGuiaTransporteNova(
     }
 
     // ── 3. Parceiro ───────────────────────────────────────────────────────────
-    // Regra 1: Guia de Cliente → parceiro é sempre "Field Service"
+    // Regra 1: Guia de Cliente → parceiro é sempre "Field NewVision"
     // Regra 2: Guia de Fornecedor → correspondência automática com os parceiros
     //          registados na página Inventário ($parceirosInventario)
     if ($documento === "G.Transp Cliente") {
-        $parceiro = "Field Service";
+        $parceiro = "Field NewVision";
     } else {
         $parceiro = "";
 
@@ -1247,9 +1251,8 @@ if ($page === "envios") {
 ?>
 
 <?php
-// Opção C — layout em tabs (Lista / Importar / Estatísticas)
-$envTabInicial = "importar";
-// Estatísticas simples a partir da lista já carregada (sem novas queries)
+// Ex3 — layout sem tabs: stats no topo, Importar + Estado lado a lado,
+// estatísticas e (sempre visíveis) os 2 envios mais recentes.
 $envStats = [
     "total" => count($envios),
     "Rascunho" => 0,
@@ -1265,45 +1268,38 @@ foreach ($envios as $eStat) {
         $envStats["Outros"]++;
     }
 }
+// Os 2 envios mais recentes (a lista $envios já vem ORDER BY created_at DESC).
+// Ex: botão "Ver todos" alterna para mostrar a lista completa em vez de só os 2 recentes.
+$verTodosEnvios = isset($_GET["lista_envios"]) && $_GET["lista_envios"] === "1";
+$enviosRecentes = $verTodosEnvios ? $envios : array_slice($envios, 0, 2);
 ?>
 <style>
-.env-tabs{ display:flex; gap:4px; border-bottom:1px solid #e5e9ef; margin-bottom:18px; flex-wrap:wrap; }
-.env-tab{ border:none; background:none; padding:11px 18px; font-size:14px; font-weight:600; color:#6b7280; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; align-items:center; gap:7px; }
-.env-tab:hover{ color:#374151; }
-.env-tab.is-active{ color:#1a202c; border-bottom-color:#c9a14a; }
-.env-tab .pill{ background:#f3f4f6; color:#4b5563; border-radius:999px; font-size:11px; font-weight:700; padding:1px 8px; }
-.env-tabpane{ display:none; }
-.env-tabpane.is-active{ display:block; }
 .env-estado{ display:inline-flex; align-items:center; gap:7px; padding:3px 11px; border-radius:999px; font-size:11.5px; font-weight:600; background:var(--bg); color:var(--c); }
 .env-estado .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
 .env-stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
 .env-stat{ background:#f8fafc; border:1px solid #e5e9ef; border-radius:12px; padding:16px 18px; }
 .env-stat .n{ font-size:30px; font-weight:700; line-height:1; }
 .env-stat .l{ font-size:13px; color:#6b7280; margin-top:6px; }
+/* Ex3: faixa de stats compacta no topo */
+.env-faixa{ display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:20px; }
+.env-faixa .env-faixa-card{ background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:14px 16px; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+.env-faixa .efn{ font-size:26px; font-weight:700; line-height:1; }
+.env-faixa .efl{ font-size:12.5px; color:#6b7280; margin-top:6px; }
+body.dark-mode .env-faixa-card{ background:#1e2533; border-color:#374151; }
+body.dark-mode .env-stat{ background:#161c27; border-color:#374151; }
+@media (max-width:768px){ .env-faixa{ grid-template-columns:repeat(2,1fr); } }
 </style>
 
-<div class="env-tabs" id="enviosTabs">
-  <button type="button" class="env-tab<?= $envTabInicial === "importar"
-      ? " is-active"
-      : "" ?>" data-tab="importar">
-    <i class="bi bi-cloud-arrow-up"></i> Importar
-  </button>
-  <button type="button" class="env-tab<?= $envTabInicial === "lista"
-      ? " is-active"
-      : "" ?>" data-tab="lista">
-    <i class="bi bi-list-ul"></i> Lista de Envios <span class="pill"><?= $envStats[
-        "total"
-    ] ?></span>
-  </button>
-  <button type="button" class="env-tab" data-tab="stats">
-    <i class="bi bi-bar-chart"></i> Estatísticas
-  </button>
+<!-- ===== FAIXA DE STATS (Ex3) ===== -->
+<div class="env-faixa">
+  <div class="env-faixa-card"><div class="efn"><?= $envStats["total"] ?></div><div class="efl">Total</div></div>
+  <div class="env-faixa-card"><div class="efn" style="color:#b45309;"><?= $envStats["Rascunho"] ?></div><div class="efl">Rascunhos</div></div>
+  <div class="env-faixa-card"><div class="efn" style="color:#15803d;"><?= $envStats["Ativa"] ?></div><div class="efl">Ativas</div></div>
+  <div class="env-faixa-card"><div class="efn" style="color:#1d4ed8;"><?= $envStats["Concluida"] ?></div><div class="efl">Concluídas</div></div>
 </div>
 
-<!-- ===== PANE: IMPORTAR ===== -->
-<div class="env-tabpane<?= $envTabInicial === "importar"
-    ? " is-active"
-    : "" ?>" data-pane="importar">
+<!-- ===== IMPORTAR + ESTADO (lado a lado) ===== -->
+<div class="env-pane-importar">
 <?php if ($envioAtual): ?>
 <div style="margin-bottom:14px;">
     <a class="btn btn-grey" href="app.php?page=envios" onclick="nvVoltar(event)"><i class="bi bi-arrow-left"></i> Voltar à lista</a>
@@ -1490,9 +1486,9 @@ foreach ($envios as $eStat) {
                         <label>Parceiro</label>
                         <?php if ($isCliente): ?>
                             <select name="parceiro" required <?= $dis ?>>
-                                <option value="Field Service" selected>Field Service</option>
+                                <option value="Field NewVision" selected>Field NewVision</option>
                             </select>
-                            <span class="small-note">Guia Cliente -> SEMPRE FIELD!</span>
+                            <span class="small-note">Guia Cliente -> SEMPRE Field NewVision!</span>
                         <?php else: ?>
                             <?php
                             $parceiroAtual = $envioAtual["parceiro"] ?? "";
@@ -1571,6 +1567,24 @@ $cat
                                                 <?= htmlspecialchars($cat) ?>
                                             </option>
                                         <?php endforeach; ?>
+                                        <?php
+                                        $catLinhaAtual = $linha["artigo"] ?? "";
+                                        if (
+                                            $catLinhaAtual !== "" &&
+                                            !in_array(
+                                                $catLinhaAtual,
+                                                $categoriasInventarioReal,
+                                                true,
+                                            )
+                                        ): ?>
+                                            <option value="<?= htmlspecialchars(
+                                                $catLinhaAtual,
+                                            ) ?>" selected>
+                                                <?= htmlspecialchars(
+                                                    $catLinhaAtual,
+                                                ) ?> (não reconhecido — confirmar)
+                                            </option>
+                                        <?php endif; ?>
                                     </select></label>
                                 <label><select name="linha_produto[]" class="linha-produto" data-selected="<?= htmlspecialchars(
                                     $linha["designacao"] ?? "",
@@ -1635,15 +1649,25 @@ $cat
         <?php endif; ?>
     </div>
 
-</div><!-- fim grid superior -->
-</div><!-- ===== fim PANE: IMPORTAR ===== -->
+</div><!-- ===== fim IMPORTAR + ESTADO ===== -->
 
-<!-- ===== PANE: LISTA DE ENVIOS ===== -->
-<div class="env-tabpane<?= $envTabInicial === "lista"
-    ? " is-active"
-    : "" ?>" data-pane="lista">
+<!-- ===== LISTA DE ENVIOS — 2 mais recentes / todos (Ex3) ===== -->
 <div class="panel">
-    <h4 style="margin-bottom:18px;"><i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i>Lista de Envios</h4>
+    <div class="panel-header-row" style="margin-bottom:18px;">
+        <div class="panel-header-left">
+            <h4 style="margin:0;"><i class="bi bi-list-ul" style="margin-right:6px; color:#c9a14a;"></i><?= $verTodosEnvios
+                ? "Todos os envios"
+                : "Envios recentes" ?></h4>
+            <span class="panel-count-badge"><?= count($enviosRecentes) ?></span>
+        </div>
+        <div class="panel-header-actions">
+            <?php if ($verTodosEnvios): ?>
+                <a class="btn btn-grey" href="app.php?page=envios"><i class="bi bi-arrow-left"></i> Ver recentes</a>
+            <?php else: ?>
+                <a class="btn btn-teal" href="app.php?page=envios&lista_envios=1"><i class="bi bi-list-ul"></i> Ver todos</a>
+            <?php endif; ?>
+        </div>
+    </div>
     <div class="mv-table-wrap" style="overflow-x:auto;">
         <table class="table envios-table">
             <thead>
@@ -1659,10 +1683,10 @@ $cat
             </tr>
             </thead>
             <tbody>
-            <?php if (empty($envios)): ?>
+            <?php if (empty($enviosRecentes)): ?>
                 <tr><td colspan="8" class="envios-vazio">Nenhum envio registado.</td></tr>
             <?php else: ?>
-                <?php foreach ($envios as $e): ?>
+                <?php foreach ($enviosRecentes as $e): ?>
                     <tr>
                         <td><?= (int) $e["id"] ?></td>
                         <td><?= htmlspecialchars($e["documento"]) ?></td>
@@ -1676,38 +1700,20 @@ $cat
                         <td>
                             <?php
                             $eMap = [
-                                "Rascunho" => [
-                                    "#92400e",
-                                    "#fef3c7",
-                                    "Rascunho",
-                                ],
+                                "Rascunho" => ["#92400e", "#fef3c7", "Rascunho"],
                                 "Ativa" => ["#15803d", "#dcfce7", "Ativa"],
-                                "Concluida" => [
-                                    "#1d4ed8",
-                                    "#dbeafe",
-                                    "Concluída",
-                                ],
+                                "Concluida" => ["#1d4ed8", "#dbeafe", "Concluída"],
                             ];
-                            $eb = $eMap[$e["estado"]] ?? [
-                                "#374151",
-                                "#f3f4f6",
-                                $e["estado"],
-                            ];
+                            $eb = $eMap[$e["estado"]] ?? ["#374151", "#f3f4f6", $e["estado"]];
                             ?>
-                            <span class="env-estado" style="--c:<?= $eb[0] ?>;--bg:<?= $eb[1] ?>;"><span class="dot"></span><?= htmlspecialchars(
-    $eb[2],
-) ?></span>
+                            <span class="env-estado" style="--c:<?= $eb[0] ?>;--bg:<?= $eb[1] ?>;"><span class="dot"></span><?= htmlspecialchars($eb[2]) ?></span>
                         </td>
                         <td><?= htmlspecialchars($e["criado_por"]) ?></td>
                         <td class="actions">
                             <?php if (($e["estado"] ?? "") === "Rascunho"): ?>
-                                <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int) $e[
-                                    "id"
-                                ] ?>">Abrir Rascunho</a>
+                                <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int) $e["id"] ?>">Abrir Rascunho</a>
                             <?php else: ?>
-                                <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int) $e[
-                                    "id"
-                                ] ?>">Ver</a>
+                                <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int) $e["id"] ?>">Ver</a>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -1719,11 +1725,10 @@ $cat
 
 <!-- ── Envios · Cards mobile (≤640px) ── -->
 <div class="mv-cards">
-<?php if (empty($envios)): ?>
+<?php if (empty($enviosRecentes)): ?>
     <div class="mv-cards-empty"><i class="bi bi-inbox"></i>Nenhum envio registado.</div>
 <?php else: ?>
-    <?php foreach ($envios as $e):
-
+    <?php foreach ($enviosRecentes as $e):
         $eMap = [
             "Rascunho" => ["#92400e", "#fef3c7", "Rascunho"],
             "Ativa" => ["#15803d", "#dcfce7", "Ativa"],
@@ -1734,89 +1739,30 @@ $cat
     <div class="mv-card">
         <div class="mv-card-header">
             <div>
-                <div class="mv-card-title"><?= htmlspecialchars(
-                    $e["num_documento"] ?: "—",
-                ) ?></div>
-                <div class="mv-card-sub mv-card-sub-text"><?= htmlspecialchars(
-                    $e["parceiro"],
-                ) ?></div>
+                <div class="mv-card-title"><?= htmlspecialchars($e["num_documento"] ?: "—") ?></div>
+                <div class="mv-card-sub mv-card-sub-text"><?= htmlspecialchars($e["parceiro"]) ?></div>
             </div>
-            <span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;background:<?= $eb[1] ?>;color:<?= $eb[0] ?>;"><?= htmlspecialchars(
-    $eb[2],
-) ?></span>
+            <span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;background:<?= $eb[1] ?>;color:<?= $eb[0] ?>;"><?= htmlspecialchars($eb[2]) ?></span>
         </div>
         <div class="mv-card-row">
             <span class="mv-card-row-label">Documento</span>
-            <span class="mv-card-row-val"><?= htmlspecialchars(
-                $e["documento"],
-            ) ?></span>
+            <span class="mv-card-row-val"><?= htmlspecialchars($e["documento"]) ?></span>
         </div>
         <div class="mv-card-row">
             <span class="mv-card-row-label">Data</span>
-            <span class="mv-card-row-val"><?= htmlspecialchars(
-                $e["data_documento"]
-                    ? date("d/m/Y", strtotime($e["data_documento"]))
-                    : "—",
-            ) ?></span>
-        </div>
-        <div class="mv-card-row">
-            <span class="mv-card-row-label">Por</span>
-            <span class="mv-card-row-val"><?= htmlspecialchars(
-                $e["criado_por"],
-            ) ?></span>
+            <span class="mv-card-row-val"><?= htmlspecialchars($e["data_documento"] ? date("d/m/Y", strtotime($e["data_documento"])) : "—") ?></span>
         </div>
         <div class="mv-card-footer">
             <?php if (($e["estado"] ?? "") === "Rascunho"): ?>
-                <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int) $e[
-                    "id"
-                ] ?>"><i class="bi bi-pencil"></i> Abrir</a>
+                <a class="btn btn-yellow" href="app.php?page=envios&draft=<?= (int) $e["id"] ?>"><i class="bi bi-pencil"></i> Abrir</a>
             <?php else: ?>
-                <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int) $e[
-                    "id"
-                ] ?>"><i class="bi bi-eye"></i> Ver</a>
+                <a class="btn btn-grey" href="app.php?page=envios&ver=<?= (int) $e["id"] ?>"><i class="bi bi-eye"></i> Ver</a>
             <?php endif; ?>
         </div>
     </div>
-    <?php
-    endforeach; ?>
+    <?php endforeach; ?>
 <?php endif; ?>
 </div>
 
-</div>
-</div><!-- ===== fim PANE: LISTA DE ENVIOS ===== -->
+</div><!-- /.panel envios recentes -->
 
-<!-- ===== PANE: ESTATÍSTICAS ===== -->
-<div class="env-tabpane" data-pane="stats">
-  <div class="panel">
-    <h4 style="margin-bottom:18px;"><i class="bi bi-bar-chart" style="margin-right:6px; color:#c9a14a;"></i>Estatísticas de Envios</h4>
-    <div class="env-stats-grid">
-      <div class="env-stat"><div class="n"><?= $envStats[
-          "total"
-      ] ?></div><div class="l">Total de envios</div></div>
-      <div class="env-stat"><div class="n" style="color:#b45309;"><?= $envStats[
-          "Rascunho"
-      ] ?></div><div class="l">Rascunhos</div></div>
-      <div class="env-stat"><div class="n" style="color:#15803d;"><?= $envStats[
-          "Ativa"
-      ] ?></div><div class="l">Ativas</div></div>
-      <div class="env-stat"><div class="n" style="color:#1d4ed8;"><?= $envStats[
-          "Concluida"
-      ] ?></div><div class="l">Concluídas</div></div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  var nav = document.getElementById('enviosTabs');
-  if(!nav) return;
-  var tabs  = nav.querySelectorAll('.env-tab');
-  var panes = document.querySelectorAll('.env-tabpane');
-  nav.addEventListener('click', function(ev){
-    var b = ev.target.closest('.env-tab'); if(!b) return;
-    var t = b.getAttribute('data-tab');
-    tabs.forEach(function(x){ x.classList.toggle('is-active', x===b); });
-    panes.forEach(function(p){ p.classList.toggle('is-active', p.getAttribute('data-pane')===t); });
-  });
-})();
-</script>

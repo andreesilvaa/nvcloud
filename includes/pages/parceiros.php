@@ -44,7 +44,7 @@
         <label><input type="text" value="<?= htmlspecialchars(
             $parceiroVer["contato2_telefone"] ?? "",
         ) ?>" readonly></label></div>
-      <a class="btn btn-yellow" href="app.php?page=parceiros" onclick="nvVoltar(event)">← Voltar à lista de parceiros</a>
+      <a class="btn btn-yellow" href="<?= tabUrl() ?>" onclick="nvVoltar(event)">← Voltar à lista de parceiros</a>
     </div>
 
   <?php elseif (isset($_GET["nova"]) || $tabEdit): ?>
@@ -111,45 +111,51 @@
           <button type="submit" class="btn btn-teal"><?= $tabEdit
               ? "Atualizar"
               : "Guardar" ?></button>
-          <a class="btn btn-yellow" href="app.php?page=parceiros" onclick="nvVoltar(event)">← Voltar à lista</a>
+          <a class="btn btn-yellow" href="<?= tabUrl() ?>" onclick="nvVoltar(event)">← Voltar à lista</a>
         </div>
       </form>
     </div>
 
   <?php else: ?>
-    <?php $contactoParceiroCelula = function (
-        ?string $nome,
-        ?string $email,
-        ?string $tel,
-    ): string {
-        $nome = trim((string) $nome);
-        $email = trim((string) $email);
-        $tel = trim((string) $tel);
-        if ($nome === "" && $email === "" && $tel === "") {
-            return '<span style="color:#d1d5db;">—</span>';
+    <?php $contactoParceiroCelula = function (array $row): string {
+        $partes = [];
+        $email1 = trim((string) ($row["contato1_email"] ?? ""));
+        $email2 = trim((string) ($row["contato2_email"] ?? ""));
+        $tel1 = trim((string) ($row["contato1_telefone"] ?? ""));
+        $tel2 = trim((string) ($row["contato2_telefone"] ?? ""));
+        $morada = trim((string) ($row["morada"] ?? ""));
+
+        $emails = implode(", ", array_filter([$email1, $email2]));
+        $tels = implode(", ", array_filter([$tel1, $tel2]));
+
+        if ($emails === "" && $tels === "" && $morada === "") {
+            return '<div class="tbl-card-semcontacto">Sem contacto / sem morada</div>';
         }
-        $linhas = [];
-        if ($nome !== "") {
-            $linhas[] = "<strong>" . htmlspecialchars($nome) . "</strong>";
-        }
-        if ($email !== "") {
-            $linhas[] =
-                '<span style="color:#6b7280;"><i class="bi bi-envelope" style="margin-right:4px;"></i>' .
-                htmlspecialchars($email) .
+        if ($emails !== "") {
+            $partes[] =
+                '<span><i class="bi bi-envelope"></i> ' .
+                htmlspecialchars($emails) .
                 "</span>";
         }
-        if ($tel !== "") {
-            $linhas[] =
-                '<span style="color:#6b7280;"><i class="bi bi-telephone" style="margin-right:4px;"></i>' .
-                htmlspecialchars($tel) .
+        if ($tels !== "") {
+            $partes[] =
+                '<span><i class="bi bi-telephone"></i> ' .
+                htmlspecialchars($tels) .
                 "</span>";
         }
-        return '<div style="font-size:12.5px; line-height:1.6;">' .
-            implode("<br>", $linhas) .
+        if ($morada !== "") {
+            $partes[] =
+                '<span><i class="bi bi-geo-alt"></i> ' .
+                htmlspecialchars($morada) .
+                "</span>";
+        }
+        return '<div class="tbl-card-contactos">' .
+            implode("", $partes) .
             "</div>";
     }; ?>
 
     <div class="panel">
+      <?php if (!$tabHubMode): ?>
       <div class="panel-header-row">
         <div class="panel-header-left">
           <span class="panel-count-badge"><?= count($tabListas) ?></span>
@@ -159,48 +165,45 @@
             <i class="bi bi-search"></i>
             <input type="text" class="quick-search-input" data-table="#tabelaParceiros" data-empty="#tabelaParceirosVazia" placeholder="Pesquisar parceiro ou contacto…">
           </div>
-          <a class="btn btn-teal" href="app.php?page=parceiros&nova=1"><i class="bi bi-plus-lg"></i> Novo Parceiro</a>
+          <a class="btn btn-teal" href="<?= tabUrl('&nova=1') ?>"><i class="bi bi-plus-lg"></i> Novo Parceiro</a>
         </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-card-stack tcs-actions-right" id="tabelaParceiros">
-          <thead><tr>
-            <th style="width:90px;">ID</th>
-            <th>Parceiro</th>
+      <?php endif; ?>
 
-            <th class="actions" style="width:70px;">Ações</th>
-          </tr></thead>
-          <tbody>
-            <?php foreach ($tabListas as $row): ?>
-              <tr>
-                <td class="tcs-content">
-                  <div class="tcs-field" data-label="ID"><?= (int) $row["id"] ?></div>
-                  <div class="tcs-field" data-label="Parceiro"><strong><?= htmlspecialchars(
-                      $row["empresa"],
-                  ) ?></strong></div>
-                </td>
-
-                <td class="actions">
-
-                  <a class="btn btn-yellow" href="app.php?page=parceiros&edit=<?= (int) $row[
-                      "id"
-                  ] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
-                  <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este Parceiro? Esta ação é irreversível.');">
-                    <input type="hidden" name="form_type" value="eliminar_parceiro">
-                    <input type="hidden" name="id" value="<?= (int) $row[
-                        "id"
-                    ] ?>">
-                    <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
-                  </form>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if (
-                !$tabListas
-            ): ?><tr id="tabelaParceirosVazia" data-no-filter><td colspan="3" class="table-empty-state"><i class="bi bi-inbox"></i>Sem registos.</td></tr><?php endif; ?>
-          </tbody>
-        </table>
+      <?php if (!$tabListas): ?>
+        <div class="table-empty-state" id="tabelaParceirosVazia"><i class="bi bi-inbox"></i>Sem registos.</div>
+      <?php else: ?>
+      <div class="tbl-cards-wrap" id="tabelaParceiros">
+        <?php foreach ($tabListas as $row): ?>
+          <?php
+            $nContactos = count(array_filter([
+                trim((string)($row["contato1_nome"] ?? "")),
+                trim((string)($row["contato2_nome"] ?? "")),
+            ], fn($v) => $v !== ""));
+          ?>
+          <div class="tbl-card">
+            <div class="tbl-card-top">
+              <div class="tbl-card-nome"><?= htmlspecialchars($row["empresa"]) ?></div>
+              <div class="tbl-card-actions">
+                <a class="btn btn-yellow" href="<?= tabUrl('&edit=' . (int)$row['id']) ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este Parceiro? Esta ação é irreversível.');">
+                  <input type="hidden" name="form_type" value="eliminar_parceiro">
+                  <input type="hidden" name="id" value="<?= (int) $row["id"] ?>">
+                  <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
+                </form>
+              </div>
+            </div>
+            <div class="tbl-card-meta">
+              ID #<?= (int) $row["id"] ?>
+              <?php if ($nContactos > 0): ?>
+                <span class="tbl-card-badge"><?= $nContactos ?> contacto<?= $nContactos > 1 ? "s" : "" ?></span>
+              <?php endif; ?>
+            </div>
+            <?= $contactoParceiroCelula($row) ?>
+          </div>
+        <?php endforeach; ?>
       </div>
+      <?php endif; ?>
     </div>
     <?php paginacaoTabela("parceiros", $tabPaginas, $tabPag); ?>
   <?php endif; ?>

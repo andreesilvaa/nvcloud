@@ -787,27 +787,6 @@
    ENVIOS — mobile improvements
 ═══════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-    /* Tabs: single scrollable horizontal row */
-    .env-tabs {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        gap: 0;
-        border-bottom: 2px solid #e5e9ef;
-        margin-bottom: 14px;
-    }
-    .env-tabs::-webkit-scrollbar {
-        display: none;
-    }
-    .env-tab {
-        flex-shrink: 0;
-        padding: 10px 14px;
-        font-size: 13px;
-        white-space: nowrap;
-    }
-
     /* Import page: Leitura de Guia ON TOP, Novo Envio BELOW (vertical stack).
        align-items:stretch overrides the inline align-items:start left over
        from the desktop grid layout, which was stopping the panels from
@@ -848,26 +827,6 @@
     }
     .env-stat .l {
         font-size: 12px;
-    }
-
-    /* Estatísticas: os cartões preenchem toda a altura disponível do ecrã,
-       em vez de ficarem encolhidos no topo */
-    .env-tabpane[data-pane="stats"] .panel {
-        min-height: calc(100dvh - 200px);
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-    }
-    .env-tabpane[data-pane="stats"] .env-stats-grid {
-        flex: 1;
-        grid-template-rows: repeat(2, 1fr);
-    }
-    .env-tabpane[data-pane="stats"] .env-stat {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
     }
 }
 
@@ -1014,26 +973,8 @@
         flex-direction: column;
         min-height: calc(100dvh - 130px);
     }
-    .config-geral-page > .panel {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-    }
-    .config-geral-page .panel-body {
-        flex: 1;
-        display: flex;
-    }
-    .config-geral-page .panel-body > div {
-        flex: 1;
-        display: grid !important;
+    .config-geral-page .cfg-grid-2 {
         grid-template-columns: 1fr !important;
-        grid-template-rows: repeat(4, 1fr);
-        gap: 12px !important;
-    }
-    .config-geral-page .panel-body > div > div {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
     }
 }
 

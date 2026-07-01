@@ -132,6 +132,12 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $pecas = $stmt->fetchAll();
 
+// ── Resumo rápido (Ex8) — apenas leitura, totais globais do inventário ──
+$invResumoTotal       = (int) $pdo->query("SELECT COUNT(*) FROM pecas")->fetchColumn();
+$invResumoDisponiveis = (int) $pdo->query("SELECT COUNT(*) FROM pecas WHERE estado = 'Disponível'")->fetchColumn();
+$invResumoCliente     = (int) $pdo->query("SELECT COUNT(*) FROM pecas WHERE estado = 'Cliente'")->fetchColumn();
+$invResumoDevolucao   = (int) $pdo->query("SELECT COUNT(*) FROM pecas WHERE estado = 'Devolução'")->fetchColumn();
+
 if (
     $_SERVER["REQUEST_METHOD"] === "POST" &&
     ($_POST["form_type"] ?? "") === "lote_estado"
@@ -172,7 +178,7 @@ if (
       background:#fff;
       border:1px solid #e5e9ef;
       border-radius:12px;
-      padding:12px 14px;
+      padding:14px 16px;
       margin-bottom:16px;
     }
     .inv-toolbar-form{
@@ -181,28 +187,18 @@ if (
       gap:10px;
     }
     .inv-toolbar-filtros{
-      display:flex;
-      flex-wrap:wrap;
-      align-items:flex-end;
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
       gap:10px;
     }
     .inv-filtro{
-      flex:1 1 0;
-      min-width:118px;
       display:flex;
       flex-direction:column;
-    }
-    .inv-filtro label{
-      font-size:10.5px;
-      font-weight:700;
-      text-transform:uppercase;
-      letter-spacing:.05em;
-      color:#9ca3af;
-      margin:0 0 5px;
+      min-width:0;
     }
     .inv-filtro input,
     .inv-filtro select{
-      height:38px;
+      height:40px;
       border:1px solid #e5e9ef;
       background:#f8fafc;
       border-radius:9px;
@@ -220,9 +216,12 @@ if (
     .inv-toolbar-bar{
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
+      gap:10px;
       flex-wrap:wrap;
+    }
+    .inv-toolbar-bar .inv-filtro{
+      flex:1 1 220px;
+      min-width:160px;
     }
     .inv-toolbar-bar-right{
       display:flex;
@@ -232,7 +231,7 @@ if (
     }
     .inv-toolbar .btn,
     .inv-toolbar .actions-dd > summary{
-      height:38px;
+      height:40px;
       padding:0 13px;
       font-size:13px;
       display:inline-flex;
@@ -243,22 +242,40 @@ if (
       white-space:nowrap;
     }
     @media (max-width:900px){
-      .inv-filtro{ flex:1 1 calc(50% - 10px); min-width:140px; }
+      .inv-toolbar-filtros{ grid-template-columns:repeat(2, minmax(0,1fr)); }
     }
     @media (max-width:560px){
+      .inv-toolbar-filtros{ grid-template-columns:1fr; }
       .inv-toolbar-bar{ flex-direction:column; align-items:stretch; }
+      .inv-toolbar-bar .inv-filtro{ flex:1 1 auto; }
       .inv-toolbar-bar-right{ margin-left:0; justify-content:flex-end; }
     }
+    /* Ex8: Filtros (esquerda) + Resumo rápido (direita) — mesma altura */
+    .inv-topo{ display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:16px; align-items:stretch; margin-bottom:16px; }
+    .inv-topo .inv-toolbar{ margin-bottom:0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+    .inv-toolbar-form{ flex:1; display:flex; flex-direction:column; justify-content:space-between; }
+    .inv-resumo{ background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:14px 16px; height:100%; box-sizing:border-box; }
+    .inv-resumo h4{ margin:0 0 12px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#9ca3af; display:flex; align-items:center; gap:7px; }
+    .inv-resumo h4 i{ color:#c9a14a; }
+    .inv-resumo-item{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f3f6; font-size:14px; }
+    .inv-resumo-item:last-child{ border-bottom:none; }
+    .inv-resumo-item .lbl{ color:#6b7280; display:inline-flex; align-items:center; gap:8px; }
+    .inv-resumo-item .lbl .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .inv-resumo-item .val{ font-weight:700; color:#1f2937; }
+    body.dark-mode .inv-resumo{ background:#1e2533; border-color:#374151; }
+    body.dark-mode .inv-resumo-item{ border-color:#2b3647; }
+    body.dark-mode .inv-resumo-item .val{ color:#f3f4f6; }
+    @media (max-width:900px){ .inv-topo{ grid-template-columns:1fr; } .inv-topo .inv-toolbar{ height:auto; } .inv-resumo{ height:auto; } }
   </style>
+  <div class="inv-topo">
   <div class="inv-toolbar">
     <form method="get" class="inv-toolbar-form">
       <input type="hidden" name="page" value="inventario">
 
       <div class="inv-toolbar-filtros">
         <div class="inv-filtro">
-          <label>Tipo</label>
           <select name="categoria" id="inv-categoria">
-            <option value="">-- Todos --</option>
+            <option value="">Tipo</option>
             <?php foreach ($categorias as $cat): ?>
               <option value="<?= $cat ?>" <?= $filters["categoria"] === $cat
     ? "selected"
@@ -268,16 +285,14 @@ if (
         </div>
 
         <div class="inv-filtro">
-          <label>Nome da peça</label>
           <select name="produto" id="inv-produto">
-            <option value="">-- Todos --</option>
+            <option value="">Nome peça</option>
           </select>
         </div>
 
         <div class="inv-filtro">
-          <label>Estado</label>
           <select name="estado">
-            <option value="">-- Todos --</option>
+            <option value="">Estado</option>
             <?php foreach ($estados as $estado): ?>
               <option value="<?= $estado ?>" <?= $filters["estado"] === $estado
     ? "selected"
@@ -287,9 +302,8 @@ if (
         </div>
 
         <div class="inv-filtro">
-          <label>Parceiro</label>
           <select name="parceiro">
-            <option value="">-- Todos --</option>
+            <option value="">Parceiro</option>
             <?php foreach ($parceiros as $parceiro): ?>
               <option value="<?= $parceiro ?>" <?= $filters["parceiro"] ===
 $parceiro
@@ -297,13 +311,6 @@ $parceiro
     : "" ?>><?= $parceiro ?></option>
             <?php endforeach; ?>
           </select>
-        </div>
-
-        <div class="inv-filtro">
-          <label>SN (N.º de série)</label>
-          <input type="text" name="sn" value="<?= htmlspecialchars(
-              $filters["sn"],
-          ) ?>" placeholder="ex.: ABC12345">
         </div>
       </div>
 
@@ -327,7 +334,7 @@ $parceiro
           const lista = catalogo[categoria] || [];
           const valorSelecionado = prodSel.value || produtoAtual;
 
-          prodSel.innerHTML = '<option value="">-- Todos --</option>';
+          prodSel.innerHTML = '<option value="">Nome peça</option>';
           lista.forEach(function (produto) {
             const opt = document.createElement('option');
             opt.value = produto;
@@ -343,6 +350,11 @@ $parceiro
       </script>
 
       <div class="inv-toolbar-bar">
+        <div class="inv-filtro">
+          <input type="text" name="sn" value="<?= htmlspecialchars(
+              $filters["sn"],
+          ) ?>" placeholder="SN (Nº de série)">
+        </div>
         <details class="actions-dd">
           <summary class="btn btn-teal"><i class="bi bi-lightning-charge"></i> Ações <i class="bi bi-chevron-down"></i></summary>
           <div class="actions-dd-menu">
@@ -359,6 +371,27 @@ $parceiro
       </div>
     </form>
   </div>
+
+  <aside class="inv-resumo">
+    <h4><i class="bi bi-bar-chart"></i> Resumo rápido</h4>
+    <div class="inv-resumo-item">
+      <span class="lbl"><span class="dot" style="background:#6b7280;"></span> Total peças</span>
+      <span class="val"><?= $invResumoTotal ?></span>
+    </div>
+    <div class="inv-resumo-item">
+      <span class="lbl"><span class="dot" style="background:#28a745;"></span> Disponíveis</span>
+      <span class="val"><?= $invResumoDisponiveis ?></span>
+    </div>
+    <div class="inv-resumo-item">
+      <span class="lbl"><span class="dot" style="background:#20c997;"></span> Em cliente</span>
+      <span class="val"><?= $invResumoCliente ?></span>
+    </div>
+    <div class="inv-resumo-item">
+      <span class="lbl"><span class="dot" style="background:#17a2b8;"></span> Devolução</span>
+      <span class="val"><?= $invResumoDevolucao ?></span>
+    </div>
+  </aside>
+  </div><!-- /.inv-topo -->
 
   <div class="table-responsive mv-table-wrap">
   <table class="table">

@@ -15,7 +15,7 @@ if ($page === 'historico' && isset($_GET['id'])) {
     $stmt->execute([$historicoId]);
     $historico = $stmt->fetchAll();
 
-    $stmtPecaHist = $pdo->prepare("SELECT * FROM pecas WHERE id = ?");
+    $stmtPecaHist = $pdo->prepare("SELECT p.*, c.account_name AS cliente_nome FROM pecas p LEFT JOIN clientes c ON c.id = p.cliente_id WHERE p.id = ?");
     $stmtPecaHist->execute([$historicoId]);
     $pecaHist = $stmtPecaHist->fetch();
 
@@ -92,6 +92,10 @@ if ($page === 'historico' && isset($_GET['id'])) {
 <div class="small-note">
   Número de Série (SN):
   <strong><?= htmlspecialchars($pecaHist['sn'] ?? 'Sem registo') ?></strong>
+  <?php if (!empty($pecaHist['cliente_nome'])): ?>
+    &nbsp;&middot;&nbsp; Cliente onde está instalada:
+    <strong><?= htmlspecialchars($pecaHist['cliente_nome']) ?></strong>
+  <?php endif; ?>
 </div>
 
   <table class="table" style="margin-top:18px">

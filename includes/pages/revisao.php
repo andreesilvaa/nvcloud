@@ -69,14 +69,10 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 <style>
 /* ── Revisão de Peças ── */
 .rev-header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 16px;
+    display: flex;
+    justify-content: center;
     margin-bottom: 20px;
 }
-.rev-header h2 { margin: 0; }
-.rev-header-nav { display: flex; align-items: center; justify-content: flex-end; }
 .rev-mes-picker {
     display: inline-flex;
     align-items: stretch;
@@ -471,7 +467,6 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
 
 @media (max-width: 640px) {
     .rev-header { gap: 10px; }
-    .rev-header h2 { font-size: 18px; }
     .rev-kpis { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .rev-kpi { padding: 12px 10px; gap: 8px; flex-direction: column; align-items: flex-start; }
     .rev-kpi-icon { width: 34px; height: 34px; font-size: 16px; }
@@ -497,13 +492,10 @@ $progPct = count($linhas) > 0 ? round($totalFeitas / count($linhas) * 100) : 0;
     $periodoLabel = $revMesesPt[(int)date('n', $tsPer)] . ' ' . date('Y', $tsPer);
     ?>
     <div class="rev-header">
-        <h2><i class="bi bi-clipboard-check"></i> Revisão de Peças</h2>
-        <div class="rev-header-nav">
-            <div class="rev-mes-picker">
-                <a href="app.php?page=revisao&mes=<?= e($mesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
-                <span class="rev-mes-label"><?= e($periodoLabel) ?></span>
-                <a href="app.php?page=revisao&mes=<?= e($mesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
-            </div>
+        <div class="rev-mes-picker">
+            <a href="app.php?page=revisao&mes=<?= e($mesPrev) ?>" title="Mês anterior" aria-label="Mês anterior"><i class="bi bi-chevron-left"></i></a>
+            <span class="rev-mes-label"><?= e($periodoLabel) ?></span>
+            <a href="app.php?page=revisao&mes=<?= e($mesNext) ?>" title="Mês seguinte" aria-label="Mês seguinte"><i class="bi bi-chevron-right"></i></a>
         </div>
     </div>
 

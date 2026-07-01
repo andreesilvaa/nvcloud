@@ -3,6 +3,25 @@
 // (categorias, estados, parceiros, fabricantes, produtos)
 // ============================================================
 
+// As 4 tabelas de gestão vivem agora dentro de uma página única
+// (app.php?page=tabelas&tab=X), com separadores no topo. Para não
+// ter de reescrever toda a lógica abaixo, calculamos aqui qual é o
+// "tipo" de tabela ativo ($tabTipo) e um helper (tabUrl) que gera
+// sempre o URL correto — quer estejamos dentro da página unificada,
+// quer (por compatibilidade) alguém aceda diretamente a uma rota
+// antiga como app.php?page=categorias.
+$tabHubMode = $page === 'tabelas';
+$tabTipo = $tabHubMode ? ($_GET['tab'] ?? 'produtos') : $page;
+if (!in_array($tabTipo, ['categorias', 'estados', 'produtos', 'parceiros'], true)) {
+    $tabTipo = 'produtos';
+}
+function tabUrl(string $extra = ''): string {
+    global $tabHubMode, $tabTipo;
+    return $tabHubMode
+        ? 'app.php?page=tabelas&tab=' . $tabTipo . $extra
+        : 'app.php?page=' . $tabTipo . $extra;
+}
+
 // ---- Handlers POST: guardar / eliminar ----
 // Helpers de validação das tabelas de gestão
 function tabNomeDuplicado(PDO $pdo, string $tabela, string $coluna, string $valor, int $excluirId = 0, ?int $catId = -1): bool {
@@ -45,11 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nome = trim($_POST['nome'] ?? '');
         if ($nome === '') {
             flashError('O nome da categoria é obrigatório.');
-            redirectTo('app.php?page=categorias&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if (tabNomeDuplicado($pdo, 'categorias', 'nome', $nome, $id)) {
             flashError('Já existe uma categoria com esse nome.');
-            redirectTo('app.php?page=categorias&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE categorias SET nome = ? WHERE id = ?");
@@ -60,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$nome]);
             flashSuccess('Categoria criada com sucesso.');
         }
-        redirectTo('app.php?page=categorias');
+        redirectTo(tabUrl());
     }
     if ($ft === 'eliminar_categoria') {
         $id = (int)($_POST['id'] ?? 0);
@@ -69,12 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                + tabContar($pdo, "SELECT COUNT(*) FROM produtos WHERE categoria_id = ?", [$id]);
         if ($emUso > 0) {
             flashError('Não é possível eliminar esta categoria: está a ser usada em peças ou produtos.');
-            redirectTo('app.php?page=categorias');
+            redirectTo(tabUrl());
         }
         $stmt = $pdo->prepare("DELETE FROM categorias WHERE id = ?");
         $stmt->execute([$id]);
         flashSuccess('Categoria eliminada com sucesso.');
-        redirectTo('app.php?page=categorias');
+        redirectTo(tabUrl());
     }
 
     // ----- ESTADOS -----
@@ -84,11 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $descricao = trim($_POST['descricao'] ?? '');
         if ($nome === '') {
             flashError('O nome do estado é obrigatório.');
-            redirectTo('app.php?page=estados&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if (tabNomeDuplicado($pdo, 'estados', 'nome', $nome, $id)) {
             flashError('Já existe um estado com esse nome.');
-            redirectTo('app.php?page=estados&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE estados SET nome = ?, descricao = ? WHERE id = ?");
@@ -99,19 +118,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$nome, ($descricao !== '' ? $descricao : null)]);
             flashSuccess('Estado criado com sucesso.');
         }
-        redirectTo('app.php?page=estados');
+        redirectTo(tabUrl());
     }
     if ($ft === 'eliminar_estado') {
         $id = (int)($_POST['id'] ?? 0);
         $nomeEst = tabValor($pdo, "SELECT nome FROM estados WHERE id = ?", [$id]);
         if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE estado = ?", [$nomeEst]) > 0) {
             flashError('Não é possível eliminar este estado: está a ser usado em peças.');
-            redirectTo('app.php?page=estados');
+            redirectTo(tabUrl());
         }
         $stmt = $pdo->prepare("DELETE FROM estados WHERE id = ?");
         $stmt->execute([$id]);
         flashSuccess('Estado eliminado com sucesso.');
-        redirectTo('app.php?page=estados');
+        redirectTo(tabUrl());
     }
 
     // ----- PRODUTOS -----
@@ -121,11 +140,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $catId = (int)($_POST['categoria_id'] ?? 0) ?: null;
         if ($nome === '') {
             flashError('O nome do produto é obrigatório.');
-            redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if (tabNomeDuplicado($pdo, 'produtos', 'nome', $nome, $id, $catId)) {
             flashError('Já existe um produto com esse nome nessa categoria.');
-            redirectTo('app.php?page=produtos&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE produtos SET nome = ?, categoria_id = ? WHERE id = ?");
@@ -136,19 +155,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$nome, $catId]);
             flashSuccess('Produto criado com sucesso.');
         }
-        redirectTo('app.php?page=produtos');
+        redirectTo(tabUrl());
     }
     if ($ft === 'eliminar_produto') {
         $id = (int)($_POST['id'] ?? 0);
         $nomeProd = tabValor($pdo, "SELECT nome FROM produtos WHERE id = ?", [$id]);
         if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE produto = ?", [$nomeProd]) > 0) {
             flashError('Não é possível eliminar este produto: está a ser usado em peças.');
-            redirectTo('app.php?page=produtos');
+            redirectTo(tabUrl());
         }
         $stmt = $pdo->prepare("DELETE FROM produtos WHERE id = ?");
         $stmt->execute([$id]);
         flashSuccess('Produto eliminado com sucesso.');
-        redirectTo('app.php?page=produtos');
+        redirectTo(tabUrl());
     }
 
     // ----- PARCEIROS -----
@@ -166,11 +185,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         if ($empresa === '') {
             flashError('O nome da empresa é obrigatório.');
-            redirectTo('app.php?page=parceiros&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         if (tabNomeDuplicado($pdo, 'parceiros', 'empresa', $empresa, $id)) {
             flashError('Já existe um parceiro com esse nome de empresa.');
-            redirectTo('app.php?page=parceiros&' . ($id ? "edit=$id" : 'nova=1'));
+            redirectTo(tabUrl('&' . ($id ? "edit=$id" : 'nova=1')));
         }
         $vals = array_map(fn($v) => ($v !== '' ? $v : null), array_values($campos));
         if ($id > 0) {
@@ -182,19 +201,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute(array_merge([$empresa], $vals));
             flashSuccess('Parceiro criado com sucesso.');
         }
-        redirectTo('app.php?page=parceiros');
+        redirectTo(tabUrl());
     }
     if ($ft === 'eliminar_parceiro') {
         $id = (int)($_POST['id'] ?? 0);
         $nomeParc = tabValor($pdo, "SELECT empresa FROM parceiros WHERE id = ?", [$id]);
         if (tabContar($pdo, "SELECT COUNT(*) FROM pecas WHERE parceiro = ?", [$nomeParc]) > 0) {
             flashError('Não é possível eliminar este parceiro: está a ser usado em peças.');
-            redirectTo('app.php?page=parceiros');
+            redirectTo(tabUrl());
         }
         $stmt = $pdo->prepare("DELETE FROM parceiros WHERE id = ?");
         $stmt->execute([$id]);
         flashSuccess('Parceiro eliminado com sucesso.');
-        redirectTo('app.php?page=parceiros');
+        redirectTo(tabUrl());
     }
 }
 
@@ -220,7 +239,7 @@ function carregarTabela(PDO $pdo, string $sqlBase, int $perPage, int $offset, in
     return $stmt->fetchAll();
 }
 
-if ($page === 'categorias') {
+if ($tabTipo === 'categorias') {
     // Lista completa numa única página (sem paginação)
     $tabListas = carregarTabela($pdo, "SELECT * FROM categorias ORDER BY nome ASC", 1000000, 0, $tabPaginas);
     if (($_GET['edit'] ?? '') !== '') {
@@ -229,7 +248,7 @@ if ($page === 'categorias') {
         $tabEdit = $stmt->fetch() ?: null;
     }
 }
-if ($page === 'estados') {
+if ($tabTipo === 'estados') {
     // Lista completa numa única página (sem paginação)
     $tabListas = carregarTabela($pdo, "SELECT * FROM estados ORDER BY nome ASC", 1000000, 0, $tabPaginas);
     if (($_GET['edit'] ?? '') !== '') {
@@ -238,7 +257,7 @@ if ($page === 'estados') {
         $tabEdit = $stmt->fetch() ?: null;
     }
 }
-if ($page === 'produtos') {
+if ($tabTipo === 'produtos') {
     $tabListas = carregarTabela(
         $pdo,
         "SELECT p.*, c.nome AS categoria_nome
@@ -254,7 +273,7 @@ if ($page === 'produtos') {
         $tabEdit = $stmt->fetch() ?: null;
     }
 }
-if ($page === 'parceiros') {
+if ($tabTipo === 'parceiros') {
     $tabListas = carregarTabela($pdo, "SELECT * FROM parceiros ORDER BY empresa ASC", $tabPerPage, $tabOffset, $tabPaginas);
     if (($_GET['edit'] ?? '') !== '') {
         $stmt = $pdo->prepare("SELECT * FROM parceiros WHERE id = ?");
@@ -275,7 +294,7 @@ function paginacaoTabela(string $pageName, int $totalPaginas, int $atual, string
     echo '<div style="display:flex;gap:6px;margin-top:18px;">';
     for ($i = 1; $i <= $totalPaginas; $i++) {
         $cls = $i === $atual ? 'btn btn-blue' : 'btn btn-grey';
-        echo '<a class="' . $cls . '" href="app.php?page=' . $pageName . '&p=' . $i . $extra . '">' . $i . '</a>';
+        echo '<a class="' . $cls . '" href="' . tabUrl('&p=' . $i . $extra) . '">' . $i . '</a>';
     }
     echo '</div>';
 }

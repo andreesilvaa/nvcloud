@@ -430,195 +430,149 @@ if ($page === "clientes") {
             <h4 style="margin:0;">Lista de Clientes</h4>
             <span class="panel-count-badge"><?= count($clientesRoots) ?></span>
         </div>
-        <div class="panel-header-actions">
-            <button type="button" class="btn btn-grey" style="padding:8px 14px; font-size:13px;" onclick="nvClientesExpandirTudo(true)">
-                <i class="bi bi-arrows-expand"></i> Expandir tudo
-            </button>
-            <button type="button" class="btn btn-grey" style="padding:8px 14px; font-size:13px;" onclick="nvClientesExpandirTudo(false)">
-                <i class="bi bi-arrows-collapse"></i> Colapsar tudo
-            </button>
-        </div>
     </div>
 
-    <div class="table-responsive mv-table-wrap">
-      <style>
-        .cli-contactos{ display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; line-height:1.5; }
-        .cli-contactos span{ display:inline-flex; align-items:center; gap:5px; color:#6b7280; }
-        .cli-contactos span i{ color:#9ca3af; }
-        .clientes-table td.col-contactos{ white-space:normal; }
-        .col-contactos .cli-contactos { display: none; }
-        .conta-nome-link { cursor: pointer; text-decoration: none; color: inherit; font-weight: inherit; transition: font-weight .12s ease; }
-        .conta-nome-link:hover { font-weight: 700; color: inherit; }
-        .conta-nome-link::after { content: none; }
-      </style>
-      <?php // Célula de contactos/morada em linha (horizontal: ocupa largura, pouca altura)
-
-$cliContactosH = function (array $map, string $nome): string {
+    <!-- WF3: Lista de Clientes em CARTÕES (vista desktop) — cartões novos inspirados nos .mv-card -->
+    <div class="cli-cards-wrap">
+      <?php
+      // Célula de contactos/morada como linhas (reutilizada nos cartões)
+      $cliContactosCard = function (array $map, string $nome): string {
           $c = $map[$nome] ?? null;
           if (!$c) {
-              return '<span style="color:#d1d5db;">—</span>';
+              return '<div class="cli-card-semcontacto">Sem contacto / sem morada</div>';
           }
           $p = [];
           if (!empty($c["emails"])) {
-              $p[] =
-                  '<span><i class="bi bi-envelope"></i> ' .
-                  htmlspecialchars($c["emails"]) .
-                  "</span>";
+              $p[] = '<span><i class="bi bi-envelope"></i> ' . htmlspecialchars($c["emails"]) . '</span>';
           }
-          $tel = trim(
-              implode(
-                  ", ",
-                  array_filter([$c["phones"] ?? "", $c["mobiles"] ?? ""]),
-              ),
-          );
-          if ($tel !== "") {
-              $p[] =
-                  '<span><i class="bi bi-telephone"></i> ' .
-                  htmlspecialchars($tel) .
-                  "</span>";
+          $tel = trim(implode(', ', array_filter([$c["phones"] ?? '', $c["mobiles"] ?? ''])));
+          if ($tel !== '') {
+              $p[] = '<span><i class="bi bi-telephone"></i> ' . htmlspecialchars($tel) . '</span>';
           }
-          $mor = trim(
-              implode(
-                  ", ",
-                  array_filter([
-                      $c["street"] ?? "",
-                      $c["city"] ?? "",
-                      $c["zip"] ?? "",
-                      $c["country"] ?? "",
-                  ]),
-              ),
-          );
-          if ($mor !== "") {
-              $p[] =
-                  '<span><i class="bi bi-geo-alt"></i> ' .
-                  htmlspecialchars($mor) .
-                  "</span>";
+          $mor = trim(implode(', ', array_filter([$c["street"] ?? '', $c["city"] ?? '', $c["zip"] ?? '', $c["country"] ?? ''])));
+          if ($mor !== '') {
+              $p[] = '<span><i class="bi bi-geo-alt"></i> ' . htmlspecialchars($mor) . '</span>';
           }
           return $p
-              ? '<div class="cli-contactos">' . implode("", $p) . "</div>"
-              : '<span style="color:#d1d5db;">—</span>';
-      }; ?>
-      <table class="clientes-table">
-        <thead>
-          <tr>
-            <th style="width:26%;">Conta</th>
-            <th style="width:14%;">Tipo</th>
-            <th style="width:20%;">Conta-Mãe</th>
-            <th style="width:40%;">Contactos / Morada</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php if (empty($clientesRoots)): ?>
-            <tr>
-              <td colspan="4" class="clientes-empty">Nenhum Cliente encontrado.</td>
-            </tr>
-          <?php else: ?>
-            <?php foreach ($clientesRoots as $i => $cliente): ?>
-              <?php
-              $nomeConta = $cliente["account_name"];
-              $filhos = $clientesChildrenMap[$nomeConta] ?? [];
-              $temFilhos = count($filhos) > 0;
+              ? '<div class="cli-card-contactos">' . implode('', $p) . '</div>'
+              : '<div class="cli-card-semcontacto">Sem contacto / sem morada</div>';
+      };
 
-              $typeClass = "tipo-other";
-              if (strcasecmp($cliente["type"], "Customer") === 0) {
-                  $typeClass = "tipo-customer";
-              } elseif (strcasecmp($cliente["type"], "Prospect") === 0) {
-                  $typeClass = "tipo-prospect";
-              } elseif (stripos($cliente["type"], "Partner") !== false) {
-                  $typeClass = "tipo-partner";
-              }
+      $cliTipoInfo = function (string $type): array {
+          if (strcasecmp($type, "Customer") === 0) return ["tipo-customer", "#16a34a"];
+          if (strcasecmp($type, "Prospect") === 0) return ["tipo-prospect", "#2563eb"];
+          if (stripos($type, "Partner") !== false)  return ["tipo-partner", "#ea580c"];
+          return ["tipo-other", "#9ca3af"];
+      };
+      ?>
+      <?php if (empty($clientesRoots)): ?>
+        <div class="clientes-empty" style="padding:34px 16px; text-align:center;"><i class="bi bi-people" style="font-size:30px; display:block; margin-bottom:8px; opacity:.4;"></i>Nenhum Cliente encontrado.</div>
+      <?php else: ?>
+        <?php foreach ($clientesRoots as $i => $cliente):
+            $nomeConta = $cliente["account_name"];
+            $filhos = $clientesChildrenMap[$nomeConta] ?? [];
+            $temFilhos = count($filhos) > 0;
+            [$typeClass, $dotCor] = $cliTipoInfo($cliente["type"]);
+            $cardId = "cli-card-grp-" . $i;
+        ?>
+        <div class="cli-card">
+          <div class="cli-card-top">
+            <div class="cli-card-ident">
+              <div class="cli-card-nome"><?= htmlspecialchars($cliente["account_name"]) ?></div>
+              <div class="cli-card-meta">
+                <span class="tipo-badge <?= $typeClass ?>"><span class="cli-dot" style="background:<?= $dotCor ?>;"></span><?= htmlspecialchars(tipoPt($cliente["type"])) ?></span>
+                <?php if ($cliente["parent_account"] !== ""): ?>
+                  <span class="cli-card-parent">↳ <?= htmlspecialchars($cliente["parent_account"]) ?></span>
+                <?php else: ?>
+                  <span class="conta-principal-badge">Conta Principal</span>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
 
-              $rowId = "cliente-parent-" . $i;
+          <?= $cliContactosCard($contactosMap ?? [], $cliente["account_name"]) ?>
+
+          <?php if ($temFilhos): ?>
+            <button type="button" class="cli-card-expand" data-target="<?= htmlspecialchars($cardId) ?>" onclick="nvCliCardToggle(this)">
+              <i class="bi bi-diagram-3"></i> Expandir filiais <span class="cli-card-expand-n"><?= count($filhos) ?></span>
+              <i class="bi bi-chevron-down cli-card-caret"></i>
+            </button>
+            <div class="cli-subcards <?= htmlspecialchars($cardId) ?>" style="display:none;">
+              <?php foreach ($filhos as $filho):
+                  [$childTypeClass, $childDot] = $cliTipoInfo($filho["type"]);
               ?>
-         <tr class="cliente-row-parent">
-          <td>
-            <?php if ($temFilhos): ?>
-              <button type="button" class="cliente-toggle" data-target="<?= htmlspecialchars(
-                  $rowId,
-              ) ?>">+</button>
-            <?php else: ?>
-              <span style="display:inline-block; width:32px;"></span>
-            <?php endif; ?>
-              <strong class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars(
-                  $cliente["account_name"],
-              ) ?></strong>
-          </td>
-          <td>
-              <?php $dotCor =
-                  $typeClass === "tipo-customer"
-                      ? "#16a34a"
-                      : ($typeClass === "tipo-prospect"
-                          ? "#2563eb"
-                          : ($typeClass === "tipo-partner"
-                              ? "#ea580c"
-                              : "#9ca3af")); ?>
-              <span class="tipo-badge <?= $typeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCor ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(
-    tipoPt($cliente["type"]),
-) ?></span>
-          </td>
-          <td>
-            <?php if ($cliente["parent_account"] !== ""): ?>
-            <?= htmlspecialchars($cliente["parent_account"]) ?>
-            <?php else: ?>
-              <span class="conta-principal-badge">Conta Principal</span>
-            <?php endif; ?>
-          </td>
-          <td class="col-contactos"><?= $cliContactosH(
-              $contactosMap ?? [],
-              $cliente["account_name"],
-          ) ?></td>
-        </tr>
-
-            <?php if ($temFilhos): ?>
-              <?php foreach ($filhos as $filho): ?>
-                <?php
-                $childTypeClass = "tipo-other";
-                if (strcasecmp($filho["type"], "Customer") === 0) {
-                    $childTypeClass = "tipo-customer";
-                } elseif (strcasecmp($filho["type"], "Prospect") === 0) {
-                    $childTypeClass = "tipo-prospect";
-                } elseif (stripos($filho["type"], "Partner") !== false) {
-                    $childTypeClass = "tipo-partner";
-                }
-                ?>
-                <tr class="cliente-row-child cliente-child-group <?= htmlspecialchars(
-                    $rowId,
-                ) ?>" style="display:none;">
-                    <td class="cliente-child-name"><span class="conta-nome-link" onclick="cliToggleContacto(this)"><?= htmlspecialchars(
-                        $filho["account_name"],
-                    ) ?></span></td>
-                  <td>
-                    <?php $dotCorF =
-                        $childTypeClass === "tipo-customer"
-                            ? "#16a34a"
-                            : ($childTypeClass === "tipo-prospect"
-                                ? "#2563eb"
-                                : ($childTypeClass === "tipo-partner"
-                                    ? "#ea580c"
-                                    : "#9ca3af")); ?>
-                    <span class="tipo-badge <?= $childTypeClass ?>"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:<?= $dotCorF ?>; margin-right:7px; vertical-align:middle;"></span><?= htmlspecialchars(
-    tipoPt($filho["type"]),
-) ?></span>
-                  </td>
-                  <td>
-                    <?php if ($filho["parent_account"] !== ""): ?>
-                      <?= htmlspecialchars($filho["parent_account"]) ?>
-                    <?php else: ?>
-                      <span class="conta-principal-badge">Conta Principal</span>
-                    <?php endif; ?>
-                  </td>
-                  <td class="col-contactos"><?= $cliContactosH(
-                      $contactosMap ?? [],
-                      $filho["account_name"],
-                  ) ?></td>
-                </tr>
+                <div class="cli-subcard">
+                  <div class="cli-subcard-nome"><?= htmlspecialchars($filho["account_name"]) ?></div>
+                  <div class="cli-card-meta">
+                    <span class="tipo-badge <?= $childTypeClass ?>"><span class="cli-dot" style="background:<?= $childDot ?>;"></span><?= htmlspecialchars(tipoPt($filho["type"])) ?></span>
+                    <span class="cli-card-childbadge">Child-account</span>
+                  </div>
+                  <?= $cliContactosCard($contactosMap ?? [], $filho["account_name"]) ?>
+                </div>
               <?php endforeach; ?>
-            <?php endif; ?>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </tbody>
-    </table>
-  </div><!-- /.mv-table-wrap -->
+            </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div><!-- /.cli-cards-wrap -->
+
+    <style>
+      .cli-cards-wrap{ display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
+      .cli-card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:16px 18px; box-shadow:0 1px 5px rgba(0,0,0,.05); display:flex; flex-direction:column; }
+      .cli-card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+      .cli-card-nome{ font-weight:700; font-size:15px; color:#1e293b; line-height:1.3; }
+      .cli-card-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:7px; }
+      .cli-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+      .cli-card-parent{ font-size:12px; color:#6b7280; }
+      .cli-card-childbadge{ font-size:11px; font-weight:600; color:#6b7280; background:#eef2f7; border-radius:999px; padding:2px 9px; }
+      .cli-card-contactos{ display:flex; flex-direction:column; gap:6px; margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9; font-size:12.5px; }
+      .cli-card-contactos span{ display:inline-flex; align-items:flex-start; gap:7px; color:#6b7280; word-break:break-word; }
+      .cli-card-contactos span i{ color:#9ca3af; margin-top:2px; flex-shrink:0; }
+      .cli-card-semcontacto{ margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9; font-size:12.5px; color:#b6bcc6; font-style:italic; }
+      .cli-card-expand{ margin-top:14px; display:inline-flex; align-items:center; gap:8px; width:100%; justify-content:flex-start; background:#f8fafc; border:1px solid #e5e9ef; border-radius:9px; padding:9px 12px; font-size:13px; font-weight:600; color:#374151; cursor:pointer; transition:background .15s; }
+      .cli-card-expand:hover{ background:#f1f5f9; }
+      .cli-card-expand .cli-card-expand-n{ background:#c9a14a; color:#fff; border-radius:999px; font-size:11px; padding:1px 8px; }
+      .cli-card-expand .cli-card-caret{ margin-left:auto; transition:transform .15s; color:#9ca3af; }
+      .cli-card-expand.is-open .cli-card-caret{ transform:rotate(180deg); }
+      .cli-subcards{ margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+      .cli-subcard{ background:#fbfcfe; border:1px solid #eef1f5; border-left:3px solid #c9a14a; border-radius:10px; padding:12px 14px; }
+      .cli-subcard-nome{ font-weight:600; font-size:13.5px; color:#1f2937; }
+      .cli-subcard .cli-card-meta{ margin-top:6px; }
+      .cli-subcard .cli-card-contactos, .cli-subcard .cli-card-semcontacto{ margin-top:10px; padding-top:10px; }
+      body.dark-mode .cli-card{ background:#1e2533; border-color:#374151; }
+      body.dark-mode .cli-card-nome{ color:#f1f5f9; }
+      body.dark-mode .cli-card-contactos, body.dark-mode .cli-card-semcontacto{ border-color:#2b3647; }
+      body.dark-mode .cli-card-expand{ background:#161c27; border-color:#374151; color:#e5e7eb; }
+      body.dark-mode .cli-subcard{ background:#161c27; border-color:#374151; }
+      body.dark-mode .cli-subcard-nome{ color:#f1f5f9; }
+      /* Em ecrãs pequenos os cartões mobile (.mv-cards) assumem; esconder a grelha desktop */
+      @media (max-width:640px){ .cli-cards-wrap{ display:none; } }
+    </style>
+
+    <script>
+      function nvCliCardToggle(btn){
+        var target = btn.getAttribute('data-target');
+        if (!target) return;
+        var box = btn.parentElement.querySelector('.cli-subcards.' + CSS.escape(target));
+        if (!box) return;
+        var aberto = box.style.display !== 'none';
+        box.style.display = aberto ? 'none' : 'flex';
+        btn.classList.toggle('is-open', !aberto);
+      }
+      // Reescreve os helpers globais de expandir/colapsar tudo para os cartões
+      function nvClientesExpandirTudo(abrir){
+        document.querySelectorAll('.cli-card-expand').forEach(function(btn){
+          var target = btn.getAttribute('data-target');
+          if (!target) return;
+          var box = btn.parentElement.querySelector('.cli-subcards.' + CSS.escape(target));
+          if (!box) return;
+          box.style.display = abrir ? 'flex' : 'none';
+          btn.classList.toggle('is-open', abrir);
+        });
+      }
+    </script>
+
 
 <!-- ── Clientes · Cards mobile (≤640px) ── -->
 <div class="mv-cards">

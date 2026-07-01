@@ -38,12 +38,13 @@
         <button type="submit" class="btn btn-teal"><?= $tabEdit
             ? "Atualizar"
             : "Guardar" ?></button>
-        <a class="btn btn-yellow" href="app.php?page=produtos" onclick="nvVoltar(event)">← Voltar à lista</a>
+        <a class="btn btn-yellow" href="<?= tabUrl() ?>" onclick="nvVoltar(event)">← Voltar à lista</a>
       </form>
     </div>
   <?php else: ?>
 
     <div class="panel">
+      <?php if (!$tabHubMode): ?>
       <div class="panel-header-row">
         <div class="panel-header-left">
           <span class="panel-count-badge"><?= count($tabListas) ?></span>
@@ -53,47 +54,39 @@
             <i class="bi bi-search"></i>
             <input type="text" class="quick-search-input" data-table="#tabelaProdutos" data-empty="#tabelaProdutosVazia" placeholder="Pesquisar produto ou categoria…">
           </div>
-          <a class="btn btn-teal" href="app.php?page=produtos&nova=1"><i class="bi bi-plus-lg"></i> Novo Produto</a>
+          <a class="btn btn-teal" href="<?= tabUrl('&nova=1') ?>"><i class="bi bi-plus-lg"></i> Novo Produto</a>
         </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-card-stack tcs-actions-right" id="tabelaProdutos">
-          <thead><tr><th style="width:90px;">ID</th><th>Produto</th><th>Categoria</th><th class="actions" style="width:70px;">Ações</th></tr></thead>
-          <tbody>
-            <?php foreach ($tabListas as $row): ?>
-              <tr>
-                <td class="tcs-content">
-                  <div class="tcs-field" data-label="ID"><?= (int) $row["id"] ?></div>
-                  <div class="tcs-field" data-label="Produto"><strong><?= htmlspecialchars($row["nome"]) ?></strong></div>
-                  <div class="tcs-field" data-label="Categoria"><?php
-                $catNome = trim((string) ($row["categoria_nome"] ?? ""));
-                if (
-                    $catNome !== ""
-                ): ?><span style="display:inline-block;padding:2px 10px;border-radius:999px;background:#eef1f5;color:#4b5563;font-size:12px;font-weight:600;"><?= htmlspecialchars(
-    $catNome,
-) ?></span><?php else: ?><span style="color:#d1d5db;">—</span><?php endif;
-                ?></div>
-                </td>
-                <td class="actions">
-                  <a class="btn btn-yellow" href="app.php?page=produtos&edit=<?= (int) $row[
-                      "id"
-                  ] ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
-                  <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">
-                    <input type="hidden" name="form_type" value="eliminar_produto">
-                    <input type="hidden" name="id" value="<?= (int) $row[
-                        "id"
-                    ] ?>">
-                    <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
-                  </form>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if (
-                !$tabListas
-            ): ?><tr id="tabelaProdutosVazia" data-no-filter><td colspan="4" class="table-empty-state"><i class="bi bi-inbox"></i>Sem registos.</td></tr><?php endif; ?>
-          </tbody>
-        </table>
+      <?php endif; ?>
+
+      <?php if (!$tabListas): ?>
+        <div class="table-empty-state" id="tabelaProdutosVazia"><i class="bi bi-inbox"></i>Sem registos.</div>
+      <?php else: ?>
+      <div class="tbl-cards-wrap" id="tabelaProdutos">
+        <?php foreach ($tabListas as $row): ?>
+          <?php $catNome = trim((string) ($row["categoria_nome"] ?? "")); ?>
+          <div class="tbl-card">
+            <div class="tbl-card-top">
+              <div class="tbl-card-nome"><?= htmlspecialchars($row["nome"]) ?></div>
+              <div class="tbl-card-actions">
+                <a class="btn btn-yellow" href="<?= tabUrl('&edit=' . (int)$row['id']) ?>" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+                <form method="post" style="display:inline-block;" onsubmit="return nvConfirmar(this, 'Eliminar este produto? Esta ação é irreversível.');">
+                  <input type="hidden" name="form_type" value="eliminar_produto">
+                  <input type="hidden" name="id" value="<?= (int) $row["id"] ?>">
+                  <button type="submit" class="btn btn-red" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash3"></i></button>
+                </form>
+              </div>
+            </div>
+            <div class="tbl-card-meta">
+              ID #<?= (int) $row["id"] ?>
+              <?php if ($catNome !== ""): ?>
+                <span class="tbl-card-badge"><?= htmlspecialchars($catNome) ?></span>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
       </div>
+      <?php endif; ?>
     </div>
     <?php paginacaoTabela("produtos", $tabPaginas, $tabPag); ?>
   <?php endif; ?>

@@ -18,7 +18,6 @@ function nvParseRelatorio(string $path, string $nomeOriginal): array
 	if ($ext === 'eml') {
 		return nvParseKonicaEml($path);
 	}
-	// PDF: tentar camada de texto
 	$texto = nvPdfParaTexto($path);
 	if (mb_strlen(trim($texto)) > 40) {
 		if (stripos($texto, 'Ref. Cliente') !== false || stripos($texto, 'Relatório de Intervenção') !== false) {
@@ -276,8 +275,17 @@ function nvParseCronotecnica(string $texto, string $nome): array
 	$pat = nvExtrairPat($texto);
 
 	$cliente = '';
-	// Primeira linha "real" do cabeçalho do cliente (ex.: "Galp Energia - Casa da Musica")
-	if (preg_match('/^\s*(.+?)\s*Para qualquer quest/mi', $texto, $m)) {
+	// O cabeçalho do cliente tem normalmente DUAS linhas: a entidade jurídica
+	// "mãe" (ex.: "EDP Comercial - Comercialização de Energia, S.A.") e, logo
+	// a seguir, o local/site específico onde a intervenção aconteceu (ex.:
+	// "EDP Comercial - Ovar Agente Exclusivo"), imediatamente antes da morada
+	// (linha que começa por "Rua", "Av.", etc.). Queremos o site específico,
+	// não a entidade mãe — por isso apanhamos a linha imediatamente anterior
+	// à morada. Se não houver morada reconhecível, caímos no comportamento
+	// antigo (linha antes de "Para qualquer questão").
+	if (preg_match('/^\s*(.+?)\s*\r?\n\s*(?:Rua|Av(?:enida)?\.?|Pra[çc]a|Estrada|Largo|Travessa|Alameda)\s/miu', $texto, $m)) {
+		$cliente = trim($m[1]);
+	} elseif (preg_match('/^\s*(.+?)\s*Para qualquer quest/mi', $texto, $m)) {
 		$cliente = trim($m[1]);
 	}
 
@@ -304,6 +312,21 @@ function nvParseCronotecnica(string $texto, string $nome): array
 		foreach ($mAll as $mm) {
 			$papel = (strtolower($mm[2]) === 'retirado') ? 'recolha' : 'novo';
 			$pecas[] = ['papel'=>$papel,'componente'=>null,'sn'=>trim($mm[1]),'equip_ref'=>null];
+		}
+	}
+
+	// Layout alternativo (visto nalguns relatórios Cronotécnica): os campos
+	// "Nº de Série Retirado/Colocado" ficam vazios e o SN real vem embutido
+	// dentro dos campos "PN do Player que saiu/entrou", no formato
+	// "SN:XXXXX" ou "S/N:XXXXX". Só tentamos isto quando o padrão principal
+	// acima não encontrou nada, para não duplicar peças nos relatórios que
+	// já funcionam corretamente com o formato clássico.
+	if (!$pecas) {
+		if (preg_match('/PN do Player que saiu:\s*S\/?N\s*:?\s*([A-Za-z0-9]{4,})/iu', $texto, $mSaiu)) {
+			$pecas[] = ['papel'=>'recolha','componente'=>null,'sn'=>trim($mSaiu[1]),'equip_ref'=>null];
+		}
+		if (preg_match('/PN do Player que entrou:\s*S\/?N\s*:?\s*([A-Za-z0-9]{4,})/iu', $texto, $mEntrou)) {
+			$pecas[] = ['papel'=>'novo','componente'=>null,'sn'=>trim($mEntrou[1]),'equip_ref'=>null];
 		}
 	}
 

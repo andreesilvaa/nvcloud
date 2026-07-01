@@ -534,6 +534,7 @@ $pageTitles = [
     "parceiros" => "Parceiros",
     "produtos" => "Produtos",
     "nvi" => "N-Vi",
+    "tabelas" => "Tabelas",
     "configuracoes" => "Geral",
     "revisao" => "Revisão",
     "analises" => "Análises",
@@ -1129,7 +1130,7 @@ body{
   gap: 14px;
   color: #fff;
   text-decoration: none;
-  padding: 10px 26px;
+  padding: 8px 26px;
   font-size: 15px;
   transition: all .25s ease;
   }
@@ -1145,10 +1146,14 @@ body{
   }
 
 .sidebar-items {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  min-height: 0;
 }
 .sidebar-items::-webkit-scrollbar { display: none; }
 
@@ -1164,7 +1169,7 @@ body{
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  padding:10px 26px;
+  padding:8px 26px;
   font-size:15px;
   cursor:pointer;
   text-align:left;
@@ -1189,14 +1194,14 @@ body{
 
 .sidebar-submenu{
   display:none;
-  padding:4px 0 8px 52px;
+  padding:2px 0 6px 52px;
 }
 
 .sidebar-submenu .submenu-link{
   display:block;
   color:#d9dde2;
   text-decoration:none;
-  padding:10px 0;
+  padding:7px 0;
   font-size:15px;
 }
 
@@ -1421,7 +1426,7 @@ body{
 .sidebar.collapsed .sidebar-parent {
   padding: 8px 0 !important;
 }
-/* Em ecrãs com pouca altura, reduzir ainda mais */
+/* Em ecrãs com pouca altura, reduzir ainda mais (colapsada) */
 @media (max-height: 700px) {
   .sidebar.collapsed a,
   .sidebar.collapsed .sidebar-parent {
@@ -1430,6 +1435,20 @@ body{
   .sidebar.collapsed a i,
   .sidebar.collapsed .sidebar-parent-left i {
     font-size: 17px !important;
+  }
+}
+/* Sidebar EXPANDIDA em ecrãs com pouca altura: reduzir ainda mais para caberem
+   todos os menus (incluindo o submenu "Configurações" aberto) sem scroll —
+   mesma lógica já aplicada acima à sidebar colapsada. */
+@media (max-height: 760px) {
+  .sidebar:not(.collapsed) a,
+  .sidebar:not(.collapsed) .sidebar-parent {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  .sidebar:not(.collapsed) .sidebar-submenu .submenu-link {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
   }
 }
 
@@ -2940,6 +2959,104 @@ tr.is-expanded .exp-caret{ transform:rotate(90deg); }
 .seg-control .seg-mid{ font-weight:600; min-width:140px; justify-content:center; border-left:1px solid #e5e9ef; border-right:1px solid #e5e9ef; background:#fff; }
 .seg-control a:hover, .seg-control button:hover{ background:#eef2f7; }
 
+/* Cartões das páginas de Tabelas (Categorias, Estados, Produtos, Parceiros) */
+.tbl-cards-wrap{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+  gap:14px;
+}
+.tbl-card{
+  background:#fff;
+  border:1px solid #e5e9ef;
+  border-radius:12px;
+  padding:14px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  box-shadow:0 1px 4px rgba(0,0,0,.04);
+}
+.tbl-card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.tbl-card-nome{
+  font-size:14.5px;
+  font-weight:700;
+  color:#1f2937;
+  line-height:1.3;
+  min-width:0;
+  overflow-wrap:break-word;
+}
+.tbl-card-actions{
+  display:flex;
+  gap:6px;
+  flex-shrink:0;
+}
+.tbl-card-actions .btn{
+  width:34px;
+  height:34px;
+  padding:0 !important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.tbl-card-meta{
+  font-size:12px;
+  color:#9ca3af;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.tbl-card-badge{
+  display:inline-block;
+  padding:2px 10px;
+  border-radius:999px;
+  background:#eef1f5;
+  color:#4b5563;
+  font-size:11.5px;
+  font-weight:600;
+}
+.tbl-card-contactos{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  margin-top:6px;
+  padding-top:10px;
+  border-top:1px solid #f1f3f6;
+  font-size:12.5px;
+}
+.tbl-card-contactos span{
+  display:inline-flex;
+  align-items:flex-start;
+  gap:7px;
+  color:#6b7280;
+  word-break:break-word;
+}
+.tbl-card-contactos span i{
+  color:#9ca3af;
+  margin-top:2px;
+  flex-shrink:0;
+}
+.tbl-card-semcontacto{
+  margin-top:6px;
+  padding-top:10px;
+  border-top:1px solid #f1f3f6;
+  font-size:12.5px;
+  color:#b6bcc6;
+  font-style:italic;
+}
+body.dark-mode .tbl-card{ background:#1e2533; border-color:#374151; }
+body.dark-mode .tbl-card-nome{ color:#f1f5f9; }
+body.dark-mode .tbl-card-badge{ background:#374151; color:#d1d5db; }
+body.dark-mode .tbl-card-contactos,
+body.dark-mode .tbl-card-semcontacto{ border-color:#2b3647; }
+@media (max-width:640px){
+  .tbl-cards-wrap{ grid-template-columns:1fr; }
+}
+
 </style>
 <script>
 // Botões "← Voltar": em vez de irem sempre para um destino fixo, voltam
@@ -3075,49 +3192,9 @@ function nvVoltar(ev) {
     <i class="bi bi-clipboard-check"></i><span>Revisão</span>
   </a>
 
-  <div class="sidebar-group <?= in_array($page, [
-      "categorias",
-      "estados",
-      "parceiros",
-      "produtos",
-  ])
-      ? "open"
-      : "" ?>">
-  <button class="sidebar-parent" type="button" id="tabelasToggle">
-    <span class="sidebar-parent-left">
-      <i class="bi bi-table"></i>
-      <span>Tabelas</span>
-    </span>
-    <i class="bi bi-chevron-down sidebar-arrow"></i>
-  </button>
-
-  <div class="sidebar-submenu">
-    <a class="submenu-link <?= active(
-        "categorias",
-        $page,
-    ) ?>" href="app.php?page=categorias">
-      <span>Categorias</span>
-    </a>
-    <a class="submenu-link <?= active(
-        "estados",
-        $page,
-    ) ?>" href="app.php?page=estados">
-      <span>Estados</span>
-    </a>
-    <a class="submenu-link <?= active(
-        "parceiros",
-        $page,
-    ) ?>" href="app.php?page=parceiros">
-      <span>Parceiros</span>
-    </a>
-    <a class="submenu-link <?= active(
-        "produtos",
-        $page,
-    ) ?>" href="app.php?page=produtos">
-      <span>Produtos</span>
-    </a>
-  </div>
-</div>
+  <a class="<?= active("tabelas", $page) ?>" href="app.php?page=tabelas">
+    <i class="bi bi-table"></i><span>Tabelas</span>
+  </a>
 
   <a class="<?= active("nvi", $page) ?>" href="app.php?page=nvi">
     <i class="bi bi-robot"></i><span>N-Vi</span>
@@ -3305,8 +3382,7 @@ function nvVoltar(ev) {
             </div>
             <a href="app.php?page=contas"><i class="bi bi-person"></i> O meu perfil</a>
             <button type="button" onclick="toggleDark()" style="background:none;border:none;width:100%;text-align:left;padding:10px 16px;font-size:14px;color:#1f2937;cursor:pointer;display:flex;align-items:center;gap:8px;"><i id="darkIcon" class="bi bi-moon-fill"></i> Modo Escuro</button>
-            <a href="/extensao/stockvision-sf.zip" download class="desktop-only"><i class="bi bi-puzzle"></i> Instalar extensão (Work Orders)</a>
-            <a href="#" onclick="mostrarAjudaExtensao(); return false;" class="desktop-only"><i class="bi bi-question-circle"></i> Como instalar a extensão</a>
+            <a href="https://chromewebstore.google.com/detail/lilgjcnggflpffjhalknjbjljfbiaafb" target="_blank" rel="noopener" class="desktop-only"><i class="bi bi-puzzle"></i> Instalar extensão (Work Orders)</a>
             <a href="#" id="install-app-btn" onclick="installPWA(); return false;"><i class="bi bi-download"></i> Instalar aplicação</a>
             <a href="logout.php" class="danger"><i class="bi bi-box-arrow-right"></i> Sair</a>
         </div>
@@ -3406,7 +3482,7 @@ if (($_SESSION["user_area"] ?? "") === "Laboratorio") {
 <?php elseif ($page === "analises"): ?>
   <?php require __DIR__ . "/includes/pages/analises.php"; ?>
 <?php elseif ($page === "tabelas"): ?>
-  <?php header("Location: app.php?page=configuracoes"); exit(); ?>
+  <?php require __DIR__ . "/includes/pages/tabelas.php"; ?>
 <?php elseif ($page === "configuracoes"): ?>
   <?php require __DIR__ . "/includes/pages/configuracoes.php"; ?>
 <?php elseif ($page === "etiqueta"): ?>
@@ -3723,6 +3799,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     produtoSelect.innerHTML = '<option value="">-- Selecione o produto --</option>';
 
+    let encontrouRestaurar = false;
+
     produtos.forEach(function (produto) {
       const option = document.createElement('option');
       option.value = produto;
@@ -3730,10 +3808,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (produto === valorRestaurar) {
         option.selected = true;
+        encontrouRestaurar = true;
       }
 
       produtoSelect.appendChild(option);
     });
+
+    // Se o produto gravado na peça já não existir na lista oficial desta
+    // categoria (foi renomeado/removido entretanto), mantém-no visível e
+    // selecionado em vez de deixar o campo "vazio" — senão, ao gravar sem
+    // reparar nisto, o valor real da peça seria apagado silenciosamente.
+    if (valorRestaurar && !encontrouRestaurar) {
+      const optFora = document.createElement('option');
+      optFora.value = valorRestaurar;
+      optFora.textContent = valorRestaurar + ' (fora da lista atual)';
+      optFora.selected = true;
+      produtoSelect.appendChild(optFora);
+    }
   }
 
   categoriaSelect.addEventListener('change', function () {
@@ -4099,8 +4190,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!documentoSelect || !parceiroSelect) return;
 
         if (documentoSelect.value === 'G.Transp Cliente') {
-            parceiroSelect.innerHTML = '<option value="Field Service" selected>Field Service</option>';
-            parceiroSelect.value = 'Field Service';
+            parceiroSelect.innerHTML = '<option value="Field NewVision" selected>Field NewVision</option>';
+            parceiroSelect.value = 'Field NewVision';
             parceiroSelect.setAttribute('readonly', 'readonly');
             parceiroSelect.setAttribute('data-mode', 'cliente');
         } else if (documentoSelect.value === 'G. Transp Fornec') {
@@ -4153,6 +4244,17 @@ document.addEventListener('DOMContentLoaded', function () {
             if (produto === selecionado) option.selected = true;
             produtoSelect.appendChild(option);
         });
+
+        // Se o valor guardado não existe no catálogo da categoria (ex: designação
+        // lida do PDF que não bate certo com o nome exato no Inventário), mantém-no
+        // visível como opção extra em vez de deixar o select colapsado/sem seleção.
+        if (selecionado && !produtos.includes(selecionado)) {
+            const optionExtra = document.createElement('option');
+            optionExtra.value = selecionado;
+            optionExtra.textContent = selecionado + ' (não reconhecido — confirmar)';
+            optionExtra.selected = true;
+            produtoSelect.appendChild(optionExtra);
+        }
     }
 
     function validarSnSemelhante(linhaAtual) {
@@ -4257,39 +4359,10 @@ document.addEventListener('DOMContentLoaded', function () {
 ?>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const toggles = document.querySelectorAll('.cliente-toggle');
-
-    toggles.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            const target = btn.getAttribute('data-target');
-            if (!target) return;
-
-            const rows = document.querySelectorAll('.' + CSS.escape(target));
-            const isOpen = btn.classList.contains('is-open');
-
-            rows.forEach(function (row) {
-                row.style.display = isOpen ? 'none' : 'table-row';
-            });
-
-            btn.classList.toggle('is-open', !isOpen);
-            btn.textContent = isOpen ? '+' : '−';
-        });
-    });
-});
-
-// Expandir/colapsar todas as contas-filho da página Clientes de uma só vez.
-function nvClientesExpandirTudo(abrir) {
-    document.querySelectorAll('.cliente-toggle').forEach(function (btn) {
-        const target = btn.getAttribute('data-target');
-        if (!target) return;
-        document.querySelectorAll('.' + CSS.escape(target)).forEach(function (row) {
-            row.style.display = abrir ? 'table-row' : 'none';
-        });
-        btn.classList.toggle('is-open', abrir);
-        btn.textContent = abrir ? '−' : '+';
-    });
-}
+/* Toggles da página Clientes movidos para includes/pages/clientes.php
+   (a vista desktop passou a usar cartões .cli-card com nvCliCardToggle e
+   nvClientesExpandirTudo definidos nessa página). Bloco antigo de tabela
+   (.cliente-toggle) removido para evitar conflito de definições. */
 </script>
 
 <script>
@@ -4349,18 +4422,23 @@ function nvClientesExpandirTudo(abrir) {
 
     // Filtro rápido (lado do cliente) para tabelas com caixa de pesquisa instantânea.
     // Uso: <input class="quick-search-input" data-table="#idDaTabela" data-empty="#idEstadoVazio">
+    // Suporta tanto tabelas (<table><tbody><tr>) como grelhas de cartões
+    // (<div class="tbl-cards-wrap"><div class="tbl-card">) — deteta o tipo de contentor automaticamente.
     function nvFiltrarTabela(input) {
         const tabelaSel = input.getAttribute('data-table');
         const tabela = document.querySelector(tabelaSel);
         if (!tabela) return;
         const termo = input.value.trim().toLowerCase();
-        const linhas = tabela.querySelectorAll('tbody tr');
+        const isCards = tabela.classList.contains('tbl-cards-wrap');
+        const itens = isCards
+            ? tabela.querySelectorAll(':scope > .tbl-card')
+            : tabela.querySelectorAll('tbody tr');
         let visiveis = 0;
-        linhas.forEach(function (tr) {
-            if (tr.hasAttribute('data-no-filter')) { return; }
-            const texto = tr.textContent.toLowerCase();
+        itens.forEach(function (el) {
+            if (el.hasAttribute('data-no-filter')) { return; }
+            const texto = el.textContent.toLowerCase();
             const mostra = termo === '' || texto.includes(termo);
-            tr.style.display = mostra ? '' : 'none';
+            el.style.display = mostra ? '' : 'none';
             if (mostra) visiveis++;
         });
         const emptySel = input.getAttribute('data-empty');

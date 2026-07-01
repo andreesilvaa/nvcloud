@@ -71,7 +71,12 @@ foreach ($etqPecasFull as $p) {
     .qr-mode-btn:first-child { border-right:1px solid #e5e9ef; }
 
     /* ── Painel Etiquetas ── */
-    .etq-panel { background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:20px; max-width:700px; }
+    .etq-layout { display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; max-width:900px; }
+    .etq-config-card { background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:20px; }
+    .etq-preview-card { background:#fff; border:1px solid #e5e9ef; border-radius:12px; padding:20px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+    .etq-preview-card h4 { align-self:flex-start; margin:0 0 4px; }
+    .etq-preview-placeholder { opacity:.55; }
+    @media (max-width:760px){ .etq-layout{ grid-template-columns:1fr; } }
     .etq-row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
     .etq-field { display:flex; flex-direction:column; gap:5px; }
     .etq-field label { font-size:12px; font-weight:600; color:#374151; text-transform:uppercase; letter-spacing:.4px; }
@@ -141,65 +146,82 @@ foreach ($etqPecasFull as $p) {
 
 <!-- ══════════════ MODO ETIQUETAS ══════════════ -->
 <div id="painel-etiquetas" style="display:none;">
-    <div class="etq-panel">
-        <div class="etq-row">
-            <div class="etq-field" style="flex:1; min-width:160px;">
-                <label>Tipo de peça</label>
-                <select id="etqTipo" onchange="etqAtualizarPecas()">
-                    <option value="">-- Todos --</option>
-                    <?php foreach ($etqCategorias as $cat): ?>
-                        <option value="<?= htmlspecialchars(
-                            $cat,
-                        ) ?>"><?= htmlspecialchars($cat) ?></option>
-                    <?php endforeach; ?>
-                </select>
+    <div class="etq-layout">
+
+        <!-- COLUNA ESQUERDA: Configuração -->
+        <div class="etq-config-card">
+            <h4 style="margin:0 0 16px;"><i class="bi bi-sliders" style="color:#c9a14a; margin-right:6px;"></i>Configuração</h4>
+            <div class="etq-row">
+                <div class="etq-field" style="flex:1; min-width:160px;">
+                    <label>Tipo de peça</label>
+                    <select id="etqTipo" onchange="etqAtualizarPecas()">
+                        <option value="">-- Todos --</option>
+                        <?php foreach ($etqCategorias as $cat): ?>
+                            <option value="<?= htmlspecialchars(
+                                $cat,
+                            ) ?>"><?= htmlspecialchars($cat) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
-            <div class="etq-field" style="flex:2; min-width:200px;">
-                <label>Peça</label>
-                <select id="etqPeca">
-                    <option value="">-- Seleciona uma peça --</option>
-                    <?php foreach ($etqPecasFull as $p): ?>
-                        <option value="<?= htmlspecialchars($p["sn"]) ?>"
-                                data-produto="<?= htmlspecialchars(
+            <div class="etq-row">
+                <div class="etq-field" style="flex:1; min-width:200px;">
+                    <label>Peça</label>
+                    <select id="etqPeca" onchange="etqAtualizarLivePreview()">
+                        <option value="">-- Seleciona uma peça --</option>
+                        <?php foreach ($etqPecasFull as $p): ?>
+                            <option value="<?= htmlspecialchars($p["sn"]) ?>"
+                                    data-produto="<?= htmlspecialchars(
+                                        $p["produto"],
+                                    ) ?>"
+                                    data-categoria="<?= htmlspecialchars(
+                                        $p["categoria"] ?? "",
+                                    ) ?>">
+                                <?= htmlspecialchars(
                                     $p["produto"],
-                                ) ?>"
-                                data-categoria="<?= htmlspecialchars(
-                                    $p["categoria"] ?? "",
-                                ) ?>">
-                            <?= htmlspecialchars(
-                                $p["produto"],
-                            ) ?> — <?= htmlspecialchars($p["sn"]) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                                ) ?> — <?= htmlspecialchars($p["sn"]) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
-            <div class="etq-field">
-                <label>Tamanho</label>
-                <select id="etqTamanho">
-                    <option value="small">Pequena — 50×30mm</option>
-                    <option value="medium">Média — 62×29mm</option>
-                    <option value="a4">A4 grelha</option>
-                </select>
+            <div class="etq-row">
+                <div class="etq-field">
+                    <label>Tamanho</label>
+                    <select id="etqTamanho" onchange="etqAtualizarLivePreview()">
+                        <option value="small">Pequena — 50×30mm</option>
+                        <option value="medium">Média — 62×29mm</option>
+                        <option value="a4">A4 grelha</option>
+                    </select>
+                </div>
+                <div class="etq-field">
+                    <label>Quantidade</label>
+                    <input type="number" id="etqQtd" value="1" min="1" max="50">
+                </div>
             </div>
-            <div class="etq-field">
-                <label>Quantidade</label>
-                <input type="number" id="etqQtd" value="1" min="1" max="50">
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn btn-blue" onclick="etqPrevisualizar()">
+                    <i class="bi bi-eye"></i> Pré-visualizar
+                </button>
+                <button type="button" class="btn btn-teal" onclick="etqImprimir()">
+                    <i class="bi bi-printer"></i> Imprimir / PDF
+                </button>
             </div>
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button type="button" class="btn btn-blue" onclick="etqPrevisualizar()">
-                <i class="bi bi-eye"></i> Pré-visualizar
-            </button>
-            <button type="button" class="btn btn-teal" onclick="etqImprimir()">
-                <i class="bi bi-printer"></i> Imprimir / PDF
-            </button>
         </div>
 
-        <!-- Área de pré-visualização -->
-        <div class="etq-preview-area" id="etqPreviewArea" style="display:none;">
-            <p style="font-size:12px; color:#6b7280; margin-bottom:10px;">Pré-visualização (<?= '<span id="etqPreviewCount">0</span>' ?> etiqueta(s))</p>
-            <div class="etq-preview-grid" id="etqPreviewGrid"></div>
+        <!-- COLUNA DIREITA: Preview -->
+        <div class="etq-preview-card">
+            <h4><i class="bi bi-eye" style="color:#c9a14a; margin-right:6px;"></i>Preview</h4>
+            <div id="etqLivePreviewBox" class="etq-preview-placeholder"></div>
+            <p style="font-size:11px; color:#9ca3af; margin:0; text-align:center;">Esta é uma representação aproximada da etiqueta final.</p>
+
+            <!-- Área de pré-visualização do lote (gerada ao clicar em "Pré-visualizar") -->
+            <div class="etq-preview-area" id="etqPreviewArea" style="display:none; width:100%;">
+                <p style="font-size:12px; color:#6b7280; margin-bottom:10px;">Lote completo (<?= '<span id="etqPreviewCount">0</span>' ?> etiqueta(s))</p>
+                <div class="etq-preview-grid" id="etqPreviewGrid"></div>
+            </div>
         </div>
+
     </div>
 </div>
 
@@ -379,7 +401,32 @@ foreach ($etqPecasFull as $p) {
             o.style.display = (!cat || oCat === cat) ? '' : 'none';
         });
         sel.value = '';
+        etqAtualizarLivePreview();
     }
+
+    // ── Preview ao vivo (coluna direita): atualiza sempre que a peça ou o
+    //    tamanho mudam, sem precisar de clicar em nenhum botão. Mostra uma
+    //    etiqueta de exemplo genérica quando ainda não há peça selecionada. ──
+    function etqAtualizarLivePreview() {
+        var pecaSel = document.getElementById('etqPeca');
+        var selOpt  = pecaSel.selectedOptions[0];
+        var tamanho = document.getElementById('etqTamanho').value;
+        var temPeca = !!(selOpt && selOpt.value);
+
+        var sn      = temPeca ? selOpt.value : '00000000000';
+        var produto = temPeca ? selOpt.getAttribute('data-produto') : 'Nome da peça';
+
+        var box = document.getElementById('etqLivePreviewBox');
+        if (!box) return;
+        box.innerHTML = etqCriarHTML(sn, produto, tamanho);
+        box.classList.toggle('etq-preview-placeholder', !temPeca);
+
+        var svg = box.querySelector('svg[id^="bc_"]');
+        if (svg) {
+            try { JsBarcode(svg, sn, { format:'CODE128', displayValue:false, height:28, margin:2, lineColor:'#1e293b' }); } catch(e){}
+        }
+    }
+    document.addEventListener('DOMContentLoaded', etqAtualizarLivePreview);
 
     // ── Construir HTML de uma etiqueta ──
     function etqCriarHTML(sn, produto, tamanho) {

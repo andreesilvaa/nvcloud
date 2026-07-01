@@ -1,30 +1,34 @@
 // ══════════════════════════════════════════════════════════
 // popup.js — Lógica do popup da extensão StockVision
+// Corrige: dados/estado da WO anterior a aparecerem quando se
+// abre o popup rapidamente em WOs diferentes seguidas.
 // ══════════════════════════════════════════════════════════
 
 var dadosWO     = null;
-var svUrlPadrao = 'http://localhost/nvcloud/app.php';
+var svUrlPadrao = 'https://www.stockvision.pt/app.php';
+
+// Token da extensão — pré-configurado (igual ao EXTENSION_TOKEN em config.php).
+// Não é pedido ao utilizador; vive apenas dentro do código da extensão instalada.
+var EXTENSION_TOKEN = 'sv_ext_k7G9mPxQ2wR4nL8jF5vB3hY6tA1cD0eS9uI2oW4rT7yU';
+
+// Token de sessão do popup: incrementado sempre que iniciar() corre.
+// Qualquer resposta assíncrona (mensagens ao content script) que chegue
+// depois de o popup ter iniciado um novo pedido é ignorada — isto evita
+// que dados de uma Work Order anterior apareçam "atrasados" por cima
+// da Work Order atual.
+var sessaoAtual = 0;
 
 // ── Ao abrir o popup ───────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
 
-  // Carregar URL + token guardados
-  chrome.storage.local.get(['svUrl', 'svToken'], function (res) {
+  chrome.storage.local.get(['svUrl'], function (res) {
     document.getElementById('svUrl').value = res.svUrl || svUrlPadrao;
-    document.getElementById('svToken').value = res.svToken || '';
   });
 
-  // Guardar URL quando muda
   document.getElementById('svUrl').addEventListener('change', function () {
     chrome.storage.local.set({ svUrl: this.value.trim() });
   });
 
-  // Guardar token quando muda
-  document.getElementById('svToken').addEventListener('change', function () {
-    chrome.storage.local.set({ svToken: this.value.trim() });
-  });
-
-  // Botões
   document.getElementById('btnEnviar').addEventListener('click', enviarParaStockVision);
   document.getElementById('btnCancelar').addEventListener('click', function () {
     mostrarEstado('stateNotWO');
@@ -36,19 +40,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // ── Iniciar: verificar página e ler WO ────────────────────
 function iniciar() {
+  // Nova sessão: qualquer resposta pendente da sessão anterior fica
+  // automaticamente invalidada (ver checks "if (minhaSessao !== sessaoAtual)").
+  var minhaSessao = ++sessaoAtual;
+
+  // Reset total do estado visível e dos dados em memória — garante que
+  // nunca se vê, ainda que por uma fração de segundo, a WO anterior.
+  dadosWO = null;
+  limparPreview();
+  badge('—', '#555');
   mostrarEstado('stateLoading');
 
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    if (!tabs[0]) { mostrarErro('Não foi possível aceder à aba ativa.'); return; }
+    if (minhaSessao !== sessaoAtual) return;
+    if (!tabs[0]) { mostrarErro('Não foi possível aceder à aba ativa.', minhaSessao); return; }
 
     var tabId = tabs[0].id;
 
     chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
+      if (minhaSessao !== sessaoAtual) return;
+
       if (chrome.runtime.lastError) {
         // O content script ainda não está injetado nesta aba: injeta e volta a verificar
         chrome.scripting.executeScript(
           { target: { tabId: tabId }, files: ['content.js'] },
-          function () { setTimeout(function () { verificarELer(tabId); }, 500); }
+          function () {
+            if (minhaSessao !== sessaoAtual) return;
+            setTimeout(function () { verificarELer(tabId, minhaSessao); }, 300);
+          }
         );
         return;
       }
@@ -57,28 +76,49 @@ function iniciar() {
         mostrarEstado('stateNotWO');
         return;
       }
-      lerDados(tabId);
+      lerDados(tabId, minhaSessao);
     });
   });
 }
 
-function verificarELer(tabId) {
+function verificarELer(tabId, minhaSessao) {
   chrome.tabs.sendMessage(tabId, { tipo: 'verificar_pagina' }, function (resp) {
+    if (minhaSessao !== sessaoAtual) return;
     if (chrome.runtime.lastError) {
-        mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message);
-        return;
+      mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message, minhaSessao);
+      return;
     }
-    lerDados(tabId);
+    if (!resp || !resp.eWorkOrder) {
+      badge('—', '#555');
+      mostrarEstado('stateNotWO');
+      return;
+    }
+    lerDados(tabId, minhaSessao);
   });
 }
 
-function lerDados(tabId) {
+function lerDados(tabId, minhaSessao) {
   chrome.tabs.sendMessage(tabId, { tipo: 'ler_workorder' }, function (resp) {
+    // Se entretanto o popup reiniciou (ex.: reaberto noutra WO antes desta
+    // resposta chegar), esta resposta é descartada — é exatamente isto que
+    // antes causava o "aparecem os dados da Workorder anterior".
+    if (minhaSessao !== sessaoAtual) return;
+
     if (chrome.runtime.lastError) {
-      mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message);
+      mostrarErro('Falha ao comunicar com a página: ' + chrome.runtime.lastError.message, minhaSessao);
       return;
     }
-    if (!resp.ok) { mostrarErro(resp.erro); return; }
+    if (!resp) {
+      mostrarErro('Sem resposta da página. Tenta novamente.', minhaSessao);
+      return;
+    }
+    if (resp.cancelado) {
+      // O content script cancelou por si próprio um pedido obsoleto —
+      // não é um erro para mostrar ao utilizador, apenas ignorar.
+      return;
+    }
+    if (!resp.ok) { mostrarErro(resp.erro, minhaSessao); return; }
+
     dadosWO = resp.dados;
     preencherPreview(dadosWO);
     mostrarEstado('stateDados');
@@ -86,7 +126,22 @@ function lerDados(tabId) {
   });
 }
 
-// ── Preencher preview ─────────────────────────────────────
+// ── Preencher / limpar preview ────────────────────────────
+function limparPreview() {
+  ['dWO', 'dEntidade', 'dDescricao', 'dDataLim'].forEach(function (id) {
+    setText(id, '—');
+    document.getElementById(id).classList.add('vazio');
+  });
+  var badgePrio = document.getElementById('dPrio');
+  badgePrio.textContent = 'Normal';
+  badgePrio.className   = 'badge-prio normal';
+  var erroBox = document.getElementById('erroEnvio');
+  if (erroBox) erroBox.innerHTML = '';
+  var btn = document.getElementById('btnEnviar');
+  btn.disabled    = false;
+  btn.textContent = 'Copiar para StockVision';
+}
+
 function preencherPreview(d) {
   setText('dWO',       d.numero_wo   || '—');
   setText('dEntidade', d.entidade    || '—');
@@ -114,24 +169,20 @@ function preencherPreview(d) {
 // ── Enviar para StockVision (POST + X-NV-Token) ───────────
 function enviarParaStockVision() {
   if (!dadosWO) return;
+  var minhaSessao = sessaoAtual;
 
   var svUrl  = document.getElementById('svUrl').value.trim()  || svUrlPadrao;
-  var svToken = document.getElementById('svToken').value.trim();
-  chrome.storage.local.set({ svUrl: svUrl, svToken: svToken });
+  chrome.storage.local.set({ svUrl: svUrl });
 
   var erroBox = document.getElementById('erroEnvio');
   if (erroBox) erroBox.innerHTML = '';
 
-  if (!svToken) {
-    if (erroBox) erroBox.innerHTML = '<div class="erro">Define o "Token da extensão" (igual ao EXTENSION_TOKEN do config.php).</div>';
-    return;
-  }
+  var svToken = EXTENSION_TOKEN;
 
   var btn = document.getElementById('btnEnviar');
   btn.disabled    = true;
   btn.textContent = 'A enviar…';
 
-  // Dados como corpo POST (form-encoded)
   var params = new URLSearchParams({
     action:        'importar_workorder',
     numero_wo:     dadosWO.numero_wo      || '',
@@ -140,13 +191,12 @@ function enviarParaStockVision() {
     contacto:      dadosWO.contacto       || '',
     tecnico:       dadosWO.tecnico        || '',
     morada:        dadosWO.morada         || '',
-    descricao:     (dadosWO.descricao     || '').substring(0, 800),
+    descricao:     (dadosWO.descricao     || '').substring(0, 2000),
     data_recepcao: dadosWO.data_recepcao  || '',
     data_limite:   dadosWO.data_limite    || '',
     prioridade:    dadosWO.prioridade     || 'Normal',
   });
 
-  // POST com cabeçalho X-NV-Token (autenticação da extensão, sem CSRF de sessão).
   fetch(svUrl, {
     method:  'POST',
     headers: {
@@ -161,10 +211,10 @@ function enviarParaStockVision() {
     });
   })
   .then(function (data) {
+    if (minhaSessao !== sessaoAtual) return; // popup mudou de WO entretanto
     if (!data || !data.ok) {
       throw new Error((data && data.erro) ? data.erro : 'Falha ao criar o PAT.');
     }
-    // Sucesso: mostrar estado e link para o PAT criado.
     var sub = document.getElementById('msgSuccessSub');
     if (sub) sub.textContent = data.duplicado ? 'Este WO já estava importado.' : ('WO ' + (dadosWO.numero_wo || ''));
     var link = document.getElementById('linkPat');
@@ -173,6 +223,7 @@ function enviarParaStockVision() {
     badge('PAT #' + (data.pat_id || ''), '#16a34a');
   })
   .catch(function (err) {
+    if (minhaSessao !== sessaoAtual) return;
     btn.disabled    = false;
     btn.textContent = 'Copiar para StockVision';
     if (erroBox) erroBox.innerHTML = '<div class="erro">' + (err.message || 'Erro ao enviar.') + '</div>';
@@ -187,7 +238,8 @@ function mostrarEstado(id) {
   document.getElementById(id).classList.add('active');
 }
 
-function mostrarErro(msg) {
+function mostrarErro(msg, minhaSessao) {
+  if (minhaSessao !== undefined && minhaSessao !== sessaoAtual) return;
   document.getElementById('msgErro').textContent = msg;
   mostrarEstado('stateErro');
   badge('Erro', '#dc2626');

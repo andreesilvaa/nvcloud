@@ -65,7 +65,9 @@ foreach ($rankingParceiros as $rp) {
 
 // ── Dashboard · Peças Paradas (Opção G) ── reutiliza helper existente
 require_once __DIR__ . "/../pecas_suspeitas.php";
-$pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
+$pecasParadasTodas = nvPecasSuspeitas($pdo, ["dias" => 7]);
+$pecasParadasTotal = count($pecasParadasTodas);
+$pecasParadas = array_slice($pecasParadasTodas, 0, 8);
 ?>
 
 <!-- Dashboard-Quadrados -->
@@ -113,12 +115,47 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
     </div>
   </div>
 
+<!-- Dashboard · Faixa de contexto (Ex6) -->
+<div class="dash-contexto">
+  <i class="bi bi-info-circle"></i>
+  <span>
+    <?php
+    $ctxPartes = [];
+    $ctxPartes[] = $pecasParadasTotal > 0
+        ? '<strong>' . (int)$pecasParadasTotal . '</strong> peça(s) sem movimento'
+        : 'Inventário estável';
+    if ((int)$pecasPorRever > 0) {
+        $ctxPartes[] = '<strong>' . (int)$pecasPorRever . '</strong> revisão(ões) pendente(s)';
+    }
+    if ((int)$patsAbertos > 0) {
+        $ctxPartes[] = '<strong>' . (int)$patsAbertos . '</strong> PAT(s) aberto(s)';
+    }
+    echo implode(' &middot; ', $ctxPartes);
+    ?>
+  </span>
+</div>
+<style>
+.dash-contexto{
+  display:flex; align-items:center; gap:10px;
+  background:#fff; border:1px solid #e5e9ef; border-left:4px solid #c9a14a;
+  border-radius:10px; padding:12px 16px; margin-bottom:8px;
+  font-size:14px; color:#4b5563;
+}
+.dash-contexto i{ color:#c9a14a; font-size:17px; }
+.dash-contexto strong{ color:#1f2937; }
+body.dark-mode .dash-contexto{ background:#1e2533; border-color:#374151; border-left-color:#c9a14a; color:#d1d5db; }
+body.dark-mode .dash-contexto strong{ color:#f3f4f6; }
+</style>
 
 
+
+
+<!-- Dashboard · Blocos reordenados (Ex6): Atividade + Peças Paradas → Donut → Ranking -->
+<div class="dash-blocos">
 
 <!-- Dashboard-PIZZA -->
   <!-- Painel grande do gráfico circular -->
-<div class="panel panel-estado">
+<div class="panel panel-estado dash-ord-donut" style="margin-top:0;">
   <h4>Estados das Peças</h4>
 
   <div class="estado-layout">
@@ -184,7 +221,8 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
   </div>
 </div>
 
-<div class="panel" style="margin-bottom:20px;">
+<div class="dash-pares dash-ord-atividade">
+<div class="panel" style="margin-bottom:0;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
         <h4 style="margin:0;">Atividade Recente — Inventário</h4>
         <a href="app.php?page=auditoria" style="font-size:13px; color:#cba35c; text-decoration:none;">Ver tudo →</a>
@@ -195,7 +233,7 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
             Sem atividade registada.
         </div>
     <?php else: ?>
-        <?php $actividadeRecenteDash = array_slice($actividadeRecente, 0, 4); ?>
+        <?php $actividadeRecenteDash = array_slice($actividadeRecente, 0, 8); ?>
         <div class="dash-atividade-grid">
             <?php foreach ($actividadeRecenteDash as $a):
 
@@ -292,53 +330,8 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
         </div>
     <?php endif; ?>
 </div>
-
-<div class="panel-grid-2">
-  <!-- Opção B — Ranking de Parceiros por carga atual -->
-  <div class="panel">
-    <h4><i class="bi bi-people" style="color:#c9a14a; margin-right:6px;"></i>Ranking de Parceiros — carga atual</h4>
-    <?php if (empty($rankingParceiros)): ?>
-      <div class="table-empty-state"><i class="bi bi-people"></i>Sem peças atribuídas a parceiros.</div>
-    <?php else: ?>
-    <div class="table-responsive scroll-oculto">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Parceiro</th>
-          <th class="nowrap" style="text-align:center;">Em curso</th>
-          <th class="nowrap" style="text-align:center;">Total</th>
-          <th style="width:34%;">Carga</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($rankingParceiros as $rp):
-
-            $emCurso = (int) $rp["em_curso"];
-            $tot = (int) $rp["total"];
-            $pct = $rankingMax > 0 ? round(($emCurso / $rankingMax) * 100) : 0;
-            ?>
-        <tr>
-          <td style="font-weight:600;"><?= htmlspecialchars(
-              $rp["parceiro"],
-          ) ?></td>
-          <td class="nowrap" style="text-align:center;font-weight:700;color:#b45309;"><?= $emCurso ?></td>
-          <td class="nowrap" style="text-align:center;color:#6b7280;"><?= $tot ?></td>
-          <td>
-            <div style="background:#f1f3f5;border-radius:999px;height:8px;overflow:hidden;">
-              <div style="width:<?= $pct ?>%;height:100%;background:linear-gradient(90deg,#c9a14a,#e0bd6e);border-radius:999px;"></div>
-            </div>
-          </td>
-        </tr>
-        <?php
-        endforeach; ?>
-      </tbody>
-    </table>
-    </div>
-    <?php endif; ?>
-  </div>
-
-  <!-- Opção G — Peças Paradas (sem movimento) -->
-  <div class="panel">
+<!-- Peças Paradas (movido para junto da Atividade — Ex6) -->
+  <div class="panel dash-paradas" style="margin-bottom:0;">
     <h4><i class="bi bi-hourglass-bottom" style="color:#c9a14a; margin-right:6px;"></i>Peças Paradas <span style="font-weight:400;color:#9ca3af;font-size:13px;">(sem movimento há +7 dias)</span></h4>
     <?php if (empty($pecasParadas)): ?>
       <div class="table-empty-state"><i class="bi bi-check2-circle"></i>Nenhuma peça parada. Tudo em dia.</div>
@@ -383,4 +376,73 @@ $pecasParadas = array_slice(nvPecasSuspeitas($pdo, ["dias" => 7]), 0, 8);
     </div>
     <?php endif; ?>
   </div>
-</div>
+</div><!-- /.dash-pares -->
+
+<div class="panel-grid-2 dash-ord-ranking">
+  <!-- Opção B — Ranking de Parceiros por carga atual -->
+  <div class="panel">
+    <h4><i class="bi bi-people" style="color:#c9a14a; margin-right:6px;"></i>Ranking de Parceiros — carga atual</h4>
+    <?php if (empty($rankingParceiros)): ?>
+      <div class="table-empty-state"><i class="bi bi-people"></i>Sem peças atribuídas a parceiros.</div>
+    <?php else: ?>
+    <div class="table-responsive scroll-oculto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Parceiro</th>
+          <th class="nowrap" style="text-align:center;">Em curso</th>
+          <th class="nowrap" style="text-align:center;">Total</th>
+          <th style="width:34%;">Carga</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($rankingParceiros as $rp):
+
+            $emCurso = (int) $rp["em_curso"];
+            $tot = (int) $rp["total"];
+            $pct = $rankingMax > 0 ? round(($emCurso / $rankingMax) * 100) : 0;
+            ?>
+        <tr>
+          <td style="font-weight:600;"><?= htmlspecialchars(
+              $rp["parceiro"],
+          ) ?></td>
+          <td class="nowrap" style="text-align:center;font-weight:700;color:#b45309;"><?= $emCurso ?></td>
+          <td class="nowrap" style="text-align:center;color:#6b7280;"><?= $tot ?></td>
+          <td>
+            <div style="background:#f1f3f5;border-radius:999px;height:8px;overflow:hidden;">
+              <div style="width:<?= $pct ?>%;height:100%;background:linear-gradient(90deg,#c9a14a,#e0bd6e);border-radius:999px;"></div>
+            </div>
+          </td>
+        </tr>
+        <?php
+        endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php endif; ?>
+  </div>
+</div><!-- /.dash-ord-ranking -->
+
+</div><!-- /.dash-blocos -->
+
+<style>
+/* Ex6 — reordenação dos blocos do Dashboard via CSS order.
+   Ordem visual: Donut (Estados das Peças) logo após a faixa de contexto →
+   Atividade+Peças Paradas → Ranking. */
+.dash-blocos{ display:flex; flex-direction:column; }
+.dash-ord-donut{ order:1; margin-bottom:20px; margin-top:0; }
+.dash-ord-atividade{ order:2; margin-bottom:20px; }
+.dash-ord-ranking{ order:3; }
+/* Atividade + Peças Paradas lado a lado */
+.dash-pares{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:18px;
+  align-items:stretch;
+}
+.dash-pares > .panel{ width:100%; box-sizing:border-box; }
+.dash-ord-ranking{ grid-template-columns:1fr !important; }
+@media (max-width:768px){
+  .dash-pares{ grid-template-columns:1fr; }
+}
+</style>

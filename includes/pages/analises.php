@@ -272,7 +272,17 @@ $anPeriodoLabel = $anMesesPt[(int) date("n", $anTs)] . " " . date("Y", $anTs);
 <style>
 /* Resumo Mensal: usa exatamente o mesmo .kpi-card do Dashboard, sem
    variante própria — mantém a página visualmente consistente com o
-   resto do site em vez de ter o seu próprio layout. */
+   resto do site em vez de ter o seu próprio layout. Aqui reduzimos a
+   altura ocupada (menos padding/aspect-ratio livre) por serem apenas
+   4 KPIs de contexto, não os principais da página. */
+.kpi-resumo-compact.kpi-row{ grid-template-columns:repeat(4, 1fr) !important; }
+.kpi-resumo-compact .kpi-card{
+  aspect-ratio:auto !important;
+  padding:14px 10px !important;
+}
+.kpi-resumo-compact .kpi-card i{ font-size:24px !important; }
+.kpi-resumo-compact .kpi-card .num{ margin:6px 0 2px !important; font-size:20px !important; }
+.kpi-resumo-compact .kpi-card div:last-child{ font-size:13px !important; margin-top:2px !important; }
 @media (max-width:768px){
   .kpi-resumo-compact{ grid-template-columns:repeat(2,1fr) !important; }
 }
@@ -552,7 +562,7 @@ $est
 </div>
 </div>
 
-<div class="panel" style="margin-bottom:20px;">
+<div class="panel an-regras-sla" style="margin-bottom:20px;">
     <h4 style="margin-bottom:16px;"><i class="bi bi-list-check" style="color:#c9a14a; margin-right:6px;"></i>Regras de SLA</h4>
 
     <div class="table-responsive">
@@ -680,6 +690,7 @@ $est
     height:46px; padding:0 14px; border-radius:10px;
     background:#fafbfc; border:1px solid #eef0f3;
     color:#6b7280; font-size:13px; box-sizing:border-box;
+    margin-top:26px;
 }
 .sla-detalhes-overlay{
     display:none; position:fixed; inset:0; background:rgba(15,23,42,.55);
@@ -758,6 +769,8 @@ document.addEventListener('keydown', function (e) {
 });
 </script>
 
+<!-- ══ ESTADO OPERACIONAL: Quebras Ativas + Atalhos (WF3) ══ -->
+<div class="an-estado-grid">
 <!-- ══ SLA — QUEBRAS ATIVAS (cartões) ══ -->
 <div class="panel">
     <div class="panel-header-row">
@@ -845,7 +858,26 @@ document.addEventListener('keydown', function (e) {
     <?php endif; ?>
 </div>
 
+<!-- ══ ATALHOS (WF3) ══ -->
+<div class="panel an-atalhos">
+    <h4 style="margin:0 0 14px;"><i class="bi bi-lightning-charge" style="color:#c9a14a; margin-right:6px;"></i>Atalhos</h4>
+    <a class="btn btn-teal" href="#formSlaRegra"><i class="bi bi-plus-lg"></i> Nova regra SLA</a>
+    <a class="btn btn-blue" href="#" onclick="document.querySelector('.sla-panel-notif')?.scrollIntoView({behavior:'smooth'}); return false;"><i class="bi bi-bell"></i> Nova notificação</a>
+    <a class="btn btn-grey" href="#" onclick="document.querySelector('.an-regras-sla')?.scrollIntoView({behavior:'smooth'}); return false;"><i class="bi bi-list-check"></i> Ver regras SLA</a>
+</div>
+</div><!-- /.an-estado-grid -->
+
 <style>
+.an-estado-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 250px;
+    gap:20px;
+    align-items:stretch;
+    margin-bottom:20px;
+}
+.an-atalhos{ display:flex; flex-direction:column; gap:10px; box-sizing:border-box; height:100%; }
+.an-atalhos .btn{ width:100%; box-sizing:border-box; justify-content:center; display:inline-flex; align-items:center; gap:7px; text-decoration:none; padding:0 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:900px){ .an-estado-grid{ grid-template-columns:1fr; } .an-atalhos{ height:auto; } }
 .sla-cards-grid{
     display:grid;
     grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
